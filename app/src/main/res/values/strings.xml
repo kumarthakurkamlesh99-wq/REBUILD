@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">REBUILD</string>
+    <string name="app_tagline">Discipline • Focus • Transform</string>
+    <string name="winter_arc">Winter Arc</string>
+    <string name="board_exam">Board Exam</string>
+    <string name="discipline_score">Discipline Score</string>
+    <string name="current_streak">Current Streak</string>
+    <string name="smart_planner">Smart Daily Planner</string>
+    <string name="school_status">School Status</string>
+    <string name="pomodoro">Pomodoro Focus</string>
+    <string name="fitness">Fitness Tracker</string>
+    <string name="habits">Habit Matrix</string>
+    <string name="subjects">Subjects &amp; Syllabus</string>
+    <string name="analytics">Analytics Dashboard</string>
+    <string name="settings">Settings</string>
+</resources>
