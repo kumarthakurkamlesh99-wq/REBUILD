@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.local.dao.AiPlanDao
 import com.example.data.local.dao.BoardExamDao
@@ -26,6 +27,7 @@ import com.example.data.local.entity.DailyPlanTaskEntity
 import com.example.data.local.entity.DailyReflectionEntity
 import com.example.data.local.entity.HabitEntity
 import com.example.data.local.entity.HabitLogEntity
+import com.example.data.local.entity.HabitType
 import com.example.data.local.entity.HolidayEntity
 import com.example.data.local.entity.NoteEntity
 import com.example.data.local.entity.SchoolStatusEntity
@@ -58,7 +60,7 @@ import java.util.Locale
         DailyReflectionEntity::class,
         AiPlanCacheEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -79,6 +81,23 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add habitType column with default value 'CUSTOM'
+                db.execSQL("ALTER TABLE habits ADD COLUMN habitType TEXT NOT NULL DEFAULT 'CUSTOM'")
+                
+                // Backfill existing rows based on current names one time
+                db.execSQL("UPDATE habits SET habitType = 'SLEEP' WHERE LOWER(name) LIKE '%wake%' OR LOWER(name) LIKE '%sleep%'")
+                db.execSQL("UPDATE habits SET habitType = 'WORKOUT' WHERE LOWER(name) LIKE '%workout%' OR LOWER(name) LIKE '%exercise%' OR LOWER(name) LIKE '%gym%'")
+                db.execSQL("UPDATE habits SET habitType = 'DEEP_STUDY' WHERE LOWER(name) LIKE '%study%'")
+                db.execSQL("UPDATE habits SET habitType = 'READING' WHERE LOWER(name) LIKE '%reading%' OR LOWER(name) LIKE '%book%'")
+                db.execSQL("UPDATE habits SET habitType = 'NO_PORN' WHERE LOWER(name) LIKE '%porn%' OR LOWER(name) LIKE '%nofap%'")
+                db.execSQL("UPDATE habits SET habitType = 'NO_REELS' WHERE LOWER(name) LIKE '%reels%' OR LOWER(name) LIKE '%doomscroll%'")
+                db.execSQL("UPDATE habits SET habitType = 'MEDITATION' WHERE LOWER(name) LIKE '%meditation%' OR LOWER(name) LIKE '%mindfulness%'")
+                db.execSQL("UPDATE habits SET habitType = 'HYDRATION' WHERE LOWER(name) LIKE '%water%' OR LOWER(name) LIKE '%hydration%'")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -86,6 +105,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "rebuild_os_database"
                 )
+                .addMigrations(MIGRATION_2_3)
                 .addCallback(DatabasePrepopulationCallback(scope))
                 .fallbackToDestructiveMigration()
                 .build()
@@ -265,14 +285,14 @@ abstract class AppDatabase : RoomDatabase() {
 
             // 5. Populate Default Habits
             val defaultHabits = listOf(
-                HabitEntity(name = "Wake Early (06:00 AM)", iconName = "alarm", colorHex = "#FFB300", weight = 15, isNegativeHabit = false, targetUnit = "Time", targetNumeric = 1, streak = 11, bestStreak = 21, orderIndex = 0),
-                HabitEntity(name = "Daily Workout", iconName = "fitness_center", colorHex = "#00E676", weight = 20, isNegativeHabit = false, targetUnit = "Session", targetNumeric = 1, streak = 9, bestStreak = 18, orderIndex = 1),
-                HabitEntity(name = "Deep Study (6h+)", iconName = "menu_book", colorHex = "#38E1FF", weight = 40, isNegativeHabit = false, targetUnit = "Hours", targetNumeric = 6, streak = 11, bestStreak = 21, orderIndex = 2),
-                HabitEntity(name = "Book Reading", iconName = "auto_stories", colorHex = "#B388FF", weight = 10, isNegativeHabit = false, targetUnit = "Pages", targetNumeric = 10, streak = 7, bestStreak = 14, orderIndex = 3),
-                HabitEntity(name = "No Porn (Discipline)", iconName = "shield", colorHex = "#FF5722", weight = 15, isNegativeHabit = true, targetUnit = "Days Clean", targetNumeric = 1, streak = 27, bestStreak = 27, orderIndex = 4),
-                HabitEntity(name = "No Reels / Doomscroll", iconName = "do_not_disturb", colorHex = "#FF3D71", weight = 10, isNegativeHabit = true, targetUnit = "Days Clean", targetNumeric = 1, streak = 14, bestStreak = 14, orderIndex = 5),
-                HabitEntity(name = "Meditation", iconName = "self_improvement", colorHex = "#70B8FF", weight = 5, isNegativeHabit = false, targetUnit = "Minutes", targetNumeric = 15, streak = 6, bestStreak = 12, orderIndex = 6),
-                HabitEntity(name = "Water Intake (3.5L)", iconName = "water_drop", colorHex = "#00C2FF", weight = 5, isNegativeHabit = false, targetUnit = "Liters", targetNumeric = 3, streak = 15, bestStreak = 20, orderIndex = 7)
+                HabitEntity(name = "Wake Early (06:00 AM)", iconName = "alarm", colorHex = "#FFB300", weight = 15, isNegativeHabit = false, targetUnit = "Time", targetNumeric = 1, streak = 11, bestStreak = 21, orderIndex = 0, habitType = HabitType.SLEEP),
+                HabitEntity(name = "Daily Workout", iconName = "fitness_center", colorHex = "#00E676", weight = 20, isNegativeHabit = false, targetUnit = "Session", targetNumeric = 1, streak = 9, bestStreak = 18, orderIndex = 1, habitType = HabitType.WORKOUT),
+                HabitEntity(name = "Deep Study (6h+)", iconName = "menu_book", colorHex = "#38E1FF", weight = 40, isNegativeHabit = false, targetUnit = "Hours", targetNumeric = 6, streak = 11, bestStreak = 21, orderIndex = 2, habitType = HabitType.DEEP_STUDY),
+                HabitEntity(name = "Book Reading", iconName = "auto_stories", colorHex = "#B388FF", weight = 10, isNegativeHabit = false, targetUnit = "Pages", targetNumeric = 10, streak = 7, bestStreak = 14, orderIndex = 3, habitType = HabitType.READING),
+                HabitEntity(name = "No Porn (Discipline)", iconName = "shield", colorHex = "#FF5722", weight = 15, isNegativeHabit = true, targetUnit = "Days Clean", targetNumeric = 1, streak = 27, bestStreak = 27, orderIndex = 4, habitType = HabitType.NO_PORN),
+                HabitEntity(name = "No Reels / Doomscroll", iconName = "do_not_disturb", colorHex = "#FF3D71", weight = 10, isNegativeHabit = true, targetUnit = "Days Clean", targetNumeric = 1, streak = 14, bestStreak = 14, orderIndex = 5, habitType = HabitType.NO_REELS),
+                HabitEntity(name = "Meditation", iconName = "self_improvement", colorHex = "#70B8FF", weight = 5, isNegativeHabit = false, targetUnit = "Minutes", targetNumeric = 15, streak = 6, bestStreak = 12, orderIndex = 6, habitType = HabitType.MEDITATION),
+                HabitEntity(name = "Water Intake (3.5L)", iconName = "water_drop", colorHex = "#00C2FF", weight = 5, isNegativeHabit = false, targetUnit = "Liters", targetNumeric = 3, streak = 15, bestStreak = 20, orderIndex = 7, habitType = HabitType.HYDRATION)
             )
             val insertedHabitIds = defaultHabits.map { db.habitDao().insertHabit(it) }
 

@@ -8,6 +8,7 @@ import com.example.data.local.entity.DailyPlanTaskEntity
 import com.example.data.local.entity.ExerciseType
 import com.example.data.local.entity.HabitEntity
 import com.example.data.local.entity.HabitLogEntity
+import com.example.data.local.entity.HabitType
 import com.example.data.local.entity.HolidayEntity
 import com.example.data.local.entity.SchoolState
 import com.example.data.local.entity.SchoolStatusEntity
@@ -467,8 +468,7 @@ class RebuildRepository(private val db: AppDatabase) {
             val done = studyTasks.count { it.isCompleted }
             ((done.toFloat() / studyTasks.size) * 40).toInt()
         } else {
-            // Check study sessions
-            35
+            0
         }
 
         // 2. Workout Score (Max 20)
@@ -481,27 +481,35 @@ class RebuildRepository(private val db: AppDatabase) {
             if (workoutTasks.isNotEmpty()) {
                 val done = workoutTasks.count { it.isCompleted }
                 ((done.toFloat() / workoutTasks.size) * 20).toInt()
-            } else 20
+            } else {
+                0
+            }
         }
 
-        // 3. Habit logs for No Porn, Sleep, Reading
+        // 3. Habit logs for No Porn (15), Sleep (15), Reading (10)
         val habitLogs = db.habitDao().getLogsForDateDirect(date)
-        val allHabits = db.habitDao().getAllHabits().firstOrNull() ?: emptyList()
+        val allHabits = db.habitDao().getAllHabitsDirect()
         val habitMap = allHabits.associateBy { it.id }
 
-        var noPornScore = 15
-        var sleepScore = 15
+        var noPornScore = 0
+        var sleepScore = 0
         var readingScore = 0
 
         for (log in habitLogs) {
             val habit = habitMap[log.habitId] ?: continue
-            val nameLower = habit.name.lowercase()
-            if (nameLower.contains("porn")) {
-                noPornScore = if (log.isCompleted) 15 else 0
-            } else if (nameLower.contains("wake") || nameLower.contains("sleep")) {
-                sleepScore = if (log.isCompleted) 15 else 0
-            } else if (nameLower.contains("reading") || nameLower.contains("book")) {
-                readingScore = if (log.isCompleted) 10 else 0
+            when (habit.habitType) {
+                HabitType.NO_PORN -> {
+                    noPornScore = if (log.isCompleted) 15 else 0
+                }
+                HabitType.SLEEP -> {
+                    sleepScore = if (log.isCompleted) 15 else 0
+                }
+                HabitType.READING -> {
+                    readingScore = if (log.isCompleted) 10 else 0
+                }
+                else -> {
+                    // Other habit types are tracked in their dedicated modules
+                }
             }
         }
 

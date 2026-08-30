@@ -5,6 +5,18 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+enum class HabitType {
+    SLEEP,       // Wake early / sleep protocol
+    WORKOUT,     // Calisthenics / workout
+    DEEP_STUDY,  // Deep study / focus
+    READING,     // Book reading
+    NO_PORN,     // Abstinence / discipline
+    NO_REELS,    // Screen time / doomscroll control
+    MEDITATION,  // Mindfulness
+    HYDRATION,   // Water intake
+    CUSTOM       // Custom user-defined habits
+}
+
 @Entity(tableName = "habits")
 data class HabitEntity(
     @PrimaryKey(autoGenerate = true)
@@ -20,7 +32,8 @@ data class HabitEntity(
     val bestStreak: Int = 0,
     val isDefault: Boolean = true,
     val isArchived: Boolean = false,
-    val orderIndex: Int = 0
+    val orderIndex: Int = 0,
+    val habitType: HabitType = HabitType.CUSTOM
 )
 
 @Entity(
