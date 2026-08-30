@@ -2,20 +2,20 @@ name: Build Android Debug APK
 
 # Controls when the workflow will run
 on:
-  # Triggers the workflow on push events targeting default branches
+  # Triggers the workflow on push events targeting main or master branches
   push:
     branches:
       - main
       - master
-  # Triggers the workflow on pull request events targeting default branches
+  # Triggers the workflow on pull request events targeting main or master branches
   pull_request:
     branches:
       - main
       - master
-  # Allows manual triggering of the workflow from the GitHub Actions tab
+  # Allows manual triggering of the workflow from the GitHub Actions UI tab
   workflow_dispatch:
 
-# Concurrency to cancel outdated in-progress runs for the same branch/PR
+# Concurrency group to cancel outdated in-progress runs for the same branch or PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -30,7 +30,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Set up Java Development Kit (JDK 17)
+      # Step 2: Set up Java Development Kit (JDK 17) for Kotlin & AGP compatibility
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -41,21 +41,47 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      # Step 4: Setup Gradle with build caching enabled
+      # Step 4: Prepare build environment, Keystore, and Secrets configuration
+      - name: Prepare build environment and keystore
+        run: |
+          echo "Setting up environment configuration..."
+          # Ensure .env exists for Secrets Gradle Plugin
+          if [ -f ".env.example" ] && [ ! -f ".env" ]; then
+            cp .env.example .env
+          elif [ ! -f ".env" ]; then
+            touch .env
+          fi
+
+          # Ensure debug.keystore exists for debug signingConfig
+          if [ -f "debug.keystore.base64" ] && [ ! -f "debug.keystore" ]; then
+            echo "Decoding debug.keystore from base64..."
+            base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || base64 --decode debug.keystore.base64 > debug.keystore
+          elif [ ! -f "debug.keystore" ]; then
+            echo "Generating default debug.keystore..."
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      # Step 5: Setup Gradle with automatic dependency caching and wrapper resolution
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
-      # Step 5: Ensure Gradle wrapper script has executable permissions
+      # Step 6: Ensure Gradle wrapper script exists and has executable permissions
       - name: Make gradlew executable
-        run: chmod +x ./gradlew
+        run: |
+          # If gradlew does not exist or wrapper jar is missing, generate wrapper using installed gradle
+          if [ ! -f "./gradlew" ] || [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "Generating Gradle wrapper files..."
+            gradle wrapper --gradle-version 9.3.1 --distribution-type bin || gradle wrapper || true
+          fi
+          chmod +x ./gradlew
 
-      # Step 6: Build the Android Debug APK and output detailed logs
+      # Step 7: Execute debug assembly build command with detailed logs and fail on error
       - name: Build Debug APK with Gradle
         run: ./gradlew assembleDebug --stacktrace --info
 
-      # Step 7: Upload generated Debug APK as an artifact
+      # Step 8: Upload the generated Debug APK artifact
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         if: success()
