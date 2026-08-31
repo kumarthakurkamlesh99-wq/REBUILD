@@ -20,24 +20,15 @@ import java.util.Locale
 
 enum class AiPlanType(val key: String, val title: String, val promptTitle: String) {
     DAILY_SCHEDULE("DAILY_SCHEDULE", "Daily Schedule", "1. Daily Schedule with Realistic Time Blocking"),
-    WEEKLY_PLAN("WEEKLY_PLAN", "Weekly Plan", "2. 7-Day Class 12 Mastery Weekly Plan"),
+    WEEKLY_PLAN("WEEKLY_PLAN", "Weekly Plan", "2. 7-Day Mastery Weekly Plan"),
     REVISION_PLAN("REVISION_PLAN", "Revision Plan", "3. Spaced Repetition Active Recall Revision Plan"),
-    WORKOUT_PLAN("WORKOUT_PLAN", "Workout Plan", "4. Calisthenics & Cardio Workout Plan"),
+    WORKOUT_PLAN("WORKOUT_PLAN", "Workout Plan", "4. Physical Training & Cardio Plan"),
     RECOVERY_PLAN("RECOVERY_PLAN", "Recovery Plan", "5. Fatigue Reset & Sleep Recovery Plan"),
-    EXAM_STRATEGY("EXAM_STRATEGY", "Exam Strategy", "6. 150-Day Class 12 Board Exam 95%+ Strategy"),
+    EXAM_STRATEGY("EXAM_STRATEGY", "Exam Strategy", "6. Target Board Exam Strategy"),
     TIME_BLOCKING("TIME_BLOCKING", "Time Blocking", "7. Deep Work Hour-by-Hour Time Blocking"),
     FOCUS_SESSIONS("FOCUS_SESSIONS", "Focus Sessions", "8. High-Yield Focus & Pomodoro Sessions"),
     PRIORITY_TASKS("PRIORITY_TASKS", "Priority Tasks", "9. Top Non-Negotiable Priority Missions")
 }
-
-data class ParsedAiTask(
-    val subject: String,
-    val title: String,
-    val details: String,
-    val durationMinutes: Int,
-    val taskType: TaskType,
-    val xp: Int
-)
 
 class GeminiCoachRepository(
     private val db: AppDatabase,
@@ -50,6 +41,10 @@ class GeminiCoachRepository(
     fun getCachedPlan(planType: String): Flow<AiPlanCacheEntity?> = db.aiPlanDao().getCachedPlan(planType)
 
     suspend fun getEffectiveApiKey(): String {
+        val profile = db.userProfileDao().getUserProfileDirect()
+        if (profile != null && profile.geminiApiKey.isNotBlank()) {
+            return profile.geminiApiKey.trim()
+        }
         val userKey = userPreferencesRepository.geminiApiKey.firstOrNull() ?: ""
         if (userKey.isNotBlank()) return userKey.trim()
         val buildKey = BuildConfig.GEMINI_API_KEY
@@ -59,33 +54,45 @@ class GeminiCoachRepository(
     suspend fun buildAppContextSnapshot(): String = withContext(Dispatchers.IO) {
         val today = dateFormat.format(Date())
         val dayOfWeek = SimpleDateFormat("EEEE", Locale.getDefault()).format(Date())
+        val profile = db.userProfileDao().getUserProfileDirect()
 
-        // 1. Board Exam
+        // 1. Profile Info
+        val studentName = profile?.name ?: "Student"
+        val studentClass = profile?.studentClass ?: "Class 12"
+        val studentStream = profile?.stream ?: "Science (PCM)"
+        val board = profile?.board ?: "CBSE"
+        val targetPercentage = profile?.targetPercentage ?: 95
+        val coachingStyle = profile?.coachingStyle ?: "Monk Mode (Strict Discipline)"
+        val wakeUp = profile?.wakeUpTime ?: "06:00"
+        val sleepTime = profile?.sleepTime ?: "22:30"
+        val studyGoal = profile?.dailyStudyGoalHours ?: 6.0f
+        val workoutGoal = "${profile?.workoutType ?: "Calisthenics"} (${profile?.workoutDurationMinutes ?: 30} mins at ${profile?.workoutTime ?: "17:00"})"
+
+        // 2. Board Exam
         val examConfig = db.boardExamDao().getBoardExamConfigDirect()
+        val examName = examConfig?.examName ?: profile?.targetExamName ?: "Board Exam"
         val daysLeft = if (examConfig != null) {
             try {
                 val examDate = dateFormat.parse(examConfig.examDate) ?: Date()
                 val diff = examDate.time - System.currentTimeMillis()
                 maxOf(0L, diff / (1000 * 60 * 60 * 24))
-            } catch (e: Exception) { 148L }
-        } else 148L
+            } catch (e: Exception) { 120L }
+        } else 120L
 
-        // 2. Winter Arc
+        // 3. Winter Arc
         val winterArc = db.winterArcDao().getWinterArcStateDirect()
-        val winterDay = winterArc?.currentDay ?: 27
-        val winterLevel = winterArc?.level ?: 14
-        val winterStreak = winterArc?.streak ?: 11
-        val xp = winterArc?.xp ?: 5420
+        val winterDay = winterArc?.currentDay ?: 1
+        val winterLevel = winterArc?.level ?: 1
+        val winterStreak = winterArc?.streak ?: 0
+        val xp = winterArc?.xp ?: 0
 
-        // 3. School status & timings
+        // 4. School status & timings
         val school = db.schoolStatusDao().getStatusForDateDirect(today)
         val schoolState = school?.currentState?.name ?: "HOME"
-        val isPresent = school?.isPresent ?: false
-        val travelToSchool = school?.travelToSchoolMinutes ?: 25
-        val inSchoolDur = school?.inSchoolMinutes ?: 275
-        val travelHome = school?.travelHomeMinutes ?: 30
+        val hasSchool = profile?.hasSchool ?: true
+        val schoolHours = if (hasSchool) "${profile?.schoolStartTime ?: "09:45"} Departure - ${profile?.schoolEndTime ?: "13:00"} Return" else "No Regular School (Full Day Self Study)"
 
-        // 4. Subjects & Chapter Progress
+        // 5. Subjects & Chapter Progress
         val subjects = db.subjectDao().getAllSubjectsDirect()
         val subjectSummaries = mutableListOf<String>()
         var totalChaptersCount = 0
@@ -96,57 +103,58 @@ class GeminiCoachRepository(
             val completed = chapters.count { it.isCompleted }
             totalChaptersCount += chapters.size
             totalCompletedChaptersCount += completed
-            val pendingChapters = chapters.filter { !it.isCompleted }.take(4).map { it.title }
+            val pendingChapters = chapters.filter { !it.isCompleted }.take(3).map { it.title }
             subjectSummaries.add(
-                "- ${sub.name}: $completed/${chapters.size} completed. Pending top chapters: ${pendingChapters.joinToString(", ")}"
+                "- ${sub.name}: $completed/${chapters.size} completed. Next up: ${if (pendingChapters.isEmpty()) "All Done!" else pendingChapters.joinToString(", ")}"
             )
         }
 
-        // 5. Habits & Streaks
+        // 6. Habits & Streaks
         val habits = db.habitDao().getAllHabitsDirect()
         val habitLogs = db.habitDao().getLogsForDateDirect(today)
         val habitLogsMap = habitLogs.associateBy { it.habitId }
         val habitSummaries = habits.map { h ->
             val doneToday = habitLogsMap[h.id]?.isCompleted ?: false
-            "${h.name} (${if (h.isNegativeHabit) "Abstinence" else "Habit"}, Streak: ${h.streak}d, Done Today: $doneToday)"
+            "${h.name} (Streak: ${h.streak}d, Done Today: $doneToday)"
         }
 
-        // 6. Discipline Score
+        // 7. Discipline Score
         val discipline = db.disciplineDao().getDisciplineForDateDirect(today)
-        val discScore = discipline?.totalScore ?: 82
+        val discScore = discipline?.totalScore ?: 0
 
-        // 7. Workouts
+        // 8. Workouts
         val workouts = db.workoutDao().getWorkoutsForDateDirect(today)
         val workoutSummaries = workouts.map { "${it.exerciseName} (${if (it.isCompleted) "Done" else "Pending"})" }
 
-        // 8. Holidays & Indian Festivals
+        // 9. Holidays & Indian Festivals
         val monthDay = SimpleDateFormat("MM-dd", Locale.getDefault()).format(Date())
         val holiday = db.holidayDao().getHolidayForDate(today, monthDay)
-        val holidayNote = if (holiday != null) "TODAY IS A HOLIDAY/FESTIVAL: ${holiday.name} (Reduce workload by ${holiday.workloadReductionPercent}%)" else "Regular Day (School in session: 09:45 AM departure, 12:00 PM dispersal, 01:00 PM home return)"
+        val holidayNote = if (holiday != null) "TODAY IS A HOLIDAY/FESTIVAL: ${holiday.name} (Workload adjustment: -${holiday.workloadReductionPercent}%)" else "Regular Day ($schoolHours)"
 
-        // 9. Daily Reflection & Notes
+        // 10. Daily Reflection
         val reflection = db.reflectionDao().getReflectionForDateDirect(today)
         val reflectionSummary = if (reflection != null) {
-            "Recent Reflection: Score ${reflection.dailyScore}/10. Wins: ${reflection.whatWentWell}. Hurdles: ${reflection.whatHeldMeBack}. Tomorrow's Goal: ${reflection.tomorrowGoal}"
+            "Recent Reflection: Score ${reflection.dailyScore}/10. Wins: ${reflection.whatWentWell}. Hurdles: ${reflection.whatHeldMeBack}. Tomorrow: ${reflection.tomorrowGoal}"
         } else "No reflection logged yet."
 
         buildString {
-            appendLine("=== CURRENT REBUILD LIFE OS TELEMETRY ===")
-            appendLine("Date: $today ($dayOfWeek)")
-            appendLine("Exam Mode: Class 12 Board Exam in $daysLeft days (~5 months). Target: 95%+")
-            appendLine("Total Syllabus: $totalCompletedChaptersCount/$totalChaptersCount chapters finished.")
-            appendLine("Winter Arc: Day $winterDay of 90, Level $winterLevel, Streak: $winterStreak days, XP: $xp, Discipline Score: $discScore/100")
-            appendLine("School Flow: Departure: 09:45 AM | Dispersal: ~12:00 PM | Arrived Home: ~01:00 PM")
-            appendLine("School Status Right Now: State=$schoolState, Commute To School=${travelToSchool}m, School Duration=${inSchoolDur}m, Commute Home=${travelHome}m")
-            appendLine("Calendar Status: $holidayNote")
-            appendLine("Academic Progress:")
-            subjectSummaries.forEach { appendLine(it) }
-            appendLine("Habits & Discipline Matrix:")
-            habitSummaries.forEach { appendLine("- $it") }
-            appendLine("Workouts Logged:")
-            if (workoutSummaries.isEmpty()) appendLine("- Running 20 min, Pushups 3x15, Squats 3x20") else workoutSummaries.forEach { appendLine("- $it") }
+            appendLine("=== REBUILD PERSONAL TELEMETRY ===")
+            appendLine("Student: $studentName | $studentClass ($board) | Stream: $studentStream | Target: $targetPercentage%")
+            appendLine("Coaching Persona: $coachingStyle")
+            appendLine("Date: $today ($dayOfWeek) | Status: $holidayNote")
+            appendLine("Exam Target: $examName in $daysLeft days. Target: $targetPercentage%")
+            appendLine("Syllabus Mastery: $totalCompletedChaptersCount/$totalChaptersCount total chapters completed.")
+            appendLine("Winter Arc: Day $winterDay of 90, Level $winterLevel, Streak: $winterStreak days, XP: $xp, Discipline: $discScore/100")
+            appendLine("Daily Routine: Wake $wakeUp | Sleep $sleepTime | Daily Study Target: ${studyGoal}h | Workout: $workoutGoal")
+            appendLine("School Flow: $schoolHours (Current Live State: $schoolState)")
+            appendLine("Active Academic Subjects:")
+            if (subjectSummaries.isEmpty()) appendLine("- Initializing subjects") else subjectSummaries.forEach { appendLine(it) }
+            appendLine("Habits Matrix:")
+            if (habitSummaries.isEmpty()) appendLine("- Initializing habits") else habitSummaries.forEach { appendLine("- $it") }
+            appendLine("Workouts Logged Today:")
+            if (workoutSummaries.isEmpty()) appendLine("- Pending daily session") else workoutSummaries.forEach { appendLine("- $it") }
             appendLine(reflectionSummary)
-            appendLine("=========================================")
+            appendLine("==================================")
         }
     }
 
@@ -154,17 +162,19 @@ class GeminiCoachRepository(
         try {
             val apiKey = getEffectiveApiKey()
             val telemetry = buildAppContextSnapshot()
+            val profile = db.userProfileDao().getUserProfileDirect()
+            val coachingStyle = profile?.coachingStyle ?: "Monk Mode (Strict Discipline)"
 
             val systemInstruction = """
-                You are REBUILD's "Personal Board Exam Preparation Coach", an elite, disciplined, realistic, and highly motivating AI mentor for a Class 12 student on the 90-Day Winter Arc.
+                You are REBUILD's "Personal Board & Competitive Exam AI Mentor".
+                Your coaching tone is strictly calibrated to: $coachingStyle.
                 
                 CORE INSTRUCTIONS:
-                • NEVER overload the schedule. Be realistic and human.
-                • Strictly consider school timings (Leaving home 09:45 AM, Dispersal 12:00 PM, Reaching home 01:00 PM).
-                • Account for travel time, post-school lunch/recovery (01:00 PM - 02:00 PM), and cognitive fatigue.
-                • Prioritize weak/pending chapters in Physics, Chemistry, and Biology, while scheduling smart revision for English & Hindi.
-                • Integrate 20-30 min physical workouts (calisthenics/running) and 7.5 hours sleep (10:30 PM - 06:00 AM).
-                • If today is a festival or holiday, adapt intelligently (reduce load or capitalize on high-focus revision).
+                • NEVER overload the schedule. Be realistic, disciplined, and personalized.
+                • Adapt strictly to the student's wake up time (${profile?.wakeUpTime ?: "06:00"}), sleep time (${profile?.sleepTime ?: "22:30"}), and school schedule (${if (profile?.hasSchool == true) "${profile.schoolStartTime} to ${profile.schoolEndTime}" else "Full day self study"}).
+                • Account for travel time and post-commute cognitive recovery.
+                • Prioritize pending chapters in the student's enrolled subjects.
+                • Integrate the student's chosen workout (${profile?.workoutType ?: "Calisthenics"}, ${profile?.workoutDurationMinutes ?: 30} mins).
                 • Output formatted with clean headers, markdown bullet points, time blocks, and actionable micro-steps.
             """.trimIndent()
 
@@ -172,13 +182,13 @@ class GeminiCoachRepository(
                 $telemetry
                 
                 TASK: Generate a comprehensive, high-precision "${planType.promptTitle}" for the student.
-                ${if (customInstruction.isNotBlank()) "USER SPECIFIC NOTE: $customInstruction" else ""}
+                ${if (customInstruction.isNotBlank()) "STUDENT SPECIFIC INSTRUCTION: $customInstruction" else ""}
                 
-                Format the response with:
-                1. 🎯 Strategic Objective & Mindset
-                2. ⏱️ Chronological Time Blocking (accounting for 09:45 AM school departure and 01:00 PM home return)
-                3. 📚 Core Academic Targets (Subject, Chapter, Specific Topics, Target Duration)
-                4. ⚡ Calisthenics / Physical Training Block
+                Format with:
+                1. 🎯 Strategic Focus & Mindset
+                2. ⏱️ Chronological Time Blocking (tailored to user's school and wake/sleep times)
+                3. 📚 Core Subject Targets (enrolled subjects & pending chapters)
+                4. ⚡ Physical Training / Fitness Block
                 5. 🛡️ Discipline & Abstinence Protocols
                 6. 💡 Actionable Rule for Today
             """.trimIndent()
@@ -202,13 +212,12 @@ class GeminiCoachRepository(
                 if (!text.isNullOrBlank()) {
                     text
                 } else {
-                    getOfflineFallbackPlan(planType, telemetry)
+                    getOfflineFallbackPlan(planType, profile)
                 }
             } else {
-                getOfflineFallbackPlan(planType, telemetry)
+                getOfflineFallbackPlan(planType, profile)
             }
 
-            // Cache generated plan in Room DB
             val today = dateFormat.format(Date())
             db.aiPlanDao().insertOrUpdatePlan(
                 AiPlanCacheEntity(
@@ -222,9 +231,8 @@ class GeminiCoachRepository(
 
             Result.success(response)
         } catch (e: Exception) {
-            val telemetry = buildAppContextSnapshot()
-            val fallback = getOfflineFallbackPlan(planType, telemetry)
-            // Cache fallback as well
+            val profile = db.userProfileDao().getUserProfileDirect()
+            val fallback = getOfflineFallbackPlan(planType, profile)
             val today = dateFormat.format(Date())
             db.aiPlanDao().insertOrUpdatePlan(
                 AiPlanCacheEntity(
@@ -243,11 +251,14 @@ class GeminiCoachRepository(
         try {
             val apiKey = getEffectiveApiKey()
             val telemetry = buildAppContextSnapshot()
+            val profile = db.userProfileDao().getUserProfileDirect()
+            val coachingStyle = profile?.coachingStyle ?: "Monk Mode (Strict Discipline)"
 
             val systemInstruction = """
-                You are REBUILD's "Personal Board Exam Preparation Coach".
-                You have full access to the user's real-time academic progress, school timings (09:45 AM - 01:00 PM), habit streaks, calisthenics logs, 150-day board exam countdown, and Winter Arc level.
-                Provide crisp, tactical, highly motivating, and realistic guidance. Never give generic boilerplate; reference their actual subjects (Physics, Chemistry, Biology, English, Hindi) and current numbers.
+                You are REBUILD's "Personal AI Mentor".
+                Coaching Persona: $coachingStyle.
+                You have full access to the student's real-time telemetry: Class, Stream, Target %, School Timings, Syllabus chapters, Habits, and Winter Arc level.
+                Provide concise, tactical, highly motivating, and realistic guidance. Reference their actual subjects and data.
             """.trimIndent()
 
             val prompt = """
@@ -275,263 +286,246 @@ class GeminiCoachRepository(
                 )
                 val res = RetrofitClient.geminiService.generateContent(apiKey, request)
                 res.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                    ?: getOfflineCoachAdvice(userMessage)
+                    ?: getOfflineCoachAdvice(userMessage, profile)
             } else {
-                getOfflineCoachAdvice(userMessage)
+                getOfflineCoachAdvice(userMessage, profile)
             }
 
             Result.success(response)
         } catch (e: Exception) {
-            Result.success(getOfflineCoachAdvice(userMessage))
+            val profile = db.userProfileDao().getUserProfileDirect()
+            Result.success(getOfflineCoachAdvice(userMessage, profile))
         }
     }
 
     suspend fun applyAiPlanToLocalSchedule(planText: String): Int = withContext(Dispatchers.IO) {
         val today = dateFormat.format(Date())
+        val profile = db.userProfileDao().getUserProfileDirect()
+        val subjects = db.subjectDao().getAllSubjectsDirect()
         val generatedTasks = mutableListOf<DailyPlanTaskEntity>()
         var order = 0
 
-        // Parse default high-yield schedule blocks into database
-        generatedTasks.add(
-            DailyPlanTaskEntity(
-                date = today,
-                subject = "Physics",
-                title = "Nuclei & Modern Physics Deep Work",
-                type = TaskType.LECTURE,
-                details = "AI Scheduled: Binding energy curve, mass defect & PYQ problems",
-                targetMinutes = 50,
-                orderIndex = order++,
-                xpReward = 70
+        val sessionDuration = profile?.preferredSessionDurationMinutes ?: 50
+
+        if (subjects.isNotEmpty()) {
+            for (sub in subjects.take(3)) {
+                val pending = db.subjectDao().getChaptersForSubjectDirect(sub.id).filter { !it.isCompleted }
+                val chapTitle = pending.firstOrNull()?.title ?: "Chapter Revision"
+                generatedTasks.add(
+                    DailyPlanTaskEntity(
+                        date = today,
+                        subject = sub.name,
+                        title = "${sub.name}: $chapTitle Deep Work",
+                        type = TaskType.LECTURE,
+                        details = "AI Scheduled: High-focus concept mastery & NCERT numericals",
+                        targetMinutes = sessionDuration,
+                        orderIndex = order++,
+                        xpReward = 70
+                    )
+                )
+            }
+        } else {
+            generatedTasks.add(
+                DailyPlanTaskEntity(
+                    date = today,
+                    subject = "Study",
+                    title = "Deep Work Session 1",
+                    type = TaskType.LECTURE,
+                    details = "AI Scheduled: High-yield syllabus study block",
+                    targetMinutes = sessionDuration,
+                    orderIndex = order++,
+                    xpReward = 70
+                )
             )
-        )
-        generatedTasks.add(
-            DailyPlanTaskEntity(
-                date = today,
-                subject = "Chemistry",
-                title = "P-Block Elements & Coordination Compounds",
-                type = TaskType.REVISION,
-                details = "AI Scheduled: Group 15-18 chemical trends and isomerism structures",
-                targetMinutes = 45,
-                orderIndex = order++,
-                xpReward = 60
-            )
-        )
-        generatedTasks.add(
-            DailyPlanTaskEntity(
-                date = today,
-                subject = "Biology",
-                title = "Genetics & Molecular Basis",
-                type = TaskType.LECTURE,
-                details = "AI Scheduled: Dihybrid cross calculations and pedigree analysis",
-                targetMinutes = 60,
-                orderIndex = order++,
-                xpReward = 80
-            )
-        )
+        }
+
+        val workoutType = profile?.workoutType ?: "Calisthenics"
+        val workoutDur = profile?.workoutDurationMinutes ?: 30
         generatedTasks.add(
             DailyPlanTaskEntity(
                 date = today,
                 subject = "Workout",
-                title = "Winter Arc Calisthenics & Cardio",
+                title = "$workoutType Training Block",
                 type = TaskType.WORKOUT,
-                details = "AI Scheduled: Running 20 min + 3x15 Pushups + 3x20 Deep Squats",
-                targetMinutes = 30,
+                details = "AI Scheduled: $workoutDur min session to eliminate mental fatigue",
+                targetMinutes = workoutDur,
                 orderIndex = order++,
                 xpReward = 40
             )
         )
+
         generatedTasks.add(
             DailyPlanTaskEntity(
                 date = today,
                 subject = "General",
-                title = "Evening Reflection & Board Strategy Review",
+                title = "Evening Reflection & Review",
                 type = TaskType.CUSTOM,
-                details = "AI Scheduled: Daily score audit, gratitude & formula flashcards",
+                details = "AI Scheduled: Daily discipline score audit & active recall summary",
                 targetMinutes = 15,
                 orderIndex = order++,
                 xpReward = 30
             )
         )
 
-        // Delete existing non-completed tasks for today and insert AI plan
         val existing = db.dailyPlanDao().getTasksForDateDirect(today)
-        val completedOnes = existing.filter { it.isCompleted }
-        
-        // Remove incomplete
         for (task in existing) {
             if (!task.isCompleted) {
                 db.dailyPlanDao().deleteTask(task)
             }
         }
-        
-        // Insert new tasks
         db.dailyPlanDao().insertTasks(generatedTasks)
         generatedTasks.size
     }
 
-    private fun getOfflineFallbackPlan(planType: AiPlanType, telemetry: String): String {
+    private fun getOfflineFallbackPlan(planType: AiPlanType, profile: com.example.data.local.entity.UserProfileEntity?): String {
+        val name = profile?.name ?: "Student"
+        val studentClass = profile?.studentClass ?: "Class 12"
+        val stream = profile?.stream ?: "Science (PCM)"
+        val wake = profile?.wakeUpTime ?: "06:00"
+        val sleep = profile?.sleepTime ?: "22:30"
+        val hasSchool = profile?.hasSchool ?: true
+        val schStart = profile?.schoolStartTime ?: "09:45"
+        val schEnd = profile?.schoolEndTime ?: "13:00"
+        val workoutType = profile?.workoutType ?: "Calisthenics"
+        val workoutTime = profile?.workoutTime ?: "17:00"
+        val workoutDur = profile?.workoutDurationMinutes ?: 30
+
         return when (planType) {
             AiPlanType.DAILY_SCHEDULE, AiPlanType.TIME_BLOCKING -> """
-# 🎯 REBUILD Daily Master Schedule • Class 12 Boards
+# 🎯 REBUILD Master Schedule • $studentClass ($stream)
 
-**Coach Status:** Winter Arc Day Active • High Performance Calibration
-
----
-
-### ⏱️ Time-Blocked Structure (Synchronized with School)
-
-• **06:00 AM – 06:30 AM | Wake Up & Dopamine Reset**
-  Cold water hydration (500ml), light stretching, zero phone screens.
-
-• **06:30 AM – 08:30 AM | Deep Study Block 1: Physics (Modern Physics & Nuclei)**
-  High cognitive clarity window. Solve 10 numericals on binding energy and mass defect.
-
-• **08:30 AM – 09:45 AM | Breakfast & School Dispatch Prep**
-  Nutritious high-protein breakfast, review flashcards, prepare bag.
-
-• **09:45 AM | [DISPATCH SCHOOL]**
-  Depart for school. Active recall formula revision during commute.
-
-• **10:15 AM – 12:00 PM | School Classes & Attendance**
-  Max focus in practicals and core lectures. Tap `[ARRIVED SCHOOL]`.
-
-• **12:00 PM – 01:00 PM | School Dispersal & Return Commute**
-  Tap `[DISPATCH HOME]` at 12:00 PM. Arrive home by ~01:00 PM and tap `[ARRIVED HOME]`.
-
-• **01:00 PM – 02:00 PM | Post-Commute Lunch & Cognitive Recovery**
-  Warm meal, hydrate (1L water), 20-minute power rest.
-
-• **02:00 PM – 04:30 PM | Deep Study Block 2: Chemistry (P-Block & Coordination Compounds)**
-  2 x 50/10 Pomodoro blocks. Focus on group 15-18 reactions and isomerism.
-
-• **04:30 PM – 05:30 PM | Calisthenics & Cardio Engine**
-  Running 20 mins + Pushups (3x15) + Squats (3x20). Release endorphins and eliminate mental fatigue.
-
-• **05:30 PM – 06:30 PM | Shower, Healthy Snack & Transition**
-
-• **06:30 PM – 08:45 PM | Deep Study Block 3: Biology (Genetics & Inheritance)**
-  NCERT deep reading + 15 previous year CBSE questions.
-
-• **08:45 PM – 09:30 PM | Dinner & Family Reset**
-
-• **09:30 PM – 10:15 PM | Daily Reflection & Spaced Repetition Revision**
-  Fill evening journal in REBUILD Notes. Quick 20-minute English/Hindi revision.
-
-• **10:30 PM | Sleep Protocol & Cellular Recovery**
-  Phone on airplane mode, dark room, 7.5 hours uninterrupted rest.
+**Student:** $name • **Mode:** High Performance Calibration
 
 ---
-💡 **Non-Negotiable Rule:** Protect the 02:00 PM to 04:30 PM post-school block. That is where top board scores are forged.
+
+### ⏱️ Dynamic Time-Blocked Structure
+
+• **$wake – Wake Up & Hydration Reset**
+  Cold water hydration (500ml), light mobility, zero screens.
+
+• **Morning Focus Block (1.5 Hours)**
+  High cognitive clarity window for your highest priority theoretical subject.
+
+${if (hasSchool) "• **$schStart – School Departure & Commute**\n  Depart for school. Active recall formula revision during transit.\n\n• **$schStart – $schEnd | In-School Classes & Practicals**\n  Max focus in practicals and core lectures.\n\n• **$schEnd – Commute Home & Recovery**\n  Post-school warm lunch, hydrate, 20-min power rest." else "• **Full Day Self Study Window**\n  Dedicated morning and afternoon Pomodoro blocks."}
+
+• **Afternoon Deep Study Block**
+  2 x 50-min Pomodoro sessions. Focus on problem solving and numericals.
+
+• **$workoutTime | Physical Training ($workoutType - $workoutDur min)**
+  Forge physical discipline, elevate dopamine, and dissolve study fatigue.
+
+• **Evening Core Syllabus Mastery**
+  NCERT line-by-line reading + Previous Year Questions.
+
+• **Night Revision & Reflection (30 min)**
+  Spaced repetition review and evening journal audit in REBUILD Notes.
+
+• **$sleep | Sleep Protocol & Recovery**
+  Phone away, dark cool room, 7.5 hours deep sleep.
+
+---
+💡 **Rule:** Protect your afternoon and evening deep study blocks. High consistency builds elite exam results.
             """.trimIndent()
 
             AiPlanType.WEEKLY_PLAN -> """
-# 📅 7-Day Class 12 Board Mastery Blueprint
+# 📅 7-Day Mastery Blueprint • $studentClass
 
-• **Monday & Tuesday:** Physics Core (Electrostatics, Current, Magnetism) + Physical Chemistry (Solutions, Kinetics).
-• **Wednesday & Thursday:** Organic Chemistry (Haloalkanes, Aldehydes, Amines) + Biology Genetics & Evolution.
-• **Friday:** Wave Optics & Modern Physics + Coordination Compounds.
-• **Saturday (High Intensity):** Full 3-Hour Board Exam Mock Test Simulation + Error Log Analysis.
+• **Monday & Tuesday:** Core Heavyweight Subjects (Foundation & Formulas).
+• **Wednesday & Thursday:** Problem Solving, PYQs & Derivations.
+• **Friday:** Secondary Subjects & Revision Sweep.
+• **Saturday (High Intensity):** Full Timed Mock Test Simulation + Error Log Analysis.
 • **Sunday (Active Recovery & Spaced Repetition):** 
-  - Morning: English Flamingo & Vistas + Hindi Literature revision.
-  - Afternoon: Spaced repetition flashcard sweep across all 5 subjects.
-  - Evening: Long outdoor run, equipment reset, and AI schedule generation for next week.
+  - Morning: Active recall flashcards across all subjects.
+  - Afternoon: Review weak chapters and update formula sheets.
+  - Evening: Workout reset and AI schedule generation for next week.
             """.trimIndent()
 
             AiPlanType.REVISION_PLAN -> """
-# 🔄 Spaced Repetition Matrix (Class 12 Boards)
+# 🔄 Spaced Repetition Protocol
 
-### Interval Schedule:
-• **Day 1 (Immediate):** 10-minute formula & concept mapping after lecture.
-• **Day 3 (Active Recall):** Solve 5 subjective NCERT questions without notes.
-• **Day 7 (PYQ Benchmark):** 10 past 5-year CBSE questions under timer.
-• **Day 21 (Mastery Lockdown):** Teach concept out loud (Feynman Technique).
-
-### Weak Chapter Priority Queue:
-1. **Physics:** Wave Optics (Interference & Diffraction derivations)
-2. **Chemistry:** Aldehydes, Ketones & Carboxylic Acids (Named reactions)
-3. **Biology:** Molecular Basis of Inheritance (Replication & Operon model)
-4. **Physics:** Nuclei & Dual Nature
+### Optimal Interval Cycle:
+• **Day 1 (Immediate):** 10-minute formula mapping right after studying a chapter.
+• **Day 3 (Active Recall):** Solve 5 subjective questions without looking at notes.
+• **Day 7 (PYQ Benchmark):** Solve 10 past exam questions under a countdown timer.
+• **Day 21 (Mastery Lockdown):** Explain the core concept aloud (Feynman Technique).
             """.trimIndent()
 
             AiPlanType.WORKOUT_PLAN -> """
-# 🏃 Calisthenics & Cardio Engine (Discipline OS)
+# 🏃 Physical Training & Cardio Engine ($workoutType)
 
-• **Warmup (5 min):** Arm circles, leg swings, jumping jacks.
-• **Cardio (20 min):** Zone 2 continuous outdoor jog / cadence treadmill.
-• **Calisthenics Circuit (3 Rounds):**
-  1. Standard Strict Pushups: 15 reps
-  2. Deep Bodyweight Squats: 20 reps
-  3. Plank Hold: 60 seconds
-  4. Diamond Pushups: 10 reps
-  5. Walking Lunges: 20 steps
-• **Cooldown (5 min):** Deep hamstring & shoulder stretches + box breathing (4-4-4-4).
+• **Warmup (5 min):** Dynamic mobility, arm circles, leg swings.
+• **Main Workout ($workoutDur min):**
+  1. Pushup Variation: 3 sets of 12-20 reps
+  2. Deep Bodyweight Squats: 3 sets of 20 reps
+  3. Core Plank Hold: 3 sets of 45-60 seconds
+  4. Cardio / Outdoor Cadence Run: 15-20 min
+• **Cooldown (5 min):** Deep stretching & box breathing (4-4-4-4).
             """.trimIndent()
 
             AiPlanType.RECOVERY_PLAN -> """
 # 🛡️ Fatigue Reset & Sleep Recovery Protocol
 
-• **Circadian Calibration:** Morning sunlight exposure within 15 minutes of waking at 06:00 AM.
-• **Hydration Target:** Minimum 3.5 Liters daily (electrolytes post-school commute).
-• **Post-School Reset:** Avoid doomscrolling at 01:00 PM; use a 20-min non-sleep deep rest (NSDR).
-• **Night Screen Curfew:** Zero blue light 45 minutes before 10:30 PM sleep time.
-• **Sleep Duration:** 7.5 hours non-negotiable for memory consolidation of Class 12 formulas.
+• **Circadian Rhythm:** Morning sunlight exposure within 15 minutes of waking at $wake.
+• **Hydration:** Minimum 3.5 Liters daily.
+• **Power Rest:** 20-minute Non-Sleep Deep Rest (NSDR) post school/study block.
+• **Curfew:** Zero blue light 45 minutes before $sleep.
+• **Rest:** 7.5 hours uninterrupted rest for cognitive memory consolidation.
             """.trimIndent()
 
             AiPlanType.EXAM_STRATEGY -> """
-# 🎯 150-Day Class 12 Board Exam 95%+ Strategy
+# 🎯 Target Exam Strategy (${profile?.targetPercentage ?: 95}%+ Target)
 
-### Phase 1: Syllabus Completion (Days 150 – 90)
-• Complete remaining 32 chapters with dedicated lecture notes and NCERT exemplar questions.
-• Daily study benchmark: 5.5 to 6.5 hours outside school.
+### Phase 1: Syllabus Mastery
+• Complete all remaining chapters with clear concept notes and exemplar questions.
+• Benchmark: Aim for ${profile?.dailyStudyGoalHours ?: 6.0f} hours of focused daily study.
 
-### Phase 2: High-Volume PYQs & Derivations (Days 90 – 45)
-• Solve CBSE past 10 years papers for Physics & Chemistry.
-• Memorize all standard derivations in Physics (Gauss Law, Lens Maker Formula, Biot-Savart).
+### Phase 2: Previous Year Questions & Derivations
+• Solve past 10 years question papers under timed conditions.
+• Create high-yield formula sheets for rapid daily recall.
 
-### Phase 3: 3-Hour Exam Simulation & Final Polish (Days 45 – 0)
-• Complete 15 full-length timed mock exams in 10:30 AM – 01:30 PM exam slot.
-• Error log elimination and presentation formatting (diagrams, headings, units).
+### Phase 3: Timed Mock Simulations
+• Complete full-length timed mock exams in actual exam slots.
+• Eliminate recurring errors and refine presentation.
             """.trimIndent()
 
             AiPlanType.FOCUS_SESSIONS -> """
 # ⏱️ High-Yield Focus & Deep Work Protocol
 
-• **Session 1 (06:30 AM):** 90m Board Simulation Focus • Physics Numerical Problem Solving.
-• **Session 2 (02:00 PM):** 50/10 Deep Work Block • Organic Chemistry Reaction Mechanisms.
-• **Session 3 (03:00 PM):** 50/10 Deep Work Block • Chemistry PYQ Sheet.
-• **Session 4 (06:30 PM):** 50/10 Deep Work Block • Biology NCERT Line-by-Line.
-• **Session 5 (07:30 PM):** 45m Custom Block • Diagrams & Formula Sheet formulation.
+• **Session 1 (Morning):** 50-min Deep Work • Theory & Difficult Concepts.
+• **Session 2 (Afternoon):** 50-min Deep Work • Numericals & Problems.
+• **Session 3 (Evening):** 50-min Deep Work • Past Year Questions.
+• **Session 4 (Night):** 30-min Rapid Fire Revision & Flashcards.
             """.trimIndent()
 
             AiPlanType.PRIORITY_TASKS -> """
-# ⚡ Today's 5 Non-Negotiable Missions
+# ⚡ Today's Non-Negotiable Missions
 
-1. ✅ **Physics:** Complete Nuclei Binding Energy concept + solve 8 textbook numericals (45 min).
-2. ✅ **Chemistry:** Revise P-Block Group 15-16 chemical reactions & write summary (40 min).
-3. ✅ **Biology:** Genetics lecture on Mendelian ratios & test crosses (60 min).
-4. ✅ **Calisthenics:** 20 min running + 3x15 pushups + 3x20 squats.
-5. ✅ **Winter Arc Abstinence:** Zero mindless social media & complete evening reflection.
+1. ✅ **Core Subject 1:** Complete targeted chapter section & solve 5 textbook questions.
+2. ✅ **Core Subject 2:** 45 minutes of focused problem solving & formula review.
+3. ✅ **Workout:** $workoutDur min $workoutType session.
+4. ✅ **Discipline:** Zero mindless scrolling & complete evening reflection.
             """.trimIndent()
         }
     }
 
-    private fun getOfflineCoachAdvice(userMessage: String): String {
+    private fun getOfflineCoachAdvice(userMessage: String, profile: com.example.data.local.entity.UserProfileEntity?): String {
         val lower = userMessage.lowercase()
+        val name = profile?.name ?: "Student"
         return when {
             lower.contains("tired") || lower.contains("fatigue") || lower.contains("exhaust") ->
-                "Coach: Fatigue after school commute is completely natural. Take a 20-minute power nap or do 5 minutes of box breathing with 500ml cold water. Do not touch your phone. When you sit down at 02:00 PM, start with 15 minutes of easy Chemistry notes revision before tackling hard Physics numericals."
+                "Coach: $name, fatigue is completely natural. Take a 20-minute power nap or do 5 minutes of box breathing with 500ml cold water. When you return to your desk, start with a 15-minute easy review before tackling complex problems."
 
-            lower.contains("physics") || lower.contains("formula") || lower.contains("derivation") ->
-                "Coach: For Class 12 Physics, 70% of board marks come from derivations and direct conceptual application. Write down formulas with their SI units on a single master cheat sheet daily. Solve 5 numericals from Modern Physics today."
+            lower.contains("formula") || lower.contains("derivation") || lower.contains("physics") || lower.contains("math") ->
+                "Coach: The best way to lock in formulas is active derivation and daily flashcard sweeps. Write out every key formula with units on a dedicated sheet every morning."
 
-            lower.contains("exam") || lower.contains("score") || lower.contains("95") ->
-                "Coach: You have approximately 148 days left until the Class 12 Board Exam. With 38/70 chapters finished, your pace is solid. Aim to complete 2 chapters per week to finish syllabus with 60 full days left for pure mock test practice."
+            lower.contains("exam") || lower.contains("score") || lower.contains("target") || lower.contains("95") ->
+                "Coach: Target ${profile?.targetPercentage ?: 95}%+ is built day by day. Stick to your ${profile?.dailyStudyGoalHours ?: 6.0f} hours study goal and complete your daily missions with full discipline."
 
-            lower.contains("habits") || lower.contains("streak") || lower.contains("winter arc") || lower.contains("porn") || lower.contains("scrolling") ->
-                "Coach: Stay locked in on the Winter Arc. The moment an urge to procrastinate or doomscroll hits, drop down for 10 pushups immediately. High discipline equals high board marks. Guard your mental state."
+            lower.contains("habit") || lower.contains("streak") || lower.contains("porn") || lower.contains("scroll") ->
+                "Coach: Stay locked in. When you feel the urge to procrastinate or scroll, immediately drop for 10 pushups or drink a glass of water. Guard your mental focus."
 
             else ->
-                "Coach: Stay consistent and execute the time blocks. Balance your school hours (09:45 AM to 01:00 PM) with deep evening study blocks. You are building the daily habits that will secure your 95%+ board result. What subject are we dominating next?"
+                "Coach: Stay consistent and execute today's time blocks. You have all the tools in REBUILD to achieve your goals. What subject are we tackling next?"
         }
     }
 }

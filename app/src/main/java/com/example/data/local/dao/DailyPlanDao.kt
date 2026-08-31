@@ -43,4 +43,7 @@ interface DailyPlanDao {
 
     @Query("DELETE FROM daily_plan_tasks WHERE date = :date")
     suspend fun clearTasksForDate(date: String)
+
+    @Query("DELETE FROM daily_plan_tasks")
+    suspend fun clearAll()
 }

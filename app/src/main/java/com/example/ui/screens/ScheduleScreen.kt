@@ -20,12 +20,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.SelfImprovement
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -37,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +49,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.entity.SchoolState
+import com.example.data.local.entity.UserProfileEntity
+import com.example.ui.components.RebuildTopAppBar
 import com.example.ui.theme.DarkNavy
 import com.example.ui.theme.ElectricBlue
 import com.example.ui.theme.FireOrange
@@ -76,69 +80,22 @@ fun ScheduleScreen(
     onOpenDrawer: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
+    val profile = state.userProfile
 
-    val scheduleBlocks = listOf(
-        ScheduleTimeBlock("06:00 AM – 06:30 AM", "Wake Up & Cold Reset", "Hydrate 500ml water, zero screen time, deep breathing.", Icons.Default.WbSunny, WarningAmber),
-        ScheduleTimeBlock("06:30 AM – 08:30 AM", "Deep Study Block 1 • Physics", "Modern Physics & Nuclei formulas, 10 numerical problems.", Icons.Default.MenuBook, LuxuryAccent),
-        ScheduleTimeBlock("08:30 AM – 09:45 AM", "Breakfast & School Prep", "High-protein breakfast, bag check, quick flashcard review.", Icons.Default.Home, FrostBlueAccent),
-        ScheduleTimeBlock("09:45 AM – 12:00 PM", "School Dispatch & Attendance", "Departure at 09:45 AM. Core school practicals & lectures.", Icons.Default.School, IceCyanPrimary, isSchoolBlock = true),
-        ScheduleTimeBlock("12:00 PM – 01:00 PM", "School Dispersal & Return", "Dispatch home at 12:00 PM, reach home by ~01:00 PM.", Icons.Default.DirectionsRun, IceCyanPrimary, isSchoolBlock = true),
-        ScheduleTimeBlock("01:00 PM – 02:00 PM", "Post-Commute Recovery & Lunch", "Warm lunch, hydration (1L), 20 min cognitive reset.", Icons.Default.Home, SuccessGreen),
-        ScheduleTimeBlock("02:00 PM – 04:30 PM", "Deep Study Block 2 • Chemistry", "P-Block Elements & Coordination Compounds (2x50m Pomodoro).", Icons.Default.MenuBook, LuxuryAccent),
-        ScheduleTimeBlock("04:30 PM – 05:30 PM", "Calisthenics & Cardio", "Running 20m + 3x15 Pushups + 3x20 Squats.", Icons.Default.DirectionsRun, FireOrange),
-        ScheduleTimeBlock("06:30 PM – 08:45 PM", "Deep Study Block 3 • Biology & PYQs", "Genetics Mendelian inheritance + 15 past year questions.", Icons.Default.MenuBook, PurpleArc),
-        ScheduleTimeBlock("09:30 PM – 10:15 PM", "Daily Reflection & Language Review", "Evening journal audit in REBUILD Notes + English/Hindi review.", Icons.Default.MenuBook, FrostBlueAccent),
-        ScheduleTimeBlock("10:30 PM", "Sleep & Recovery Protocol", "Phone on airplane mode, dark room, 7.5 hours neural rest.", Icons.Default.Bedtime, GlassWhiteMuted)
-    )
+    val scheduleBlocks = remember(profile) {
+        buildDynamicSchedule(profile)
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkNavy)
-            .padding(top = 8.dp)
     ) {
-        // Top Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = onOpenDrawer,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(LuxuryCard)
-                    .testTag("menu_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = "Open Navigation Menu",
-                    tint = GlassWhite,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Schedule",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = GlassWhite,
-                    letterSpacing = 0.5.sp
-                )
-                Text(
-                    text = "Time-blocked daily routine & school flow",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = GlassWhiteMuted,
-                    fontSize = 12.sp
-                )
-            }
-        }
+        RebuildTopAppBar(
+            title = "Schedule",
+            onMenuClick = onOpenDrawer,
+            subtitle = if (profile != null) "${profile.studentClass} • ${profile.stream}" else "Time-blocked daily routine"
+        )
 
         LazyColumn(
             modifier = Modifier
@@ -147,112 +104,114 @@ fun ScheduleScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // Interactive School Flow Action Card
-            item {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    color = LuxuryCard,
-                    border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.4f))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.School,
-                                    contentDescription = null,
-                                    tint = IceCyanPrimary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "School Status: ${state.schoolStatus.currentState.name.replace("_", " ")}",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = GlassWhite
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (state.schoolStatus.isPresent) SuccessGreen.copy(alpha = 0.2f) else LuxuryAccent.copy(alpha = 0.2f)
+            if (profile?.hasSchool != false) {
+                item {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        color = LuxuryCard,
+                        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.4f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = if (state.schoolStatus.isPresent) "PRESENT" else "COMMUTE READY",
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (state.schoolStatus.isPresent) SuccessGreen else IceCyanPrimary,
-                                    fontSize = 9.sp
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // 4 interactive action buttons
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Button(
-                                onClick = { viewModel.dispatchSchool() },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (state.schoolStatus.currentState == SchoolState.TRAVELLING_TO_SCHOOL) LuxuryAccent else Color(0x227C8CFF)
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .testTag("dispatch_school_btn")
-                            ) {
-                                Text("Dispatch\nSchool", fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = GlassWhite)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.School,
+                                        contentDescription = null,
+                                        tint = IceCyanPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "School Status: ${state.schoolStatus.currentState.name.replace("_", " ")}",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = GlassWhite
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (state.schoolStatus.isPresent) SuccessGreen.copy(alpha = 0.2f) else LuxuryAccent.copy(alpha = 0.2f)
+                                ) {
+                                    Text(
+                                        text = if (state.schoolStatus.isPresent) "PRESENT" else "COMMUTE READY",
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (state.schoolStatus.isPresent) SuccessGreen else IceCyanPrimary,
+                                        fontSize = 9.sp
+                                    )
+                                }
                             }
 
-                            Button(
-                                onClick = { viewModel.arrivedSchool() },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (state.schoolStatus.currentState == SchoolState.IN_SCHOOL) SuccessGreen else Color(0x227C8CFF)
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .testTag("arrived_school_btn")
-                            ) {
-                                Text("Arrived\nSchool", fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = if (state.schoolStatus.currentState == SchoolState.IN_SCHOOL) DarkNavy else GlassWhite)
-                            }
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                            Button(
-                                onClick = { viewModel.dispatchHome() },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (state.schoolStatus.currentState == SchoolState.TRAVELLING_HOME) WarningAmber else Color(0x227C8CFF)
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .testTag("dispatch_home_btn")
+                            // 4 interactive action buttons
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text("Dispatch\nHome", fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = if (state.schoolStatus.currentState == SchoolState.TRAVELLING_HOME) DarkNavy else GlassWhite)
-                            }
+                                Button(
+                                    onClick = { viewModel.dispatchSchool() },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (state.schoolStatus.currentState == SchoolState.TRAVELLING_TO_SCHOOL) LuxuryAccent else Color(0x227C8CFF)
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                        .testTag("dispatch_school_btn")
+                                ) {
+                                    Text("Dispatch\nSchool", fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = GlassWhite)
+                                }
 
-                            Button(
-                                onClick = { viewModel.arrivedHome() },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (state.schoolStatus.currentState == SchoolState.ARRIVED_HOME) SuccessGreen else Color(0x227C8CFF)
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .testTag("arrived_home_btn")
-                            ) {
-                                Text("Arrived\nHome", fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = if (state.schoolStatus.currentState == SchoolState.ARRIVED_HOME) DarkNavy else GlassWhite)
+                                Button(
+                                    onClick = { viewModel.arrivedSchool() },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (state.schoolStatus.currentState == SchoolState.IN_SCHOOL) SuccessGreen else Color(0x227C8CFF)
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                        .testTag("arrived_school_btn")
+                                ) {
+                                    Text("Arrived\nSchool", fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = if (state.schoolStatus.currentState == SchoolState.IN_SCHOOL) DarkNavy else GlassWhite)
+                                }
+
+                                Button(
+                                    onClick = { viewModel.dispatchHome() },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (state.schoolStatus.currentState == SchoolState.TRAVELLING_HOME) WarningAmber else Color(0x227C8CFF)
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                        .testTag("dispatch_home_btn")
+                                ) {
+                                    Text("Dispatch\nHome", fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = if (state.schoolStatus.currentState == SchoolState.TRAVELLING_HOME) DarkNavy else GlassWhite)
+                                }
+
+                                Button(
+                                    onClick = { viewModel.arrivedHome() },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (state.schoolStatus.currentState == SchoolState.ARRIVED_HOME) SuccessGreen else Color(0x227C8CFF)
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                        .testTag("arrived_home_btn")
+                                ) {
+                                    Text("Arrived\nHome", fontSize = 10.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = if (state.schoolStatus.currentState == SchoolState.ARRIVED_HOME) DarkNavy else GlassWhite)
+                                }
                             }
                         }
                     }
@@ -325,4 +284,149 @@ fun ScheduleScreen(
             }
         }
     }
+}
+
+private fun buildDynamicSchedule(profile: UserProfileEntity?): List<ScheduleTimeBlock> {
+    val wake = profile?.wakeUpTime ?: "06:00"
+    val sleep = profile?.sleepTime ?: "22:30"
+    val hasSchool = profile?.hasSchool ?: true
+    val schoolStart = profile?.schoolStartTime ?: "09:45"
+    val schoolEnd = profile?.schoolEndTime ?: "13:00"
+    val workoutType = profile?.workoutType ?: "Calisthenics"
+    val workoutTime = profile?.workoutTime ?: "17:00"
+    val workoutDur = profile?.workoutDurationMinutes ?: 30
+    val stream = profile?.stream ?: "Science (PCM)"
+
+    val blocks = mutableListOf<ScheduleTimeBlock>()
+
+    // 1. Wake Up
+    blocks.add(
+        ScheduleTimeBlock(
+            timeSlot = "$wake – Wake",
+            title = "Wake Up & Cold Reset",
+            description = "Hydrate 500ml water, zero screen time, deep breathing & sunlight exposure.",
+            icon = Icons.Default.WbSunny,
+            accentColor = WarningAmber
+        )
+    )
+
+    // 2. Morning Focus Block
+    val morningSubject = when {
+        stream.contains("PCB") -> "Biology"
+        stream.contains("Commerce") -> "Accountancy"
+        stream.contains("Arts") -> "History"
+        else -> "Physics"
+    }
+    blocks.add(
+        ScheduleTimeBlock(
+            timeSlot = "Morning Session",
+            title = "Deep Study Block 1 • $morningSubject",
+            description = "High-cognition concepts, formulas, active recall & problem sets.",
+            icon = Icons.Default.MenuBook,
+            accentColor = LuxuryAccent
+        )
+    )
+
+    // 3. School Block if applicable
+    if (hasSchool) {
+        blocks.add(
+            ScheduleTimeBlock(
+                timeSlot = "$schoolStart – $schoolEnd",
+                title = "School Attendance & Commute",
+                description = "Departure at $schoolStart. Core lectures, practicals and return by $schoolEnd.",
+                icon = Icons.Default.School,
+                accentColor = IceCyanPrimary,
+                isSchoolBlock = true
+            )
+        )
+        blocks.add(
+            ScheduleTimeBlock(
+                timeSlot = "Post-Commute",
+                title = "Recovery & Lunch",
+                description = "Nutritious meal, hydration, 20-minute mental reset for afternoon deep work.",
+                icon = Icons.Default.Home,
+                accentColor = SuccessGreen
+            )
+        )
+    } else {
+        blocks.add(
+            ScheduleTimeBlock(
+                timeSlot = "Midday Session",
+                title = "Self-Study Block 2",
+                description = "Dedicated independent deep focus module and problem solving.",
+                icon = Icons.Default.MenuBook,
+                accentColor = FrostBlueAccent
+            )
+        )
+    }
+
+    // 4. Afternoon Deep Study Block
+    val afternoonSubject = when {
+        stream.contains("PCB") -> "Chemistry"
+        stream.contains("Commerce") -> "Economics"
+        stream.contains("Arts") -> "Political Science"
+        else -> "Chemistry"
+    }
+    blocks.add(
+        ScheduleTimeBlock(
+            timeSlot = "Afternoon Session",
+            title = "Deep Study Block 2 • $afternoonSubject",
+            description = "Theory review, reaction mechanisms/derivations, chapter notes.",
+            icon = Icons.Default.MenuBook,
+            accentColor = FrostBlueAccent
+        )
+    )
+
+    // 5. Workout
+    blocks.add(
+        ScheduleTimeBlock(
+            timeSlot = "$workoutTime (${workoutDur}m)",
+            title = "Physical Power • $workoutType",
+            description = "Structured training to build physical stamina and mental grit.",
+            icon = Icons.Default.FitnessCenter,
+            accentColor = FireOrange
+        )
+    )
+
+    // 6. Evening Deep Study Block
+    val eveningSubject = when {
+        stream.contains("PCM") -> "Mathematics"
+        stream.contains("PCB") -> "Physics"
+        stream.contains("Commerce") -> "Business Studies"
+        stream.contains("Arts") -> "Geography"
+        else -> "Mathematics"
+    }
+    blocks.add(
+        ScheduleTimeBlock(
+            timeSlot = "Evening Session",
+            title = "Deep Study Block 3 • $eveningSubject & PYQs",
+            description = "Past year questions, timed mock sets, and targeted weak-spot drilling.",
+            icon = Icons.Default.Timer,
+            accentColor = PurpleArc
+        )
+    )
+
+    // 7. Night Revision
+    blocks.add(
+        ScheduleTimeBlock(
+            timeSlot = "Night Sweep",
+            title = "Night Revision & Daily Score Reflection",
+            description = "Audit completed tasks, log discipline score, and prep tomorrow's plan.",
+            icon = Icons.Default.SelfImprovement,
+            accentColor = SuccessGreen
+        )
+    )
+
+    // 8. Sleep Protocol
+    blocks.add(
+        ScheduleTimeBlock(
+            timeSlot = "$sleep – Sleep",
+            title = "Sleep & Recovery Protocol",
+            description = "Device curfew, dark room, neural rest and full circadian alignment.",
+            icon = Icons.Default.Bedtime,
+            accentColor = GlassWhiteMuted
+        )
+    )
+
+    return blocks
 }

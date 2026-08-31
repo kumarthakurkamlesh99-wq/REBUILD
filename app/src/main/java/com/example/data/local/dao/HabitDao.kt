@@ -33,6 +33,9 @@ interface HabitDao {
     @Delete
     suspend fun deleteHabit(habit: HabitEntity)
 
+    @Query("DELETE FROM habits")
+    suspend fun clearAll()
+
     // Habit Logs
     @Query("SELECT * FROM habit_logs WHERE date = :date")
     fun getLogsForDate(date: String): Flow<List<HabitLogEntity>>
@@ -51,4 +54,7 @@ interface HabitDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateLog(log: HabitLogEntity): Long
+
+    @Query("DELETE FROM habit_logs")
+    suspend fun clearAllLogs()
 }

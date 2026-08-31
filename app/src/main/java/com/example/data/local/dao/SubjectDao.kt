@@ -23,6 +23,9 @@ interface SubjectDao {
     @Query("SELECT * FROM subjects WHERE id = :id LIMIT 1")
     fun getSubjectById(id: Long): Flow<SubjectEntity?>
 
+    @Query("SELECT * FROM subjects WHERE id = :id LIMIT 1")
+    suspend fun getSubjectByIdDirect(id: Long): SubjectEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSubject(subject: SubjectEntity): Long
 
@@ -34,6 +37,9 @@ interface SubjectDao {
 
     @Delete
     suspend fun deleteSubject(subject: SubjectEntity)
+
+    @Query("DELETE FROM subjects")
+    suspend fun clearAll()
 
     // Chapters
     @Query("SELECT * FROM chapters WHERE subjectId = :subjectId ORDER BY chapterNumber ASC")
@@ -63,6 +69,9 @@ interface SubjectDao {
     @Delete
     suspend fun deleteChapter(chapter: ChapterEntity)
 
+    @Query("DELETE FROM chapters")
+    suspend fun clearAllChapters()
+
     @Query("SELECT COUNT(*) FROM chapters WHERE isCompleted = 1")
     fun getTotalCompletedChapters(): Flow<Int>
 
@@ -84,4 +93,7 @@ interface SubjectDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStudySession(session: StudySessionEntity): Long
+
+    @Query("DELETE FROM study_sessions")
+    suspend fun clearAllStudySessions()
 }

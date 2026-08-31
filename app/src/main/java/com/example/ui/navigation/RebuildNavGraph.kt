@@ -4,6 +4,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,30 +36,31 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -68,13 +70,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.R
-import com.example.ui.components.GlowPill
 import com.example.ui.screens.AiCoachScreen
 import com.example.ui.screens.AnalyticsScreen
 import com.example.ui.screens.BoardExamScreen
@@ -83,6 +83,8 @@ import com.example.ui.screens.GoalsScreen
 import com.example.ui.screens.HabitsScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.NotesScreen
+import com.example.ui.screens.NotificationCenterScreen
+import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.PlannerScreen
 import com.example.ui.screens.PomodoroScreen
 import com.example.ui.screens.ScheduleScreen
@@ -97,7 +99,6 @@ import com.example.ui.theme.FrostBlueAccent
 import com.example.ui.theme.FrostedNavyCard
 import com.example.ui.theme.GlassWhite
 import com.example.ui.theme.GlassWhiteMuted
-import com.example.ui.theme.IceCyanGlow
 import com.example.ui.theme.IceCyanPrimary
 import com.example.ui.theme.LuxuryAccent
 import com.example.ui.theme.LuxuryCard
@@ -112,6 +113,7 @@ import com.example.viewmodel.GoalsViewModel
 import com.example.viewmodel.HabitsViewModel
 import com.example.viewmodel.HomeViewModel
 import com.example.viewmodel.NotesViewModel
+import com.example.viewmodel.OnboardingViewModel
 import com.example.viewmodel.PlannerViewModel
 import com.example.viewmodel.PomodoroViewModel
 import com.example.viewmodel.SettingsViewModel
@@ -120,19 +122,21 @@ import com.example.viewmodel.WinterArcViewModel
 import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector, val badgeText: String? = null) {
+    object Onboarding : Screen("onboarding", "Profile Calibration", Icons.Default.Tune)
     object Home : Screen("home", "Dashboard", Icons.Default.Home)
     object AiCoach : Screen("ai_coach", "AI Coach", Icons.Default.Psychology, "Gemini")
     object Goals : Screen("goals", "Apex Goals", Icons.Default.EmojiEvents, "Targets")
-    object Schedule : Screen("schedule", "Schedule", Icons.Default.CalendarMonth, "09:45-01:00")
+    object Schedule : Screen("schedule", "Schedule", Icons.Default.CalendarMonth)
     object WinterArc : Screen("winter_arc", "Winter Arc", Icons.Default.TrendingUp, "90D")
-    object Subjects : Screen("subjects", "Study Tracker", Icons.Default.MenuBook, "70 Ch")
+    object Subjects : Screen("subjects", "Study Tracker", Icons.Default.MenuBook)
     object Tasks : Screen("tasks", "Tasks", Icons.Default.TaskAlt)
     object Focus : Screen("focus", "Focus & Pomodoro", Icons.Default.Timer)
     object Fitness : Screen("fitness", "Fitness & Calisthenics", Icons.Default.FitnessCenter)
     object Habits : Screen("habits", "Habits & Discipline", Icons.Default.CheckCircle)
-    object BoardExam : Screen("board_exam", "Board Exam", Icons.Default.School, "148d")
+    object BoardExam : Screen("board_exam", "Board Exam", Icons.Default.School)
     object Notes : Screen("notes", "Notes & Reflection", Icons.Default.Notes)
     object Analytics : Screen("analytics", "Analytics", Icons.Default.Analytics)
+    object Notifications : Screen("notifications", "Notification Hub", Icons.Default.NotificationsActive, "9 Alarms")
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
 }
 
@@ -150,7 +154,8 @@ fun RebuildAppScaffold(
     analyticsViewModel: AnalyticsViewModel,
     settingsViewModel: SettingsViewModel,
     aiCoachViewModel: AiCoachViewModel,
-    notesViewModel: NotesViewModel
+    notesViewModel: NotesViewModel,
+    onboardingViewModel: OnboardingViewModel
 ) {
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -179,9 +184,21 @@ fun RebuildAppScaffold(
         }
     }
 
+    val userProfile = homeUiState.userProfile
+    val isUserOnboarded = userProfile != null && userProfile.isCompleted
+
+    // Auto-navigate to Onboarding on first launch if profile not completed
+    LaunchedEffect(isUserOnboarded) {
+        if (!isUserOnboarded && currentRoute != Screen.Onboarding.route) {
+            navController.navigate(Screen.Onboarding.route) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = false, // CRITICAL: Drawer must NOT open via edge swipe gestures, only via ☰ Menu Button
+        gesturesEnabled = false,
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = Color(0xFF070D1E),
@@ -209,6 +226,8 @@ fun RebuildAppScaffold(
                     level = homeUiState.winterArcState.level,
                     arcDay = homeUiState.winterArcState.currentDay,
                     daysUntilExam = homeUiState.daysUntilExam,
+                    userName = userProfile?.name ?: "Student",
+                    userClass = "${userProfile?.studentClass ?: "Class 12"} • ${userProfile?.stream ?: "PCM"}",
                     onNavigate = closeDrawerAndNavigate
                 )
             }
@@ -229,11 +248,23 @@ fun RebuildAppScaffold(
         ) {
             NavHost(
                 navController = navController,
-                startDestination = Screen.Home.route,
+                startDestination = if (isUserOnboarded) Screen.Home.route else Screen.Onboarding.route,
                 modifier = Modifier.fillMaxSize(),
                 enterTransition = { fadeIn(tween(180)) },
                 exitTransition = { fadeOut(tween(180)) }
             ) {
+                // 0. Onboarding
+                composable(Screen.Onboarding.route) {
+                    OnboardingScreen(
+                        viewModel = onboardingViewModel,
+                        onComplete = {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Onboarding.route) { inclusive = true }
+                            }
+                        }
+                    )
+                }
+
                 // 1. Dashboard / Home
                 composable(Screen.Home.route) {
                     HomeScreen(
@@ -247,7 +278,7 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 2. AI Coach (Gemini integration & blueprints)
+                // 2. AI Coach
                 composable(Screen.AiCoach.route) {
                     AiCoachScreen(
                         viewModel = aiCoachViewModel,
@@ -255,7 +286,7 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 2.5 Goals (Target Milestones & Apex Objectives)
+                // 2.5 Goals
                 composable(Screen.Goals.route) {
                     GoalsScreen(
                         viewModel = goalsViewModel,
@@ -263,7 +294,7 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 3. Schedule (09:45 AM - 01:00 PM School Flow & Time Blocking)
+                // 3. Schedule
                 composable(Screen.Schedule.route) {
                     ScheduleScreen(
                         viewModel = plannerViewModel,
@@ -271,7 +302,7 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 4. Winter Arc 90-Day Challenge
+                // 4. Winter Arc
                 composable(Screen.WinterArc.route) {
                     WinterArcScreen(
                         viewModel = winterArcViewModel,
@@ -279,7 +310,7 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 5. Study Tracker (70 Chapters Syllabus Mastery)
+                // 5. Study Tracker
                 composable(Screen.Subjects.route) {
                     SubjectsScreen(
                         viewModel = subjectsViewModel,
@@ -291,7 +322,7 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 6. Tasks (Daily Protocols & Filtering)
+                // 6. Tasks
                 composable(Screen.Tasks.route) {
                     TasksScreen(
                         viewModel = plannerViewModel,
@@ -315,7 +346,7 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 9. Habits & Abstinence Matrix
+                // 9. Habits & Matrix
                 composable(Screen.Habits.route) {
                     HabitsScreen(
                         viewModel = habitsViewModel,
@@ -323,7 +354,7 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 10. Board Exam 2027 Mode
+                // 10. Board Exam
                 composable(Screen.BoardExam.route) {
                     BoardExamScreen(
                         viewModel = boardExamViewModel,
@@ -331,7 +362,7 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 11. Notes & Reflection Journal
+                // 11. Notes & Reflection
                 composable(Screen.Notes.route) {
                     NotesScreen(
                         viewModel = notesViewModel,
@@ -339,7 +370,7 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 12. Analytics & Telemetry
+                // 12. Analytics
                 composable(Screen.Analytics.route) {
                     AnalyticsScreen(
                         viewModel = analyticsViewModel,
@@ -347,11 +378,22 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 13. Settings
+                // 13. Notification Center & Diagnostics
+                composable(Screen.Notifications.route) {
+                    NotificationCenterScreen(
+                        userProfile = homeUiState.userProfile,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
+                // 14. Settings
                 composable(Screen.Settings.route) {
                     SettingsScreen(
                         viewModel = settingsViewModel,
-                        onOpenDrawer = openDrawer
+                        userProfile = homeUiState.userProfile,
+                        onOpenDrawer = openDrawer,
+                        onNavigateToNotifications = { navController.navigate(Screen.Notifications.route) },
+                        onNavigateToCalibration = { navController.navigate(Screen.Onboarding.route) }
                     )
                 }
             }
@@ -366,6 +408,8 @@ fun RebuildDrawerContent(
     level: Int,
     arcDay: Int,
     daysUntilExam: Long,
+    userName: String,
+    userClass: String,
     onNavigate: (String) -> Unit
 ) {
     LazyColumn(
@@ -383,40 +427,39 @@ fun RebuildDrawerContent(
                     .statusBarsPadding()
                     .padding(bottom = 8.dp)
             ) {
-                // Compact Brand Header
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Surface(
-                        modifier = Modifier.size(36.dp),
-                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.size(38.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = FrostedNavyCard,
                         border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f))
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            androidx.compose.foundation.Image(
+                            Image(
                                 painter = painterResource(id = R.drawable.rebuild_logo),
                                 contentDescription = "REBUILD Logo",
-                                modifier = Modifier.size(26.dp)
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "REBUILD",
+                            text = userName.ifBlank { "REBUILD" },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
+                            letterSpacing = 0.5.sp,
                             color = GlassWhite,
-                            fontSize = 17.sp
+                            fontSize = 16.sp
                         )
                         Text(
-                            text = "Class 12 & Winter Arc OS",
+                            text = userClass,
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 11.sp,
-                            color = GlassWhiteMuted
+                            color = IceCyanPrimary
                         )
                     }
                 }
@@ -432,7 +475,6 @@ fun RebuildDrawerContent(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Current Level
                         Surface(
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(10.dp),
@@ -456,7 +498,6 @@ fun RebuildDrawerContent(
                             }
                         }
 
-                        // XP
                         Surface(
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(10.dp),
@@ -485,7 +526,6 @@ fun RebuildDrawerContent(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // Winter Arc Day
                         Surface(
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(10.dp),
@@ -509,7 +549,6 @@ fun RebuildDrawerContent(
                             }
                         }
 
-                        // Exam Countdown
                         Surface(
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(10.dp),
@@ -525,7 +564,7 @@ fun RebuildDrawerContent(
                                     fontSize = 12.sp
                                 )
                                 Text(
-                                    text = "To Board Exam",
+                                    text = "To Target Exam",
                                     style = MaterialTheme.typography.bodySmall,
                                     fontSize = 10.sp,
                                     color = GlassWhiteMuted
@@ -668,6 +707,15 @@ fun RebuildDrawerContent(
                 screen = Screen.Analytics,
                 isSelected = currentRoute == Screen.Analytics.route,
                 onClick = { onNavigate(Screen.Analytics.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Notifications,
+                isSelected = currentRoute == Screen.Notifications.route,
+                highlightColor = SuccessGreen,
+                onClick = { onNavigate(Screen.Notifications.route) }
             )
         }
 

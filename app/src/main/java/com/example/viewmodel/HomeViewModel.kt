@@ -7,6 +7,7 @@ import com.example.data.local.entity.BoardExamConfigEntity
 import com.example.data.local.entity.DailyDisciplineEntity
 import com.example.data.local.entity.DailyPlanTaskEntity
 import com.example.data.local.entity.SchoolStatusEntity
+import com.example.data.local.entity.UserProfileEntity
 import com.example.data.local.entity.WinterArcStateEntity
 import com.example.data.repository.RebuildRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,13 +17,14 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class HomeUiState(
+    val userProfile: UserProfileEntity? = null,
     val winterArcState: WinterArcStateEntity = WinterArcStateEntity(),
     val boardExamConfig: BoardExamConfigEntity = BoardExamConfigEntity(),
-    val disciplineScore: DailyDisciplineEntity = DailyDisciplineEntity(date = "", totalScore = 82),
+    val disciplineScore: DailyDisciplineEntity = DailyDisciplineEntity(date = "", totalScore = 0),
     val schoolStatus: SchoolStatusEntity = SchoolStatusEntity(date = ""),
     val todayTasks: List<DailyPlanTaskEntity> = emptyList(),
     val daysUntilExam: Long = 148,
-    val todayStudyMinutes: Int = 110,
+    val todayStudyMinutes: Int = 0,
     val completedTasksCount: Int = 0,
     val totalTasksCount: Int = 0,
     val progressPercentage: Int = 0
@@ -30,21 +32,24 @@ data class HomeUiState(
 
 class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
 
-    private val arcAndExamFlow = combine(
+    private val baseProfileFlow = combine(
+        repository.getUserProfile(),
         repository.getWinterArcState(),
         repository.getBoardExamConfig()
-    ) { arc, exam -> Pair(arc ?: WinterArcStateEntity(), exam ?: BoardExamConfigEntity()) }
+    ) { profile, arc, exam ->
+        Triple(profile, arc ?: WinterArcStateEntity(), exam ?: BoardExamConfigEntity())
+    }
 
     val uiState: StateFlow<HomeUiState> = combine(
-        arcAndExamFlow,
+        baseProfileFlow,
         repository.getTodayDiscipline(),
         repository.getTodaySchoolStatus(),
         repository.getTodayTasks(),
         repository.getTodayStudyMinutes()
-    ) { (safeWinterArc, safeExamConfig), discipline, school, tasks, studyMins ->
+    ) { (profile, safeWinterArc, safeExamConfig), discipline, school, tasks, studyMins ->
         val safeDiscipline = discipline ?: DailyDisciplineEntity(
             date = repository.getTodayDateString(),
-            totalScore = 82
+            totalScore = 0
         )
         val safeSchool = school ?: SchoolStatusEntity(date = repository.getTodayDateString())
         val daysLeft = repository.calculateDaysUntilBoardExam(safeExamConfig.examDate)
@@ -53,6 +58,7 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
         val progress = if (totalCount > 0) ((completedCount.toFloat() / totalCount) * 100).toInt() else 0
 
         HomeUiState(
+            userProfile = profile,
             winterArcState = safeWinterArc,
             boardExamConfig = safeExamConfig,
             disciplineScore = safeDiscipline,

@@ -30,6 +30,8 @@ import com.example.viewmodel.HomeViewModel
 import com.example.viewmodel.HomeViewModelFactory
 import com.example.viewmodel.NotesViewModel
 import com.example.viewmodel.NotesViewModelFactory
+import com.example.viewmodel.OnboardingViewModel
+import com.example.viewmodel.OnboardingViewModelFactory
 import com.example.viewmodel.PlannerViewModel
 import com.example.viewmodel.PlannerViewModelFactory
 import com.example.viewmodel.PomodoroViewModel
@@ -104,6 +106,13 @@ class MainActivity : ComponentActivity() {
         NotesViewModelFactory(applicationInstance.repository)
     }
 
+    private val onboardingViewModel: OnboardingViewModel by viewModels {
+        OnboardingViewModelFactory(
+            applicationInstance.repository,
+            applicationInstance.userPreferencesRepository
+        )
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -129,7 +138,8 @@ class MainActivity : ComponentActivity() {
                         analyticsViewModel = analyticsViewModel,
                         settingsViewModel = settingsViewModel,
                         aiCoachViewModel = aiCoachViewModel,
-                        notesViewModel = notesViewModel
+                        notesViewModel = notesViewModel,
+                        onboardingViewModel = onboardingViewModel
                     )
                 }
             }

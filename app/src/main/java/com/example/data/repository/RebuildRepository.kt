@@ -20,16 +20,14 @@ import com.example.data.local.entity.SessionType
 import com.example.data.local.entity.StudySessionEntity
 import com.example.data.local.entity.SubjectEntity
 import com.example.data.local.entity.TaskType
+import com.example.data.local.entity.UserProfileEntity
 import com.example.data.local.entity.WinterArcStateEntity
 import com.example.data.local.entity.WorkoutLevel
 import com.example.data.local.entity.WorkoutLogEntity
 import com.example.notification.AlarmScheduler
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -45,6 +43,249 @@ class RebuildRepository(
     private val monthDayFormat = SimpleDateFormat("MM-dd", Locale.getDefault())
 
     fun getTodayDateString(): String = dateFormat.format(Date())
+
+    // ----------------------------------------------------
+    // USER PROFILE & ONBOARDING SYSTEM
+    // ----------------------------------------------------
+
+    fun getUserProfile(): Flow<UserProfileEntity?> = db.userProfileDao().getUserProfile()
+
+    suspend fun getUserProfileDirect(): UserProfileEntity? = db.userProfileDao().getUserProfileDirect()
+
+    suspend fun saveUserProfile(profile: UserProfileEntity) {
+        db.userProfileDao().insertOrUpdate(profile)
+        if (context != null && profile.isCompleted) {
+            AlarmScheduler.scheduleProfileAlarms(context, profile)
+        }
+    }
+
+    suspend fun initializeUserSystem(profile: UserProfileEntity) {
+        val today = getTodayDateString()
+        val completedProfile = profile.copy(
+            isCompleted = true,
+            updatedAtTimestamp = System.currentTimeMillis()
+        )
+        db.userProfileDao().insertOrUpdate(completedProfile)
+
+        // 1. Initial Clean Winter Arc (Day 1, 0 XP, Level 1, 0 streak)
+        db.winterArcDao().insertOrUpdate(
+            WinterArcStateEntity(
+                id = 1,
+                startDate = today,
+                targetDays = 90,
+                currentDay = 1,
+                xp = 0,
+                level = 1,
+                streak = 0,
+                bestStreak = 0,
+                transformationScore = 0,
+                targetDailyDeepWorkHours = completedProfile.dailyStudyGoalHours
+            )
+        )
+
+        // 2. Generate Syllabus & Subjects based on Stream
+        val templates = SyllabusTemplateProvider.getTemplatesForStream(
+            completedProfile.studentClass,
+            completedProfile.stream
+        )
+
+        var totalChaptersCount = 0
+        var subjectOrder = 0
+
+        for (template in templates) {
+            val subjectId = db.subjectDao().insertSubject(
+                SubjectEntity(
+                    name = template.name,
+                    code = template.code,
+                    iconName = template.iconName,
+                    colorHex = template.colorHex,
+                    totalChapters = template.chapters.size,
+                    completedChapters = 0,
+                    targetHours = template.targetHours,
+                    orderIndex = subjectOrder++
+                )
+            )
+
+            val chapterEntities = template.chapters.mapIndexed { index, title ->
+                totalChaptersCount++
+                ChapterEntity(
+                    subjectId = subjectId,
+                    chapterNumber = index + 1,
+                    title = title,
+                    totalLectures = 5,
+                    completedLectures = 0,
+                    notesDone = false,
+                    pyqsDone = false,
+                    revisionCount = 0,
+                    isCompleted = false,
+                    completionPercentage = 0
+                )
+            }
+            db.subjectDao().insertChapters(chapterEntities)
+        }
+
+        // 3. Initial Clean Board Exam Configuration
+        db.boardExamDao().insertOrUpdate(
+            BoardExamConfigEntity(
+                id = 1,
+                examName = completedProfile.targetExamName,
+                examDate = completedProfile.targetExamDate,
+                totalSyllabusChapters = max(1, totalChaptersCount),
+                completedChapters = 0,
+                targetPercentage = completedProfile.targetPercentage,
+                dailyTargetLectures = 2,
+                dailyTargetRevisions = 2
+            )
+        )
+
+        // 4. Initial Clean Discipline Matrix (0 Score initially)
+        db.disciplineDao().insertOrUpdate(
+            DailyDisciplineEntity(
+                date = today,
+                studyScore = 0,
+                workoutScore = 0,
+                noPornScore = 0,
+                sleepScore = 0,
+                readingScore = 0,
+                totalScore = 0,
+                xpEarned = 0
+            )
+        )
+
+        // 5. Initial Clean Habits (Customized with user's wake time and study goal, 0 streak)
+        val defaultHabits = listOf(
+            HabitEntity(
+                name = "Wake Early (${completedProfile.wakeUpTime})",
+                iconName = "alarm",
+                colorHex = "#FFB300",
+                weight = 15,
+                isNegativeHabit = false,
+                targetUnit = "Time",
+                targetNumeric = 1,
+                streak = 0,
+                bestStreak = 0,
+                orderIndex = 0,
+                habitType = HabitType.SLEEP
+            ),
+            HabitEntity(
+                name = "Daily Workout (${completedProfile.workoutType})",
+                iconName = "fitness_center",
+                colorHex = "#00E676",
+                weight = 20,
+                isNegativeHabit = false,
+                targetUnit = "Session",
+                targetNumeric = 1,
+                streak = 0,
+                bestStreak = 0,
+                orderIndex = 1,
+                habitType = HabitType.WORKOUT
+            ),
+            HabitEntity(
+                name = "Deep Study (${completedProfile.dailyStudyGoalHours.toInt()}h+ Goal)",
+                iconName = "menu_book",
+                colorHex = "#38E1FF",
+                weight = 40,
+                isNegativeHabit = false,
+                targetUnit = "Hours",
+                targetNumeric = completedProfile.dailyStudyGoalHours.toInt(),
+                streak = 0,
+                bestStreak = 0,
+                orderIndex = 2,
+                habitType = HabitType.DEEP_STUDY
+            ),
+            HabitEntity(
+                name = "Book Reading",
+                iconName = "auto_stories",
+                colorHex = "#B388FF",
+                weight = 10,
+                isNegativeHabit = false,
+                targetUnit = "Pages",
+                targetNumeric = 10,
+                streak = 0,
+                bestStreak = 0,
+                orderIndex = 3,
+                habitType = HabitType.READING
+            ),
+            HabitEntity(
+                name = "No Porn (Discipline)",
+                iconName = "shield",
+                colorHex = "#FF5722",
+                weight = 15,
+                isNegativeHabit = true,
+                targetUnit = "Days Clean",
+                targetNumeric = 1,
+                streak = 0,
+                bestStreak = 0,
+                orderIndex = 4,
+                habitType = HabitType.NO_PORN
+            ),
+            HabitEntity(
+                name = "No Reels / Doomscroll",
+                iconName = "do_not_disturb",
+                colorHex = "#FF3D71",
+                weight = 10,
+                isNegativeHabit = true,
+                targetUnit = "Days Clean",
+                targetNumeric = 1,
+                streak = 0,
+                bestStreak = 0,
+                orderIndex = 5,
+                habitType = HabitType.NO_REELS
+            ),
+            HabitEntity(
+                name = "Meditation",
+                iconName = "self_improvement",
+                colorHex = "#70B8FF",
+                weight = 5,
+                isNegativeHabit = false,
+                targetUnit = "Minutes",
+                targetNumeric = 15,
+                streak = 0,
+                bestStreak = 0,
+                orderIndex = 6,
+                habitType = HabitType.MEDITATION
+            ),
+            HabitEntity(
+                name = "Water Intake (3.5L)",
+                iconName = "water_drop",
+                colorHex = "#00C2FF",
+                weight = 5,
+                isNegativeHabit = false,
+                targetUnit = "Liters",
+                targetNumeric = 3,
+                streak = 0,
+                bestStreak = 0,
+                orderIndex = 7,
+                habitType = HabitType.HYDRATION
+            )
+        )
+        for (habit in defaultHabits) {
+            db.habitDao().insertHabit(habit)
+        }
+
+        // 6. Generate Dynamic Tasks for Today
+        generateSmartDailyPlan(today)
+
+        // 7. Schedule Alarms
+        if (context != null) {
+            AlarmScheduler.scheduleProfileAlarms(context, completedProfile)
+        }
+    }
+
+    suspend fun resetAllUserData() {
+        db.userProfileDao().clearProfile()
+        db.dailyPlanDao().clearAll()
+        db.subjectDao().clearAll()
+        db.habitDao().clearAll()
+        db.workoutDao().clearAll()
+        db.disciplineDao().clearAll()
+        db.winterArcDao().clearAll()
+        db.boardExamDao().clearAll()
+        db.noteDao().clearAll()
+        db.reflectionDao().clearAll()
+        db.goalDao().clearAll()
+        db.schoolStatusDao().clearAll()
+    }
 
     // ----------------------------------------------------
     // SCHOOL STATUS SYSTEM
@@ -66,7 +307,6 @@ class RebuildRepository(
             dispatchSchoolTime = System.currentTimeMillis()
         )
         db.schoolStatusDao().insertOrUpdate(updated)
-        Log.d("RebuildRepository", "School status updated: ${updated.currentState} at ${updated.date}")
     }
 
     suspend fun arrivedSchool() {
@@ -88,7 +328,6 @@ class RebuildRepository(
             isPresent = true
         )
         db.schoolStatusDao().insertOrUpdate(updated)
-        Log.d("RebuildRepository", "School status updated: ${updated.currentState} at ${updated.date}")
     }
 
     suspend fun dispatchHome() {
@@ -109,7 +348,6 @@ class RebuildRepository(
             inSchoolMinutes = inSchoolDur
         )
         db.schoolStatusDao().insertOrUpdate(updated)
-        Log.d("RebuildRepository", "School status updated: ${updated.currentState} at ${updated.date}")
     }
 
     suspend fun arrivedHome() {
@@ -130,9 +368,7 @@ class RebuildRepository(
             travelHomeMinutes = travelHomeDur
         )
         db.schoolStatusDao().insertOrUpdate(updated)
-        Log.d("RebuildRepository", "School status updated: ${updated.currentState} at ${updated.date}")
 
-        // Automatically trigger smart daily planner generation with non-blocking error safety
         try {
             generateSmartDailyPlan(today)
         } catch (e: Exception) {
@@ -149,7 +385,6 @@ class RebuildRepository(
     }
 
     suspend fun generateSmartDailyPlan(targetDate: String) {
-        // 1. Check if there are missed tasks from previous days and rollover without duplicates
         val missedTasks = db.dailyPlanDao().getIncompleteTasksBefore(targetDate)
         val existingToday = db.dailyPlanDao().getTasksForDateDirect(targetDate).toMutableList()
 
@@ -171,100 +406,92 @@ class RebuildRepository(
             }
         }
 
-        // 2. Check if today already has newly generated tasks
         if (existingToday.isEmpty()) {
-            // Check if today is a festival
             val holiday = db.holidayDao().getHolidayForDate(targetDate, monthDayFormat.format(Date()))
             val isFestival = holiday != null
+            val profile = db.userProfileDao().getUserProfileDirect()
+            val subjects = db.subjectDao().getAllSubjectsDirect()
 
-            val candidateTasks = listOf(
-                // Physics
+            val generatedList = mutableListOf<DailyPlanTaskEntity>()
+            var orderIndex = 0
+
+            // Add dynamic tasks based on user's actual enrolled subjects
+            if (subjects.isNotEmpty()) {
+                for (sub in subjects.take(3)) {
+                    val pendingChapters = db.subjectDao().getChaptersForSubjectDirect(sub.id).filter { !it.isCompleted }
+                    val targetChapter = pendingChapters.firstOrNull()?.title ?: "Chapter 1 Review"
+
+                    generatedList.add(
+                        DailyPlanTaskEntity(
+                            date = targetDate,
+                            subject = sub.name,
+                            title = "${sub.name} Study Session",
+                            type = TaskType.LECTURE,
+                            details = "Target: $targetChapter • Theory & Numerical Problem Solving",
+                            targetMinutes = if (isFestival) 30 else profile?.preferredSessionDurationMinutes ?: 50,
+                            orderIndex = orderIndex++,
+                            xpReward = 60
+                        )
+                    )
+                    generatedList.add(
+                        DailyPlanTaskEntity(
+                            date = targetDate,
+                            subject = sub.name,
+                            title = "${sub.name} Notes & Revision",
+                            type = TaskType.NOTES,
+                            details = "Formula mapping and NCERT PYQ review for $targetChapter",
+                            targetMinutes = if (isFestival) 20 else 30,
+                            orderIndex = orderIndex++,
+                            xpReward = 40
+                        )
+                    )
+                }
+            } else {
+                generatedList.add(
+                    DailyPlanTaskEntity(
+                        date = targetDate,
+                        subject = "Core Study",
+                        title = "Deep Work Study Block 1",
+                        type = TaskType.LECTURE,
+                        details = "High-focus deep work study session",
+                        targetMinutes = 50,
+                        orderIndex = orderIndex++,
+                        xpReward = 60
+                    )
+                )
+            }
+
+            // Add user's workout
+            val workoutType = profile?.workoutType ?: "Calisthenics"
+            val workoutDuration = profile?.workoutDurationMinutes ?: 30
+            generatedList.add(
                 DailyPlanTaskEntity(
                     date = targetDate,
-                    subject = "Physics",
-                    title = "Nuclei Lecture",
-                    type = TaskType.LECTURE,
-                    details = "Binding energy, mass defect & nuclear stability concepts",
-                    targetMinutes = if (isFestival) 30 else 45,
-                    orderIndex = 0,
-                    xpReward = 60
-                ),
-                DailyPlanTaskEntity(
-                    date = targetDate,
-                    subject = "Physics",
-                    title = "Nuclei Notes",
-                    type = TaskType.NOTES,
-                    details = "Complete handwritten summary & short formulas",
-                    targetMinutes = if (isFestival) 20 else 30,
-                    orderIndex = 1,
+                    subject = "Workout",
+                    title = "Daily Workout ($workoutType)",
+                    type = TaskType.WORKOUT,
+                    details = "$workoutDuration min of physical exercise & cardio",
+                    targetMinutes = workoutDuration,
+                    orderIndex = orderIndex++,
                     xpReward = 40
-                ),
-                // Chemistry
+                )
+            )
+
+            // Add evening reflection task
+            generatedList.add(
                 DailyPlanTaskEntity(
                     date = targetDate,
-                    subject = "Chemistry",
-                    title = "P Block Revision",
-                    type = TaskType.REVISION,
-                    details = "Group 15-18 chemical reactions and trends",
-                    targetMinutes = if (isFestival) 30 else 50,
-                    orderIndex = 2,
-                    xpReward = 50
-                ),
-                // Biology
-                DailyPlanTaskEntity(
-                    date = targetDate,
-                    subject = "Biology",
-                    title = "Genetics Lecture",
-                    type = TaskType.LECTURE,
-                    details = "Dihybrid crosses & chromosomal theory of inheritance",
-                    targetMinutes = if (isFestival) 40 else 60,
-                    orderIndex = 3,
-                    xpReward = 60
-                ),
-                // Workout
-                DailyPlanTaskEntity(
-                    date = targetDate,
-                    subject = "Workout",
-                    title = "Running 20 min",
-                    type = TaskType.WORKOUT,
-                    details = "Cadence running or outdoor jog warmup",
-                    targetMinutes = 20,
-                    orderIndex = 4,
-                    xpReward = 30
-                ),
-                DailyPlanTaskEntity(
-                    date = targetDate,
-                    subject = "Workout",
-                    title = "Pushups 3 x 15",
-                    type = TaskType.WORKOUT,
-                    details = "3 sets of 15 strict form pushups",
+                    subject = "General",
+                    title = "Evening Reflection & Planning",
+                    type = TaskType.CUSTOM,
+                    details = "Audit today's score and prepare tomorrow's schedule",
                     targetMinutes = 15,
-                    orderIndex = 5,
-                    xpReward = 25
-                ),
-                DailyPlanTaskEntity(
-                    date = targetDate,
-                    subject = "Workout",
-                    title = "Squats 3 x 20",
-                    type = TaskType.WORKOUT,
-                    details = "3 sets of 20 bodyweight deep squats",
-                    targetMinutes = 15,
-                    orderIndex = 6,
+                    orderIndex = orderIndex++,
                     xpReward = 25
                 )
             )
 
-            val tasksToInsert = candidateTasks.filterNot { candidate ->
-                existingToday.any { ex ->
-                    ex.subject.equals(candidate.subject, ignoreCase = true) &&
-                    (ex.title.equals(candidate.title, ignoreCase = true) ||
-                     (candidate.subject != "Workout" && ex.title.contains(candidate.title.split(" ").firstOrNull() ?: "___", ignoreCase = true)))
-                }
-            }
-
-            if (tasksToInsert.isNotEmpty()) {
-                db.dailyPlanDao().insertTasks(tasksToInsert)
-            }
+            db.dailyPlanDao().insertTasks(generatedList)
         }
 
         recalculateDisciplineScore(targetDate)
@@ -286,7 +513,6 @@ class RebuildRepository(
             }
         }
 
-        // Award XP to winter arc
         if (newCompleted) {
             addXp(task.xpReward)
         }
@@ -332,8 +558,48 @@ class RebuildRepository(
     fun getChaptersForSubject(subjectId: Long): Flow<List<ChapterEntity>> =
         db.subjectDao().getChaptersForSubject(subjectId)
 
+    suspend fun addCustomSubject(subject: SubjectEntity): Long {
+        val id = db.subjectDao().insertSubject(subject)
+        updateBoardExamChapterCount()
+        return id
+    }
+
+    suspend fun addCustomChapter(chapter: ChapterEntity) {
+        db.subjectDao().insertChapters(listOf(chapter))
+        val allChapters = db.subjectDao().getChaptersForSubjectDirect(chapter.subjectId)
+        val subject = db.subjectDao().getSubjectByIdDirect(chapter.subjectId)
+        if (subject != null) {
+            db.subjectDao().updateSubject(
+                subject.copy(
+                    totalChapters = allChapters.size,
+                    completedChapters = allChapters.count { it.isCompleted }
+                )
+            )
+        }
+        updateBoardExamChapterCount()
+    }
+
+    private suspend fun updateBoardExamChapterCount() {
+        val subjects = db.subjectDao().getAllSubjectsDirect()
+        var total = 0
+        var completed = 0
+        for (s in subjects) {
+            val chapters = db.subjectDao().getChaptersForSubjectDirect(s.id)
+            total += chapters.size
+            completed += chapters.count { it.isCompleted }
+        }
+        val config = db.boardExamDao().getBoardExamConfigDirect()
+        if (config != null) {
+            db.boardExamDao().insertOrUpdate(
+                config.copy(
+                    totalSyllabusChapters = max(1, total),
+                    completedChapters = completed
+                )
+            )
+        }
+    }
+
     suspend fun updateChapter(chapter: ChapterEntity) {
-        // Calculate completion percentage
         val lectureProgress = if (chapter.totalLectures > 0) {
             (chapter.completedLectures.toFloat() / chapter.totalLectures * 40).toInt()
         } else 0
@@ -349,10 +615,9 @@ class RebuildRepository(
         )
         db.subjectDao().updateChapter(updated)
 
-        // Update parent subject count
-        val allSubChapters = db.subjectDao().getChaptersForSubject(chapter.subjectId).firstOrNull() ?: emptyList()
+        val allSubChapters = db.subjectDao().getChaptersForSubjectDirect(chapter.subjectId)
         val completedCount = allSubChapters.count { it.id == chapter.id && isNowCompleted || it.id != chapter.id && it.isCompleted }
-        val subject = db.subjectDao().getSubjectById(chapter.subjectId).firstOrNull()
+        val subject = db.subjectDao().getSubjectByIdDirect(chapter.subjectId)
         if (subject != null) {
             db.subjectDao().updateSubject(
                 subject.copy(
@@ -361,6 +626,7 @@ class RebuildRepository(
                 )
             )
         }
+        updateBoardExamChapterCount()
     }
 
     suspend fun incrementChapterRevision(chapterId: Long) {
@@ -471,7 +737,6 @@ class RebuildRepository(
             .copy(isCompleted = isNowCompleted)
         db.habitDao().insertOrUpdateLog(log)
 
-        // Update habit streak
         val newStreak = if (isNowCompleted) habit.streak + 1 else max(0, habit.streak - 1)
         val best = max(newStreak, habit.bestStreak)
         db.habitDao().updateHabit(habit.copy(streak = newStreak, bestStreak = best))
@@ -492,8 +757,6 @@ class RebuildRepository(
 
     // ----------------------------------------------------
     // DISCIPLINE SCORE ENGINE
-    // Default Weights:
-    // Study = 40, Workout = 20, No Porn = 15, Sleep = 15, Reading = 10
     // ----------------------------------------------------
 
     fun getTodayDiscipline(): Flow<DailyDisciplineEntity?> {
@@ -505,7 +768,6 @@ class RebuildRepository(
     }
 
     suspend fun recalculateDisciplineScore(date: String) {
-        // 1. Study Score (Max 40)
         val studyTasks = db.dailyPlanDao().getTasksForDateDirect(date).filter { it.subject != "Workout" }
         val studyScore = if (studyTasks.isNotEmpty()) {
             val done = studyTasks.count { it.isCompleted }
@@ -514,7 +776,6 @@ class RebuildRepository(
             0
         }
 
-        // 2. Workout Score (Max 20)
         val workouts = db.workoutDao().getWorkoutsForDateDirect(date)
         val workoutScore = if (workouts.isNotEmpty()) {
             val done = workouts.count { it.isCompleted }
@@ -529,7 +790,6 @@ class RebuildRepository(
             }
         }
 
-        // 3. Habit logs for No Porn (15), Sleep (15), Reading (10)
         val habitLogs = db.habitDao().getLogsForDateDirect(date)
         val allHabits = db.habitDao().getAllHabitsDirect()
         val habitMap = allHabits.associateBy { it.id }
@@ -550,9 +810,7 @@ class RebuildRepository(
                 HabitType.READING -> {
                     readingScore = if (log.isCompleted) 10 else 0
                 }
-                else -> {
-                    // Other habit types are tracked in their dedicated modules
-                }
+                else -> {}
             }
         }
 
@@ -578,7 +836,7 @@ class RebuildRepository(
     fun getWinterArcState(): Flow<WinterArcStateEntity?> = db.winterArcDao().getWinterArcState()
 
     suspend fun addXp(amount: Int) {
-        val current = db.winterArcDao().getWinterArcStateDirect() ?: WinterArcStateEntity()
+        val current = db.winterArcDao().getWinterArcStateDirect() ?: WinterArcStateEntity(id = 1)
         val newXp = current.xp + amount
         val newLevel = max(1, newXp / 400 + 1)
         val updated = current.copy(
@@ -590,7 +848,7 @@ class RebuildRepository(
     }
 
     suspend fun updateWinterArcDay(day: Int, streak: Int) {
-        val current = db.winterArcDao().getWinterArcStateDirect() ?: WinterArcStateEntity()
+        val current = db.winterArcDao().getWinterArcStateDirect() ?: WinterArcStateEntity(id = 1)
         val updated = current.copy(
             currentDay = day,
             streak = streak,

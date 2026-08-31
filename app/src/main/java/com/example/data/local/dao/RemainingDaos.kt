@@ -38,6 +38,9 @@ interface WorkoutDao {
 
     @Delete
     suspend fun deleteWorkout(workout: WorkoutLogEntity)
+
+    @Query("DELETE FROM workout_logs")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -56,6 +59,9 @@ interface HolidayDao {
 
     @Delete
     suspend fun deleteHoliday(holiday: HolidayEntity)
+
+    @Query("DELETE FROM holidays")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -74,6 +80,9 @@ interface DisciplineDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(discipline: DailyDisciplineEntity)
+
+    @Query("DELETE FROM daily_discipline_scores")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -86,6 +95,9 @@ interface WinterArcDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(state: WinterArcStateEntity)
+
+    @Query("DELETE FROM winter_arc_state")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -98,4 +110,7 @@ interface BoardExamDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(config: BoardExamConfigEntity)
+
+    @Query("DELETE FROM board_exam_config")
+    suspend fun clearAll()
 }

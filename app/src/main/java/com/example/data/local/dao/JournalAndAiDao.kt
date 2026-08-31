@@ -27,6 +27,9 @@ interface NoteDao {
 
     @Delete
     suspend fun deleteNote(note: NoteEntity)
+
+    @Query("DELETE FROM notes")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -42,6 +45,9 @@ interface ReflectionDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(reflection: DailyReflectionEntity)
+
+    @Query("DELETE FROM daily_reflections")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -60,4 +66,7 @@ interface AiPlanDao {
 
     @Query("DELETE FROM ai_plan_cache WHERE planType = :planType")
     suspend fun deletePlan(planType: String)
+
+    @Query("DELETE FROM ai_plan_cache")
+    suspend fun clearAll()
 }
