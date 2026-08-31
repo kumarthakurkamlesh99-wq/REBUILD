@@ -130,7 +130,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector,
     object Focus : Screen("focus", "Focus & Pomodoro", Icons.Default.Timer)
     object Fitness : Screen("fitness", "Fitness & Calisthenics", Icons.Default.FitnessCenter)
     object Habits : Screen("habits", "Habits & Discipline", Icons.Default.CheckCircle)
-    object BoardExam : Screen("board_exam", "Board Exam 2027", Icons.Default.School, "148d")
+    object BoardExam : Screen("board_exam", "Board Exam", Icons.Default.School, "148d")
     object Notes : Screen("notes", "Notes & Reflection", Icons.Default.Notes)
     object Analytics : Screen("analytics", "Analytics", Icons.Default.Analytics)
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
@@ -381,96 +381,162 @@ fun RebuildDrawerContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(bottom = 12.dp)
+                    .padding(bottom = 8.dp)
             ) {
+                // Compact Brand Header
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Surface(
-                        modifier = Modifier.size(46.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.size(36.dp),
+                        shape = RoundedCornerShape(8.dp),
                         color = FrostedNavyCard,
-                        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.6f))
+                        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f))
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             androidx.compose.foundation.Image(
                                 painter = painterResource(id = R.drawable.rebuild_logo),
                                 contentDescription = "REBUILD Logo",
-                                modifier = Modifier.size(34.dp)
+                                modifier = Modifier.size(26.dp)
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
                             text = "REBUILD",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 2.sp,
-                            color = GlassWhite
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            color = GlassWhite,
+                            fontSize = 17.sp
                         )
                         Text(
-                            text = "APEX LIFE OPERATING SYSTEM",
+                            text = "Class 12 & Winter Arc OS",
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = IceCyanPrimary,
-                            letterSpacing = 1.sp
+                            fontSize = 11.sp,
+                            color = GlassWhiteMuted
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // User Telemetry Pill Bar
-                Surface(
+                // Compact Telemetry Info Cards (2x2 Grid)
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = LuxuryCard,
-                    border = BorderStroke(0.5.dp, Color(0x337C8CFF))
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Column {
-                            Text(
-                                text = "LEVEL $level",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Black,
-                                color = PurpleArc
-                            )
-                            Text(
-                                text = "$xp XP Accumulated",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontSize = 11.sp,
-                                color = GlassWhiteMuted
-                            )
+                        // Current Level
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            color = LuxuryCard,
+                            border = BorderStroke(0.5.dp, Color(0x337C8CFF))
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                Text(
+                                    text = "LEVEL $level",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PurpleArc,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = "Rank Tier",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 10.sp,
+                                    color = GlassWhiteMuted
+                                )
+                            }
                         }
 
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "DAY $arcDay / 90",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Black,
-                                color = IceCyanPrimary
-                            )
-                            Text(
-                                text = "$daysUntilExam Days to Exam",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontSize = 11.sp,
-                                color = FrostBlueAccent
-                            )
+                        // XP
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            color = LuxuryCard,
+                            border = BorderStroke(0.5.dp, Color(0x337C8CFF))
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                Text(
+                                    text = "${String.format("%,d", xp)} XP",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = IceCyanPrimary,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = "Accumulated",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 10.sp,
+                                    color = GlassWhiteMuted
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Winter Arc Day
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            color = LuxuryCard,
+                            border = BorderStroke(0.5.dp, Color(0x337C8CFF))
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                Text(
+                                    text = "Day $arcDay / 90",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = FrostBlueAccent,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = "Winter Arc",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 10.sp,
+                                    color = GlassWhiteMuted
+                                )
+                            }
+                        }
+
+                        // Exam Countdown
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            color = LuxuryCard,
+                            border = BorderStroke(0.5.dp, Color(0x337C8CFF))
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                Text(
+                                    text = "$daysUntilExam Days",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = WarningAmber,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = "To Board Exam",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 10.sp,
+                                    color = GlassWhiteMuted
+                                )
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider(color = Color(0x2238E1FF), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(10.dp))
+                HorizontalDivider(color = Color(0x18FFFFFF), thickness = 0.5.dp)
             }
         }
 

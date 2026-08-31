@@ -95,19 +95,19 @@ fun ScheduleScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkNavy)
-            .padding(top = 12.dp)
+            .padding(top = 8.dp)
     ) {
         // Top Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
                 onClick = onOpenDrawer,
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(40.dp)
                     .clip(CircleShape)
                     .background(LuxuryCard)
                     .testTag("menu_button")
@@ -115,7 +115,8 @@ fun ScheduleScreen(
                 Icon(
                     imageVector = Icons.Default.Menu,
                     contentDescription = "Open Navigation Menu",
-                    tint = GlassWhite
+                    tint = GlassWhite,
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
@@ -123,17 +124,18 @@ fun ScheduleScreen(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "SCHEDULE & TIMETABLE",
+                    text = "Schedule",
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
                     color = GlassWhite,
-                    letterSpacing = 1.sp
+                    letterSpacing = 0.5.sp
                 )
                 Text(
-                    text = "Time-blocked daily operating schedule & school flow",
+                    text = "Time-blocked daily routine & school flow",
                     style = MaterialTheme.typography.bodySmall,
                     color = GlassWhiteMuted,
-                    fontSize = 11.sp
+                    fontSize = 12.sp
                 )
             }
         }

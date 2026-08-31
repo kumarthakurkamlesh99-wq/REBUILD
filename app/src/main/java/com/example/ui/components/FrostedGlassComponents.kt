@@ -32,6 +32,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.platform.testTag
+import com.example.ui.theme.LuxuryCard
+import com.example.ui.theme.PurpleArc
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -197,3 +205,122 @@ fun GlowPill(
         }
     }
 }
+
+@Composable
+fun CompactScreenHeader(
+    title: String,
+    subtitle: String? = null,
+    onOpenDrawer: (() -> Unit)? = null,
+    onBack: (() -> Unit)? = null,
+    trailingContent: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (onOpenDrawer != null) {
+            IconButton(
+                onClick = onOpenDrawer,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(FrostedNavyCard)
+                    .testTag("menu_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "Open Navigation Menu",
+                    tint = GlassWhite,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+        } else if (onBack != null) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(FrostedNavyCard)
+                    .testTag("back_button")
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Navigate Back",
+                    tint = GlassWhite,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = GlassWhite,
+                letterSpacing = 0.3.sp,
+                maxLines = 1
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontSize = 12.sp,
+                    color = GlassWhiteMuted,
+                    maxLines = 1
+                )
+            }
+        }
+
+        if (trailingContent != null) {
+            Spacer(modifier = Modifier.width(8.dp))
+            trailingContent()
+        }
+    }
+}
+
+@Composable
+fun CompactLevelXpBadge(
+    level: Int,
+    xp: Int,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        color = LuxuryCard,
+        border = BorderStroke(1.dp, Color(0x337C8CFF))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "LEVEL $level",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = PurpleArc,
+                fontSize = 11.sp
+            )
+            Text(
+                text = " • ",
+                color = GlassWhiteMuted,
+                fontSize = 11.sp
+            )
+            Text(
+                text = "${String.format("%,d", xp)} XP",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = IceCyanPrimary,
+                fontSize = 11.sp
+            )
+        }
+    }
+}
+

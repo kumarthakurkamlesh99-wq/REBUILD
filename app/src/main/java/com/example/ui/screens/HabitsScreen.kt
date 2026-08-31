@@ -105,13 +105,15 @@ fun HabitsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Header
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
@@ -125,23 +127,25 @@ fun HabitsScreen(
                         Icon(
                             imageVector = Icons.Default.Menu,
                             contentDescription = "Open Navigation Menu",
-                            tint = GlassWhite
+                            tint = GlassWhite,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "HABIT PROTOCOLS",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = IceCyanPrimary,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.2.sp
+                            text = "Habits & Discipline",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GlassWhite,
+                            letterSpacing = 0.5.sp
                         )
                         Text(
-                            text = "Discipline & Abstinence Matrix",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            color = GlassWhite
+                            text = "Daily streak & discipline score matrix",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = GlassWhiteMuted,
+                            fontSize = 12.sp
                         )
                     }
                 }

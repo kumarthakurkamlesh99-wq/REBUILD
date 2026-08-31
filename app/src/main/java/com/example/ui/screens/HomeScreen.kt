@@ -65,6 +65,7 @@ import com.example.R
 import com.example.data.local.entity.DailyPlanTaskEntity
 import com.example.data.local.entity.SchoolState
 import com.example.data.local.entity.TaskType
+import com.example.ui.components.CompactLevelXpBadge
 import com.example.ui.components.FrostedGlassCard
 import com.example.ui.components.GlowPill
 import com.example.ui.components.HeroGlassCard
@@ -105,8 +106,8 @@ fun HomeScreen(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // 1. REBUILD BRAND HEADER
         item {
@@ -275,49 +276,39 @@ fun BrandHeader(
                 Icon(
                     imageVector = Icons.Default.Menu,
                     contentDescription = "Open Navigation Menu",
-                    tint = GlassWhite
+                    tint = GlassWhite,
+                    modifier = Modifier.size(20.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Image(
                 painter = painterResource(id = R.drawable.rebuild_logo),
                 contentDescription = "REBUILD Logo",
                 modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .border(1.dp, IceCyanPrimary.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, IceCyanPrimary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
             )
             Spacer(modifier = Modifier.width(10.dp))
             Column {
                 Text(
                     text = "REBUILD",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.5.sp,
-                    color = GlassWhite
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = GlassWhite,
+                    fontSize = 18.sp
                 )
                 Text(
-                    text = "DISCIPLINE • FOCUS • TRANSFORM",
+                    text = "Dashboard",
                     style = MaterialTheme.typography.labelSmall,
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = IceCyanPrimary
+                    fontSize = 11.sp,
+                    color = GlassWhiteMuted
                 )
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            GlowPill(
-                text = "LVL $level",
-                color = PurpleArc,
-                icon = Icons.Default.Bolt
-            )
-            GlowPill(
-                text = "$xp XP",
-                color = IceCyanPrimary,
-                icon = Icons.Default.AutoAwesome
-            )
-        }
+        CompactLevelXpBadge(level = level, xp = xp)
     }
 }
 

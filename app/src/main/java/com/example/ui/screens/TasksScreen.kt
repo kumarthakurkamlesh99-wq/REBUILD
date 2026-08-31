@@ -102,19 +102,19 @@ fun TasksScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 12.dp)
+                .padding(top = 8.dp)
         ) {
             // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
                     onClick = onOpenDrawer,
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(LuxuryCard)
                         .testTag("menu_button")
@@ -122,7 +122,8 @@ fun TasksScreen(
                     Icon(
                         imageVector = Icons.Default.Menu,
                         contentDescription = "Open Navigation Menu",
-                        tint = GlassWhite
+                        tint = GlassWhite,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
@@ -130,18 +131,18 @@ fun TasksScreen(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "DAILY TASKS & MISSIONS",
+                        text = "Tasks",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
                         color = GlassWhite,
-                        letterSpacing = 1.sp
+                        letterSpacing = 0.5.sp
                     )
                     Text(
                         text = "$completedCount/$totalCount Completed • $progressPerc% Progress",
                         style = MaterialTheme.typography.bodySmall,
-                        color = SuccessGreen,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        color = GlassWhiteMuted,
+                        fontSize = 12.sp
                     )
                 }
             }

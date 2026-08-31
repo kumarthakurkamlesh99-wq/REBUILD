@@ -103,13 +103,15 @@ fun PlannerScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Screen Title
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
@@ -123,23 +125,25 @@ fun PlannerScreen(
                         Icon(
                             imageVector = Icons.Default.Menu,
                             contentDescription = "Open Navigation Menu",
-                            tint = GlassWhite
+                            tint = GlassWhite,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "SMART PLANNER",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = IceCyanPrimary,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.2.sp
+                            text = "Smart Planner",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GlassWhite,
+                            letterSpacing = 0.5.sp
                         )
                         Text(
-                            text = "Daily OS & School Engine",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            color = GlassWhite
+                            text = "Daily OS & school routine",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = GlassWhiteMuted,
+                            fontSize = 12.sp
                         )
                     }
 

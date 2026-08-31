@@ -98,19 +98,19 @@ fun NotesScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 12.dp)
+                .padding(top = 8.dp)
         ) {
             // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
                     onClick = onOpenDrawer,
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(LuxuryCard)
                         .testTag("menu_button")
@@ -118,7 +118,8 @@ fun NotesScreen(
                     Icon(
                         imageVector = Icons.Default.Menu,
                         contentDescription = "Open Navigation Menu",
-                        tint = GlassWhite
+                        tint = GlassWhite,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
@@ -126,17 +127,18 @@ fun NotesScreen(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "NOTES & REFLECTIONS",
+                        text = "Notes & Reflection",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
                         color = GlassWhite,
-                        letterSpacing = 1.sp
+                        letterSpacing = 0.5.sp
                     )
                     Text(
-                        text = "Daily audit, high-yield formulas & board strategies",
+                        text = "Daily audit, high-yield formulas & strategies",
                         style = MaterialTheme.typography.bodySmall,
                         color = GlassWhiteMuted,
-                        fontSize = 11.sp
+                        fontSize = 12.sp
                     )
                 }
             }

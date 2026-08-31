@@ -77,13 +77,15 @@ fun WinterArcScreen(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 40.dp),
+        contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Header
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
@@ -97,23 +99,25 @@ fun WinterArcScreen(
                     Icon(
                         imageVector = Icons.Default.Menu,
                         contentDescription = "Open Navigation Menu",
-                        tint = GlassWhite
+                        tint = GlassWhite,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "DISCIPLINE ENGINE",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = IceCyanPrimary,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.2.sp
+                        text = "Winter Arc",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GlassWhite,
+                        letterSpacing = 0.5.sp
                     )
                     Text(
-                        text = "Winter Arc 90-Day OS",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black,
-                        color = GlassWhite
+                        text = "90-day transformation protocol • Day ${uiState.state.currentDay} / ${uiState.state.targetDays}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = GlassWhiteMuted,
+                        fontSize = 12.sp
                     )
                 }
             }

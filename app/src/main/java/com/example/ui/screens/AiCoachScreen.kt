@@ -117,19 +117,19 @@ fun AiCoachScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkNavy)
-            .padding(top = 12.dp)
+            .padding(top = 8.dp)
     ) {
         // Top Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
                 onClick = onOpenDrawer,
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(40.dp)
                     .clip(CircleShape)
                     .background(LuxuryCard)
                     .testTag("menu_button")
@@ -137,42 +137,28 @@ fun AiCoachScreen(
                 Icon(
                     imageVector = Icons.Default.Menu,
                     contentDescription = "Open Navigation Menu",
-                    tint = GlassWhite
+                    tint = GlassWhite,
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "AI COACH",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black,
-                        color = GlassWhite,
-                        letterSpacing = 1.sp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = LuxuryAccent.copy(alpha = 0.2f),
-                        border = BorderStroke(0.5.dp, LuxuryAccent.copy(alpha = 0.6f))
-                    ) {
-                        Text(
-                            text = "GEMINI FLASH",
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 9.sp,
-                            color = IceCyanPrimary
-                        )
-                    }
-                }
                 Text(
-                    text = "Personal Class 12 Board & Winter Arc Mentor",
+                    text = "AI Coach",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GlassWhite,
+                    letterSpacing = 0.5.sp
+                )
+                Text(
+                    text = "Gemini",
                     style = MaterialTheme.typography.bodySmall,
-                    color = GlassWhiteMuted,
-                    fontSize = 11.sp
+                    fontSize = 13.sp,
+                    color = FrostBlueAccent,
+                    fontWeight = FontWeight.Medium
                 )
             }
 
