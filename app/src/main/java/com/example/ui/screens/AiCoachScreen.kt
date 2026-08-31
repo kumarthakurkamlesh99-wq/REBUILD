@@ -72,8 +72,13 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.repository.AiPlanType
@@ -468,12 +473,8 @@ fun AiPlansSection(viewModel: AiCoachViewModel, state: AiCoachUiState) {
                             .verticalScroll(scrollState)
                             .padding(16.dp)
                     ) {
-                        Text(
-                            text = state.currentPlanContent.ifBlank { "Tap Generate to produce this plan." },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = GlassWhite,
-                            lineHeight = 22.sp,
-                            fontSize = 13.sp
+                        MarkdownText(
+                            text = state.currentPlanContent.ifBlank { "Tap Generate to produce this plan." }
                         )
                     }
                 }
@@ -608,12 +609,9 @@ fun LiveCoachChatSection(viewModel: AiCoachViewModel, state: AiCoachUiState) {
                                 )
                             }
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(
+                            MarkdownText(
                                 text = message.text,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = GlassWhite,
-                                fontSize = 13.sp,
-                                lineHeight = 18.sp
+                                baseColor = GlassWhite
                             )
                         }
                     }
@@ -789,5 +787,168 @@ fun AiContextTelemetrySection(viewModel: AiCoachViewModel, state: AiCoachUiState
             Spacer(modifier = Modifier.width(6.dp))
             Text("Refresh Telemetry View", color = GlassWhite, fontWeight = FontWeight.Bold)
         }
+    }
+}
+
+@Composable
+fun MarkdownText(
+    text: String,
+    modifier: Modifier = Modifier,
+    baseColor: Color = GlassWhite
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        val lines = text.lines()
+        for (line in lines) {
+            val trimmed = line.trim()
+            when {
+                trimmed.isEmpty() -> {
+                    Spacer(modifier = Modifier.height(2.dp))
+                }
+                trimmed.startsWith("### ") -> {
+                    Text(
+                        text = buildAnnotatedMarkdown(trimmed.removePrefix("### ").trim(), IceCyanPrimary),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = IceCyanPrimary,
+                        fontSize = 14.sp
+                    )
+                }
+                trimmed.startsWith("## ") -> {
+                    Text(
+                        text = buildAnnotatedMarkdown(trimmed.removePrefix("## ").trim(), LuxuryAccent),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Black,
+                        color = LuxuryAccent,
+                        fontSize = 15.sp
+                    )
+                }
+                trimmed.startsWith("# ") -> {
+                    Text(
+                        text = buildAnnotatedMarkdown(trimmed.removePrefix("# ").trim(), GlassWhite),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        color = GlassWhite,
+                        fontSize = 17.sp
+                    )
+                }
+                trimmed.startsWith("- ") || trimmed.startsWith("* ") -> {
+                    val content = trimmed.removePrefix("- ").removePrefix("* ").trim()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 4.dp, top = 2.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text(
+                            text = "•",
+                            color = IceCyanPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text(
+                            text = buildAnnotatedMarkdown(content, baseColor),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = baseColor,
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                trimmed.matches(Regex("^\\d+\\..*")) -> {
+                    val match = Regex("^(\\d+\\.)\\s*(.*)").find(trimmed)
+                    val prefix = match?.groupValues?.getOrNull(1) ?: "1."
+                    val content = match?.groupValues?.getOrNull(2) ?: trimmed
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 4.dp, top = 2.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text(
+                            text = prefix,
+                            color = LuxuryAccent,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                        Text(
+                            text = buildAnnotatedMarkdown(content, baseColor),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = baseColor,
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                else -> {
+                    Text(
+                        text = buildAnnotatedMarkdown(trimmed, baseColor),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = baseColor,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun buildAnnotatedMarkdown(
+    text: String,
+    baseColor: Color
+) = buildAnnotatedString {
+    var currentIndex = 0
+    // Regex matches: **bold**, *italic*, `code`
+    val regex = Regex("(\\*{1,2})(.*?)\\1|(`)(.*?)\\3")
+    val matches = regex.findAll(text)
+
+    for (match in matches) {
+        // Append text before match
+        if (match.range.first > currentIndex) {
+            append(text.substring(currentIndex, match.range.first))
+        }
+
+        val fullMatch = match.value
+        when {
+            fullMatch.startsWith("**") && fullMatch.endsWith("**") && fullMatch.length >= 4 -> {
+                val inner = fullMatch.substring(2, fullMatch.length - 2)
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = IceCyanPrimary)) {
+                    append(inner)
+                }
+            }
+            fullMatch.startsWith("*") && fullMatch.endsWith("*") && fullMatch.length >= 2 -> {
+                val inner = fullMatch.substring(1, fullMatch.length - 1)
+                withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
+                    append(inner)
+                }
+            }
+            fullMatch.startsWith("`") && fullMatch.endsWith("`") && fullMatch.length >= 2 -> {
+                val inner = fullMatch.substring(1, fullMatch.length - 1)
+                withStyle(
+                    SpanStyle(
+                        fontFamily = FontFamily.Monospace,
+                        color = FrostBlueAccent,
+                        background = Color(0x33000000)
+                    )
+                ) {
+                    append(inner)
+                }
+            }
+            else -> {
+                append(fullMatch)
+            }
+        }
+        currentIndex = match.range.last + 1
+    }
+
+    if (currentIndex < text.length) {
+        append(text.substring(currentIndex))
     }
 }

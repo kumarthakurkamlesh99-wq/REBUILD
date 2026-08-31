@@ -66,7 +66,7 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
+        started = SharingStarted.WhileSubscribed(5000, replayExpirationMillis = Long.MAX_VALUE),
         initialValue = HomeUiState()
     )
 

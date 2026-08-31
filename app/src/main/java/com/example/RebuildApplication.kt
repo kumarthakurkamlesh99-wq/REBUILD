@@ -21,7 +21,7 @@ class RebuildApplication : Application() {
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val database by lazy { AppDatabase.getDatabase(this, applicationScope) }
-    val repository by lazy { RebuildRepository(database) }
+    val repository by lazy { RebuildRepository(database, this) }
     val userPreferencesRepository by lazy { UserPreferencesRepository(this) }
     val geminiCoachRepository by lazy { GeminiCoachRepository(database, userPreferencesRepository) }
 

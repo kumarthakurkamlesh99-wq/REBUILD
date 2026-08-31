@@ -17,6 +17,9 @@ data class ScheduledAlarm(
 
 object AlarmScheduler {
 
+    const val TASK_ALARM_ID_BASE = 10000
+    const val GOAL_ALARM_ID_BASE = 20000
+
     val DEFAULT_DAILY_ALARMS = listOf(
         ScheduledAlarm(101, 6, 0, "Wake Up • Day Underway", "Winter Arc discipline starts now. Stand up, hydrate and prepare for the day."),
         ScheduledAlarm(102, 9, 45, "Leave For School", "Dispatch for school. Review today's key physics formulas on the way."),
@@ -121,5 +124,41 @@ object AlarmScheduler {
         if (pendingIntent != null) {
             alarmManager.cancel(pendingIntent)
         }
+    }
+
+    fun scheduleTaskAlarm(context: Context, taskId: Long, hour: Int, minute: Int, title: String, subject: String) {
+        val alarmId = (TASK_ALARM_ID_BASE + (taskId % 9999)).toInt()
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val alarm = ScheduledAlarm(
+            id = alarmId,
+            hour = hour,
+            minute = minute,
+            title = "Task Reminder • $subject",
+            message = title
+        )
+        scheduleDailyAlarm(context, alarmManager, alarm)
+    }
+
+    fun cancelTaskAlarm(context: Context, taskId: Long) {
+        val alarmId = (TASK_ALARM_ID_BASE + (taskId % 9999)).toInt()
+        cancelAlarm(context, alarmId)
+    }
+
+    fun scheduleGoalAlarm(context: Context, goalId: Long, hour: Int, minute: Int, title: String) {
+        val alarmId = (GOAL_ALARM_ID_BASE + (goalId % 9999)).toInt()
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val alarm = ScheduledAlarm(
+            id = alarmId,
+            hour = hour,
+            minute = minute,
+            title = "Apex Goal Reminder",
+            message = title
+        )
+        scheduleDailyAlarm(context, alarmManager, alarm)
+    }
+
+    fun cancelGoalAlarm(context: Context, goalId: Long) {
+        val alarmId = (GOAL_ALARM_ID_BASE + (goalId % 9999)).toInt()
+        cancelAlarm(context, alarmId)
     }
 }

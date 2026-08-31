@@ -67,7 +67,7 @@ class PlannerViewModel(private val repository: RebuildRepository) : ViewModel() 
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
+        started = SharingStarted.WhileSubscribed(5000, replayExpirationMillis = Long.MAX_VALUE),
         initialValue = PlannerUiState()
     )
 
@@ -85,7 +85,9 @@ class PlannerViewModel(private val repository: RebuildRepository) : ViewModel() 
         title: String,
         type: TaskType,
         targetMins: Int,
-        details: String
+        details: String,
+        reminderHour: Int? = null,
+        reminderMinute: Int? = null
     ) = viewModelScope.launch {
         val task = DailyPlanTaskEntity(
             date = repository.getTodayDateString(),
@@ -94,9 +96,15 @@ class PlannerViewModel(private val repository: RebuildRepository) : ViewModel() 
             type = type,
             details = details,
             targetMinutes = targetMins,
-            xpReward = targetMins
+            xpReward = targetMins,
+            reminderHour = reminderHour,
+            reminderMinute = reminderMinute
         )
         repository.addTask(task)
+    }
+
+    fun updateTask(task: DailyPlanTaskEntity) = viewModelScope.launch {
+        repository.updateTask(task)
     }
 
     fun deleteTask(task: DailyPlanTaskEntity) = viewModelScope.launch {

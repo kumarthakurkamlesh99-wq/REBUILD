@@ -22,6 +22,8 @@ import com.example.viewmodel.BoardExamViewModel
 import com.example.viewmodel.BoardExamViewModelFactory
 import com.example.viewmodel.FitnessViewModel
 import com.example.viewmodel.FitnessViewModelFactory
+import com.example.viewmodel.GoalsViewModel
+import com.example.viewmodel.GoalsViewModelFactory
 import com.example.viewmodel.HabitsViewModel
 import com.example.viewmodel.HabitsViewModelFactory
 import com.example.viewmodel.HomeViewModel
@@ -61,6 +63,10 @@ class MainActivity : ComponentActivity() {
 
     private val fitnessViewModel: FitnessViewModel by viewModels {
         FitnessViewModelFactory(applicationInstance.repository)
+    }
+
+    private val goalsViewModel: GoalsViewModel by viewModels {
+        GoalsViewModelFactory(applicationInstance.repository)
     }
 
     private val habitsViewModel: HabitsViewModel by viewModels {
@@ -116,6 +122,7 @@ class MainActivity : ComponentActivity() {
                         subjectsViewModel = subjectsViewModel,
                         pomodoroViewModel = pomodoroViewModel,
                         fitnessViewModel = fitnessViewModel,
+                        goalsViewModel = goalsViewModel,
                         habitsViewModel = habitsViewModel,
                         winterArcViewModel = winterArcViewModel,
                         boardExamViewModel = boardExamViewModel,

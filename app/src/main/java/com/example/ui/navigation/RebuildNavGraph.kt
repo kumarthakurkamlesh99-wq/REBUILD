@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
@@ -78,6 +79,7 @@ import com.example.ui.screens.AiCoachScreen
 import com.example.ui.screens.AnalyticsScreen
 import com.example.ui.screens.BoardExamScreen
 import com.example.ui.screens.FitnessScreen
+import com.example.ui.screens.GoalsScreen
 import com.example.ui.screens.HabitsScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.NotesScreen
@@ -106,6 +108,7 @@ import com.example.viewmodel.AiCoachViewModel
 import com.example.viewmodel.AnalyticsViewModel
 import com.example.viewmodel.BoardExamViewModel
 import com.example.viewmodel.FitnessViewModel
+import com.example.viewmodel.GoalsViewModel
 import com.example.viewmodel.HabitsViewModel
 import com.example.viewmodel.HomeViewModel
 import com.example.viewmodel.NotesViewModel
@@ -119,6 +122,7 @@ import kotlinx.coroutines.launch
 sealed class Screen(val route: String, val title: String, val icon: ImageVector, val badgeText: String? = null) {
     object Home : Screen("home", "Dashboard", Icons.Default.Home)
     object AiCoach : Screen("ai_coach", "AI Coach", Icons.Default.Psychology, "Gemini")
+    object Goals : Screen("goals", "Apex Goals", Icons.Default.EmojiEvents, "Targets")
     object Schedule : Screen("schedule", "Schedule", Icons.Default.CalendarMonth, "09:45-01:00")
     object WinterArc : Screen("winter_arc", "Winter Arc", Icons.Default.TrendingUp, "90D")
     object Subjects : Screen("subjects", "Study Tracker", Icons.Default.MenuBook, "70 Ch")
@@ -139,6 +143,7 @@ fun RebuildAppScaffold(
     subjectsViewModel: SubjectsViewModel,
     pomodoroViewModel: PomodoroViewModel,
     fitnessViewModel: FitnessViewModel,
+    goalsViewModel: GoalsViewModel,
     habitsViewModel: HabitsViewModel,
     winterArcViewModel: WinterArcViewModel,
     boardExamViewModel: BoardExamViewModel,
@@ -246,6 +251,14 @@ fun RebuildAppScaffold(
                 composable(Screen.AiCoach.route) {
                     AiCoachScreen(
                         viewModel = aiCoachViewModel,
+                        onOpenDrawer = openDrawer
+                    )
+                }
+
+                // 2.5 Goals (Target Milestones & Apex Objectives)
+                composable(Screen.Goals.route) {
+                    GoalsScreen(
+                        viewModel = goalsViewModel,
                         onOpenDrawer = openDrawer
                     )
                 }
@@ -480,6 +493,15 @@ fun RebuildDrawerContent(
                 isSelected = currentRoute == Screen.AiCoach.route,
                 highlightColor = LuxuryAccent,
                 onClick = { onNavigate(Screen.AiCoach.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Goals,
+                isSelected = currentRoute == Screen.Goals.route,
+                highlightColor = LuxuryAccent,
+                onClick = { onNavigate(Screen.Goals.route) }
             )
         }
 

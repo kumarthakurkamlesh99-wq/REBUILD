@@ -11,6 +11,7 @@ import com.example.data.local.dao.AiPlanDao
 import com.example.data.local.dao.BoardExamDao
 import com.example.data.local.dao.DailyPlanDao
 import com.example.data.local.dao.DisciplineDao
+import com.example.data.local.dao.GoalDao
 import com.example.data.local.dao.HabitDao
 import com.example.data.local.dao.HolidayDao
 import com.example.data.local.dao.NoteDao
@@ -25,6 +26,7 @@ import com.example.data.local.entity.ChapterEntity
 import com.example.data.local.entity.DailyDisciplineEntity
 import com.example.data.local.entity.DailyPlanTaskEntity
 import com.example.data.local.entity.DailyReflectionEntity
+import com.example.data.local.entity.GoalEntity
 import com.example.data.local.entity.HabitEntity
 import com.example.data.local.entity.HabitLogEntity
 import com.example.data.local.entity.HabitType
@@ -58,9 +60,10 @@ import java.util.Locale
         BoardExamConfigEntity::class,
         NoteEntity::class,
         DailyReflectionEntity::class,
-        AiPlanCacheEntity::class
+        AiPlanCacheEntity::class,
+        GoalEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -76,6 +79,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun reflectionDao(): ReflectionDao
     abstract fun aiPlanDao(): AiPlanDao
+    abstract fun goalDao(): GoalDao
 
     companion object {
         @Volatile
@@ -98,6 +102,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `goals` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `description` TEXT NOT NULL,
+                        `category` TEXT NOT NULL,
+                        `targetDate` TEXT,
+                        `createdAt` INTEGER NOT NULL,
+                        `isCompleted` INTEGER NOT NULL,
+                        `completedAt` INTEGER,
+                        `progressPercentage` INTEGER NOT NULL,
+                        `reminderEnabled` INTEGER NOT NULL,
+                        `reminderHour` INTEGER,
+                        `reminderMinute` INTEGER
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("ALTER TABLE daily_plan_tasks ADD COLUMN reminderHour INTEGER")
+                db.execSQL("ALTER TABLE daily_plan_tasks ADD COLUMN reminderMinute INTEGER")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -105,9 +134,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "rebuild_os_database"
                 )
-                .addMigrations(MIGRATION_2_3)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                 .addCallback(DatabasePrepopulationCallback(scope))
-                .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
                 instance
@@ -411,6 +439,41 @@ abstract class AppDatabase : RoomDatabase() {
                     gratitude = "Grateful for mental clarity, good health, and the discipline to stay on the Winter Arc.",
                     tomorrowGoal = "Finish Genetics dihybrid crosses lecture and solve 15 PYQs from P-Block elements.",
                     mood = "Unstoppable"
+                )
+            )
+
+            // 13. Initial Goals
+            db.goalDao().insertGoal(
+                GoalEntity(
+                    title = "Class 12 Boards 95%+ Target",
+                    description = "Master all 14 Physics chapters, 10 Chemistry chapters, and 13 Biology chapters with exemplar numericals.",
+                    category = com.example.data.local.entity.GoalCategory.ACADEMIC,
+                    targetDate = "2026-02-15",
+                    progressPercentage = 68,
+                    reminderEnabled = true,
+                    reminderHour = 7,
+                    reminderMinute = 0
+                )
+            )
+            db.goalDao().insertGoal(
+                GoalEntity(
+                    title = "Winter Arc Calisthenics Mastery",
+                    description = "Achieve 50 consecutive strict pushups, 20 pullups, and run 5km in under 22 minutes.",
+                    category = com.example.data.local.entity.GoalCategory.FITNESS,
+                    targetDate = "2026-01-31",
+                    progressPercentage = 45,
+                    reminderEnabled = true,
+                    reminderHour = 17,
+                    reminderMinute = 30
+                )
+            )
+            db.goalDao().insertGoal(
+                GoalEntity(
+                    title = "Monk Mode Digital Detox",
+                    description = "Zero reels, zero porn, strictly maximum 15 minutes screen time on non-study applications daily.",
+                    category = com.example.data.local.entity.GoalCategory.DISCIPLINE,
+                    progressPercentage = 80,
+                    reminderEnabled = false
                 )
             )
         }

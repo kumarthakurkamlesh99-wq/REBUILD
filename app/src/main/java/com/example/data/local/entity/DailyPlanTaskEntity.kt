@@ -26,5 +26,7 @@ data class DailyPlanTaskEntity(
     val completedAt: Long? = null,
     val orderIndex: Int = 0,
     val movedFromDate: String? = null,
-    val xpReward: Int = 50
+    val xpReward: Int = 50,
+    val reminderHour: Int? = null,
+    val reminderMinute: Int? = null
 )

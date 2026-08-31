@@ -1,11 +1,15 @@
 package com.example.data.repository
 
+import android.content.Context
+import android.util.Log
 import com.example.data.local.AppDatabase
 import com.example.data.local.entity.BoardExamConfigEntity
 import com.example.data.local.entity.ChapterEntity
 import com.example.data.local.entity.DailyDisciplineEntity
 import com.example.data.local.entity.DailyPlanTaskEntity
 import com.example.data.local.entity.ExerciseType
+import com.example.data.local.entity.GoalCategory
+import com.example.data.local.entity.GoalEntity
 import com.example.data.local.entity.HabitEntity
 import com.example.data.local.entity.HabitLogEntity
 import com.example.data.local.entity.HabitType
@@ -19,6 +23,7 @@ import com.example.data.local.entity.TaskType
 import com.example.data.local.entity.WinterArcStateEntity
 import com.example.data.local.entity.WorkoutLevel
 import com.example.data.local.entity.WorkoutLogEntity
+import com.example.notification.AlarmScheduler
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
@@ -31,7 +36,10 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.max
 import kotlin.math.min
 
-class RebuildRepository(private val db: AppDatabase) {
+class RebuildRepository(
+    private val db: AppDatabase,
+    private val context: Context? = null
+) {
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     private val monthDayFormat = SimpleDateFormat("MM-dd", Locale.getDefault())
@@ -58,6 +66,7 @@ class RebuildRepository(private val db: AppDatabase) {
             dispatchSchoolTime = System.currentTimeMillis()
         )
         db.schoolStatusDao().insertOrUpdate(updated)
+        Log.d("RebuildRepository", "School status updated: ${updated.currentState} at ${updated.date}")
     }
 
     suspend fun arrivedSchool() {
@@ -79,6 +88,7 @@ class RebuildRepository(private val db: AppDatabase) {
             isPresent = true
         )
         db.schoolStatusDao().insertOrUpdate(updated)
+        Log.d("RebuildRepository", "School status updated: ${updated.currentState} at ${updated.date}")
     }
 
     suspend fun dispatchHome() {
@@ -99,6 +109,7 @@ class RebuildRepository(private val db: AppDatabase) {
             inSchoolMinutes = inSchoolDur
         )
         db.schoolStatusDao().insertOrUpdate(updated)
+        Log.d("RebuildRepository", "School status updated: ${updated.currentState} at ${updated.date}")
     }
 
     suspend fun arrivedHome() {
@@ -119,9 +130,14 @@ class RebuildRepository(private val db: AppDatabase) {
             travelHomeMinutes = travelHomeDur
         )
         db.schoolStatusDao().insertOrUpdate(updated)
+        Log.d("RebuildRepository", "School status updated: ${updated.currentState} at ${updated.date}")
 
-        // Automatically trigger smart daily planner generation
-        generateSmartDailyPlan(today)
+        // Automatically trigger smart daily planner generation with non-blocking error safety
+        try {
+            generateSmartDailyPlan(today)
+        } catch (e: Exception) {
+            Log.e("RebuildRepository", "Failed to generate smart daily plan on arrival home", e)
+        }
     }
 
     // ----------------------------------------------------
@@ -133,31 +149,36 @@ class RebuildRepository(private val db: AppDatabase) {
     }
 
     suspend fun generateSmartDailyPlan(targetDate: String) {
-        // 1. Check if there are missed tasks from previous days and rollover
+        // 1. Check if there are missed tasks from previous days and rollover without duplicates
         val missedTasks = db.dailyPlanDao().getIncompleteTasksBefore(targetDate)
+        val existingToday = db.dailyPlanDao().getTasksForDateDirect(targetDate).toMutableList()
+
         for (missed in missedTasks) {
-            db.dailyPlanDao().insertTask(
-                missed.copy(
-                    id = 0,
-                    date = targetDate,
-                    movedFromDate = missed.date,
-                    isCompleted = false
+            val isDuplicate = existingToday.any { ex ->
+                ex.subject.equals(missed.subject, ignoreCase = true) &&
+                ex.title.equals(missed.title, ignoreCase = true)
+            }
+            if (!isDuplicate) {
+                val newId = db.dailyPlanDao().insertTask(
+                    missed.copy(
+                        id = 0,
+                        date = targetDate,
+                        movedFromDate = missed.date,
+                        isCompleted = false
+                    )
                 )
-            )
+                existingToday.add(missed.copy(id = newId, date = targetDate, isCompleted = false))
+            }
         }
 
         // 2. Check if today already has newly generated tasks
-        val existingToday = db.dailyPlanDao().getTasksForDateDirect(targetDate)
         if (existingToday.isEmpty()) {
             // Check if today is a festival
             val holiday = db.holidayDao().getHolidayForDate(targetDate, monthDayFormat.format(Date()))
             val isFestival = holiday != null
 
-            val generatedTasks = mutableListOf<DailyPlanTaskEntity>()
-            var order = 0
-
-            // Physics
-            generatedTasks.add(
+            val candidateTasks = listOf(
+                // Physics
                 DailyPlanTaskEntity(
                     date = targetDate,
                     subject = "Physics",
@@ -165,11 +186,9 @@ class RebuildRepository(private val db: AppDatabase) {
                     type = TaskType.LECTURE,
                     details = "Binding energy, mass defect & nuclear stability concepts",
                     targetMinutes = if (isFestival) 30 else 45,
-                    orderIndex = order++,
+                    orderIndex = 0,
                     xpReward = 60
-                )
-            )
-            generatedTasks.add(
+                ),
                 DailyPlanTaskEntity(
                     date = targetDate,
                     subject = "Physics",
@@ -177,13 +196,10 @@ class RebuildRepository(private val db: AppDatabase) {
                     type = TaskType.NOTES,
                     details = "Complete handwritten summary & short formulas",
                     targetMinutes = if (isFestival) 20 else 30,
-                    orderIndex = order++,
+                    orderIndex = 1,
                     xpReward = 40
-                )
-            )
-
-            // Chemistry
-            generatedTasks.add(
+                ),
+                // Chemistry
                 DailyPlanTaskEntity(
                     date = targetDate,
                     subject = "Chemistry",
@@ -191,13 +207,10 @@ class RebuildRepository(private val db: AppDatabase) {
                     type = TaskType.REVISION,
                     details = "Group 15-18 chemical reactions and trends",
                     targetMinutes = if (isFestival) 30 else 50,
-                    orderIndex = order++,
+                    orderIndex = 2,
                     xpReward = 50
-                )
-            )
-
-            // Biology
-            generatedTasks.add(
+                ),
+                // Biology
                 DailyPlanTaskEntity(
                     date = targetDate,
                     subject = "Biology",
@@ -205,13 +218,10 @@ class RebuildRepository(private val db: AppDatabase) {
                     type = TaskType.LECTURE,
                     details = "Dihybrid crosses & chromosomal theory of inheritance",
                     targetMinutes = if (isFestival) 40 else 60,
-                    orderIndex = order++,
+                    orderIndex = 3,
                     xpReward = 60
-                )
-            )
-
-            // Workout
-            generatedTasks.add(
+                ),
+                // Workout
                 DailyPlanTaskEntity(
                     date = targetDate,
                     subject = "Workout",
@@ -219,11 +229,9 @@ class RebuildRepository(private val db: AppDatabase) {
                     type = TaskType.WORKOUT,
                     details = "Cadence running or outdoor jog warmup",
                     targetMinutes = 20,
-                    orderIndex = order++,
+                    orderIndex = 4,
                     xpReward = 30
-                )
-            )
-            generatedTasks.add(
+                ),
                 DailyPlanTaskEntity(
                     date = targetDate,
                     subject = "Workout",
@@ -231,11 +239,9 @@ class RebuildRepository(private val db: AppDatabase) {
                     type = TaskType.WORKOUT,
                     details = "3 sets of 15 strict form pushups",
                     targetMinutes = 15,
-                    orderIndex = order++,
+                    orderIndex = 5,
                     xpReward = 25
-                )
-            )
-            generatedTasks.add(
+                ),
                 DailyPlanTaskEntity(
                     date = targetDate,
                     subject = "Workout",
@@ -243,12 +249,22 @@ class RebuildRepository(private val db: AppDatabase) {
                     type = TaskType.WORKOUT,
                     details = "3 sets of 20 bodyweight deep squats",
                     targetMinutes = 15,
-                    orderIndex = order++,
+                    orderIndex = 6,
                     xpReward = 25
                 )
             )
 
-            db.dailyPlanDao().insertTasks(generatedTasks)
+            val tasksToInsert = candidateTasks.filterNot { candidate ->
+                existingToday.any { ex ->
+                    ex.subject.equals(candidate.subject, ignoreCase = true) &&
+                    (ex.title.equals(candidate.title, ignoreCase = true) ||
+                     (candidate.subject != "Workout" && ex.title.contains(candidate.title.split(" ").firstOrNull() ?: "___", ignoreCase = true)))
+                }
+            }
+
+            if (tasksToInsert.isNotEmpty()) {
+                db.dailyPlanDao().insertTasks(tasksToInsert)
+            }
         }
 
         recalculateDisciplineScore(targetDate)
@@ -262,6 +278,14 @@ class RebuildRepository(private val db: AppDatabase) {
         )
         db.dailyPlanDao().updateTask(updated)
 
+        if (context != null) {
+            if (newCompleted) {
+                AlarmScheduler.cancelTaskAlarm(context, task.id)
+            } else if (task.reminderHour != null && task.reminderMinute != null) {
+                AlarmScheduler.scheduleTaskAlarm(context, task.id, task.reminderHour, task.reminderMinute, task.title, task.subject)
+            }
+        }
+
         // Award XP to winter arc
         if (newCompleted) {
             addXp(task.xpReward)
@@ -270,13 +294,32 @@ class RebuildRepository(private val db: AppDatabase) {
         recalculateDisciplineScore(task.date)
     }
 
-    suspend fun addTask(task: DailyPlanTaskEntity) {
-        db.dailyPlanDao().insertTask(task)
+    suspend fun addTask(task: DailyPlanTaskEntity): Long {
+        val id = db.dailyPlanDao().insertTask(task)
+        if (context != null && task.reminderHour != null && task.reminderMinute != null && !task.isCompleted) {
+            AlarmScheduler.scheduleTaskAlarm(context, id, task.reminderHour, task.reminderMinute, task.title, task.subject)
+        }
+        recalculateDisciplineScore(task.date)
+        return id
+    }
+
+    suspend fun updateTask(task: DailyPlanTaskEntity) {
+        db.dailyPlanDao().updateTask(task)
+        if (context != null) {
+            if (task.isCompleted || task.reminderHour == null || task.reminderMinute == null) {
+                AlarmScheduler.cancelTaskAlarm(context, task.id)
+            } else {
+                AlarmScheduler.scheduleTaskAlarm(context, task.id, task.reminderHour, task.reminderMinute, task.title, task.subject)
+            }
+        }
         recalculateDisciplineScore(task.date)
     }
 
     suspend fun deleteTask(task: DailyPlanTaskEntity) {
         db.dailyPlanDao().deleteTask(task)
+        if (context != null) {
+            AlarmScheduler.cancelTaskAlarm(context, task.id)
+        }
         recalculateDisciplineScore(task.date)
     }
 
@@ -624,5 +667,66 @@ class RebuildRepository(private val db: AppDatabase) {
     suspend fun saveReflection(reflection: com.example.data.local.entity.DailyReflectionEntity) {
         db.reflectionDao().insertOrUpdate(reflection)
         addXp(25)
+    }
+
+    // ----------------------------------------------------
+    // GOALS SYSTEM
+    // ----------------------------------------------------
+
+    fun getAllGoals(): Flow<List<GoalEntity>> = db.goalDao().getAllGoals()
+    fun getActiveGoals(): Flow<List<GoalEntity>> = db.goalDao().getActiveGoals()
+    fun getCompletedGoals(): Flow<List<GoalEntity>> = db.goalDao().getCompletedGoals()
+
+    suspend fun createGoal(goal: GoalEntity): Long {
+        val id = db.goalDao().insertGoal(goal)
+        if (context != null && goal.reminderEnabled && goal.reminderHour != null && goal.reminderMinute != null && !goal.isCompleted) {
+            AlarmScheduler.scheduleGoalAlarm(context, id, goal.reminderHour, goal.reminderMinute, goal.title)
+        }
+        return id
+    }
+
+    suspend fun updateGoal(goal: GoalEntity) {
+        db.goalDao().updateGoal(goal)
+        if (context != null) {
+            if (goal.isCompleted || !goal.reminderEnabled || goal.reminderHour == null || goal.reminderMinute == null) {
+                AlarmScheduler.cancelGoalAlarm(context, goal.id)
+            } else {
+                AlarmScheduler.scheduleGoalAlarm(context, goal.id, goal.reminderHour, goal.reminderMinute, goal.title)
+            }
+        }
+    }
+
+    suspend fun toggleGoalCompleted(goal: GoalEntity) {
+        val newCompleted = !goal.isCompleted
+        val updated = goal.copy(
+            isCompleted = newCompleted,
+            completedAt = if (newCompleted) System.currentTimeMillis() else null,
+            progressPercentage = if (newCompleted) 100 else goal.progressPercentage
+        )
+        updateGoal(updated)
+        if (newCompleted) {
+            addXp(150)
+        }
+    }
+
+    suspend fun updateGoalProgress(goal: GoalEntity, progress: Int) {
+        val clampedProgress = progress.coerceIn(0, 100)
+        val isNowCompleted = clampedProgress >= 100
+        val updated = goal.copy(
+            progressPercentage = clampedProgress,
+            isCompleted = isNowCompleted,
+            completedAt = if (isNowCompleted && !goal.isCompleted) System.currentTimeMillis() else if (!isNowCompleted) null else goal.completedAt
+        )
+        updateGoal(updated)
+        if (isNowCompleted && !goal.isCompleted) {
+            addXp(150)
+        }
+    }
+
+    suspend fun deleteGoal(goal: GoalEntity) {
+        db.goalDao().deleteGoal(goal)
+        if (context != null) {
+            AlarmScheduler.cancelGoalAlarm(context, goal.id)
+        }
     }
 }
