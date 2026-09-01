@@ -508,6 +508,184 @@ ${if (hasSchool) "• **$schStart – School Departure & Commute**\n  Depart for
         }
     }
 
+    suspend fun sendChatMessage(
+        userMessage: String,
+        persona: com.example.data.local.entity.AiCoachPersona,
+        history: List<com.example.data.local.entity.ChatMessageEntity>
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val apiKey = getEffectiveApiKey()
+            val telemetry = buildAppContextSnapshot()
+            val profile = db.userProfileDao().getUserProfileDirect()
+
+            val personaPrompt = when (persona) {
+                com.example.data.local.entity.AiCoachPersona.BOARD_EXAM_COACH -> """
+                    You are REBUILD's "Senior Board Exam Specialist & Academic Master Coach".
+                    You specialize in CBSE & State Board examinations, NCERT mastery, marking scheme blueprints, derivations, formula memorization, and chapter prioritization.
+                    Always reference the student's actual enrolled subjects, pending chapters, and study hours from their telemetry data.
+                """.trimIndent()
+
+                com.example.data.local.entity.AiCoachPersona.WINTER_ARC_COACH -> """
+                    You are REBUILD's "Winter Arc Commander & Monk Mode Architect".
+                    Your tone is uncompromising, disciplined, stoic, motivating, and focused on self-mastery, abstinence from digital distractions, cold consistency, physical training, and building undeniable momentum.
+                """.trimIndent()
+
+                com.example.data.local.entity.AiCoachPersona.PRODUCTIVITY_MENTOR -> """
+                    You are REBUILD's "Elite Cognitive Performance & Productivity Mentor".
+                    You specialize in deep work, Pomodoro blocks, time blocking, energy management, active recall, spaced repetition, circadian rhythm alignment, and anti-procrastination systems.
+                """.trimIndent()
+
+                com.example.data.local.entity.AiCoachPersona.ACCOUNTABILITY_PARTNER -> """
+                    You are REBUILD's "Vigilant Accountability Partner".
+                    You review the student's completed tasks, missed goals, wake-up times, and study streaks. You give direct, constructive feedback, call out excuses gently but firmly, celebrate genuine wins, and prescribe exact next actions.
+                """.trimIndent()
+            }
+
+            val systemInstruction = """
+                $personaPrompt
+                
+                REAL APP TELEMETRY OF THE STUDENT:
+                $telemetry
+                
+                GUIDELINES:
+                - Give direct, highly tailored answers using the real numbers from their telemetry (subjects, pending chapters, exam countdown, wake/sleep schedule, etc.).
+                - Use clean markdown, bold highlights, concise bullet points, and actionable steps.
+                - Keep responses crisp, impactful, and easy to read on mobile.
+            """.trimIndent()
+
+            if (apiKey.isNotBlank()) {
+                val contents = mutableListOf<GeminiContent>()
+
+                // Add past 6 conversation turns
+                history.takeLast(6).forEach { msg ->
+                    contents.add(
+                        GeminiContent(
+                            role = if (msg.role == "user") "user" else "model",
+                            parts = listOf(GeminiPart(text = msg.content))
+                        )
+                    )
+                }
+
+                // Add current user message
+                contents.add(
+                    GeminiContent(
+                        role = "user",
+                        parts = listOf(GeminiPart(text = userMessage))
+                    )
+                )
+
+                val request = GeminiRequest(
+                    contents = contents,
+                    systemInstruction = GeminiContent(
+                        parts = listOf(GeminiPart(text = systemInstruction))
+                    ),
+                    generationConfig = GeminiGenerationConfig(
+                        temperature = 0.7f,
+                        topP = 0.95f
+                    )
+                )
+
+                val response = RetrofitClient.geminiService.generateContent(apiKey, request)
+                val reply = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                if (!reply.isNullOrBlank()) {
+                    return@withContext Result.success(reply.trim())
+                }
+            }
+
+            // High Quality Offline Dynamic Fallback
+            val offlineReply = generateOfflineChatReply(userMessage, persona, profile)
+            Result.success(offlineReply)
+        } catch (e: Exception) {
+            val fallback = generateOfflineChatReply(userMessage, persona, null)
+            Result.success(fallback)
+        }
+    }
+
+    private suspend fun generateOfflineChatReply(
+        userMessage: String,
+        persona: com.example.data.local.entity.AiCoachPersona,
+        profile: com.example.data.local.entity.UserProfileEntity?
+    ): String = withContext(Dispatchers.IO) {
+        val lower = userMessage.lowercase()
+        val name = profile?.name ?: "Student"
+        val exam = profile?.targetExamName ?: "Board Exam"
+        val target = profile?.targetPercentage ?: 95
+        val studyGoal = profile?.dailyStudyGoalHours ?: 6.0f
+        val wake = profile?.wakeUpTime ?: "06:00"
+        val sleep = profile?.sleepTime ?: "22:30"
+        val workout = profile?.workoutType ?: "Calisthenics"
+
+        val allUnits = db.syllabusDao().getAllUnits().firstOrNull() ?: emptyList()
+        val incompletedChapters = db.syllabusDao().getAllChapters().firstOrNull()?.filter { 
+            it.status != com.example.data.local.entity.SyllabusStatus.COMPLETED && 
+            it.status != com.example.data.local.entity.SyllabusStatus.MASTERED 
+        } ?: emptyList()
+        val nextChapter = incompletedChapters.firstOrNull()?.title ?: "Electrostatics & Solutions"
+
+        when {
+            lower.contains("what should i study") || lower.contains("study today") || lower.contains("chapter") -> {
+                """
+### 🎯 Recommended Study Block Today:
+1. **Primary Focus:** **$nextChapter**
+   - 45 min: Core Theory & Formula Derivations
+   - 30 min: 10 NCERT Exemplar Numericals / Questions
+2. **Secondary Review:** Quick 20-min active recall flashcard sweep before $sleep.
+3. **Daily Benchmark:** Maintain your goal of ${studyGoal.toInt()} hours deep work.
+                """.trimIndent()
+            }
+
+            lower.contains("tomorrow") || lower.contains("plan for tomorrow") -> {
+                """
+### 📋 Tactical Blueprint for Tomorrow:
+• **$wake:** Wake up on first alarm, 500ml hydration + 15 min morning mobility.
+• **Morning Slot:** 90 min deep study on **$nextChapter**.
+• **Afternoon:** Complete school/coaching assignments & summarize key formulas.
+• **17:00:** 30 min $workout session.
+• **Night:** 45 min revision + evening reflection before $sleep curfew.
+                """.trimIndent()
+            }
+
+            lower.contains("behind") || lower.contains("schedule") || lower.contains("progress") -> {
+                val completedCount = incompletedChapters.size
+                """
+### 📊 Syllabus Status & Schedule Analysis:
+• **Target:** $target% in $exam
+• **Chapters Pending:** ${incompletedChapters.size} total across your enrolled syllabus.
+• **Assessment:** You have ample runway if you lock in 2 focused chapters per week. Maintain your ${studyGoal}h daily pace and avoid skipping weekend revision blocks.
+                """.trimIndent()
+            }
+
+            lower.contains("workout") || lower.contains("fitness") || lower.contains("exercise") -> {
+                """
+### ⚡ $workout Protocol for Today:
+• **Warm-up (5 min):** Arm swings, torso twists, high knees.
+• **Circuit (3 Rounds):**
+  1. Standard / Incline Pushups: 15-20 reps
+  2. Air Squats / Lunges: 20 reps
+  3. Plank Hold: 45 seconds
+  4. Jumping Jacks / Shadow Boxing: 60 seconds
+• **Cooldown:** Deep breathing and hydration.
+                """.trimIndent()
+            }
+
+            else -> {
+                when (persona) {
+                    com.example.data.local.entity.AiCoachPersona.BOARD_EXAM_COACH ->
+                        "**Board Coach:** $name, focus on mastering the concepts of **$nextChapter**. Solve 5 PYQs today to solidify the marking scheme understanding. What specific question or topic can I break down for you?"
+
+                    com.example.data.local.entity.AiCoachPersona.WINTER_ARC_COACH ->
+                        "**Winter Arc Commander:** Zero excuses, $name. The 90-day arc requires relentless execution. Wake up at $wake, hit your ${studyGoal}h study block, and finish your $workout session. Stay disciplined."
+
+                    com.example.data.local.entity.AiCoachPersona.PRODUCTIVITY_MENTOR ->
+                        "**Productivity Mentor:** Eliminate digital noise. Set a 50-minute Pomodoro timer, place your phone in another room, and dive deep into your highest priority chapter right now."
+
+                    com.example.data.local.entity.AiCoachPersona.ACCOUNTABILITY_PARTNER ->
+                        "**Accountability Partner:** Checking in on your daily goals! Have you logged your study session and habits today? Let's keep your streak intact."
+                }
+            }
+        }
+    }
+
     private fun getOfflineCoachAdvice(userMessage: String, profile: com.example.data.local.entity.UserProfileEntity?): String {
         val lower = userMessage.lowercase()
         val name = profile?.name ?: "Student"

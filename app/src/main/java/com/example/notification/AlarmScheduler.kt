@@ -33,6 +33,72 @@ object AlarmScheduler {
 
     const val TASK_ALARM_ID_BASE = 10000
     const val GOAL_ALARM_ID_BASE = 20000
+    const val CUSTOM_ALARM_ID_BASE = 30000
+
+    fun scheduleCustomAlarm(context: Context, alarm: com.example.data.local.entity.AlarmEntity) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val requestCode = (CUSTOM_ALARM_ID_BASE + (alarm.id % 9999)).toInt()
+
+        val intent = Intent(context, AlarmNotificationReceiver::class.java).apply {
+            putExtra(AlarmNotificationReceiver.EXTRA_ALARM_ID, requestCode)
+            putExtra(AlarmNotificationReceiver.EXTRA_TITLE, alarm.title)
+            putExtra(AlarmNotificationReceiver.EXTRA_MESSAGE, "Wake-up challenge armed: ${alarm.challengeType.name}")
+            putExtra(AlarmNotificationReceiver.EXTRA_CATEGORY, "Wake Up")
+            putExtra("is_full_alarm", true)
+            putExtra("custom_alarm_id", alarm.id)
+            putExtra(AlarmDismissActivity.EXTRA_CHALLENGE_TYPE, alarm.challengeType.name)
+            putExtra(AlarmDismissActivity.EXTRA_DIFFICULTY, alarm.challengeDifficulty.name)
+            putExtra(AlarmDismissActivity.EXTRA_VOLUME, alarm.volumePercent)
+            putExtra(AlarmDismissActivity.EXTRA_VIBRATE, alarm.isVibrationEnabled)
+            putExtra(AlarmDismissActivity.EXTRA_MAX_SNOOZES, alarm.maxSnoozes)
+            putExtra(AlarmDismissActivity.EXTRA_SNOOZE_DURATION, alarm.snoozeDurationMinutes)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, alarm.hour)
+            set(Calendar.MINUTE, alarm.minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            if (before(Calendar.getInstance())) {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
+        }
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setExact(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            }
+            Log.d("AlarmScheduler", "Scheduled custom alarm ${alarm.id} (${alarm.title}) for ${alarm.hour}:${alarm.minute}")
+        } catch (e: SecurityException) {
+            alarmManager.set(
+                AlarmManager.RTC_WAKEUP,
+                calendar.timeInMillis,
+                pendingIntent
+            )
+        }
+    }
+
+    fun cancelCustomAlarm(context: Context, alarmId: Long) {
+        val requestCode = (CUSTOM_ALARM_ID_BASE + (alarmId % 9999)).toInt()
+        cancelAlarm(context, requestCode)
+    }
 
     fun parseTime(timeStr: String, defaultHour: Int, defaultMin: Int): Pair<Int, Int> {
         return try {

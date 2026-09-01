@@ -75,7 +75,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.R
+import com.example.ui.screens.AiChatScreen
 import com.example.ui.screens.AiCoachScreen
+import com.example.ui.screens.AlarmsScreen
 import com.example.ui.screens.AnalyticsScreen
 import com.example.ui.screens.BoardExamScreen
 import com.example.ui.screens.FitnessScreen
@@ -90,6 +92,7 @@ import com.example.ui.screens.PomodoroScreen
 import com.example.ui.screens.ScheduleScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SubjectsScreen
+import com.example.ui.screens.SyllabusScreen
 import com.example.ui.screens.TasksScreen
 import com.example.ui.screens.WinterArcScreen
 import com.example.ui.theme.DarkNavy
@@ -105,7 +108,9 @@ import com.example.ui.theme.LuxuryCard
 import com.example.ui.theme.PurpleArc
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningAmber
+import com.example.viewmodel.AiChatViewModel
 import com.example.viewmodel.AiCoachViewModel
+import com.example.viewmodel.AlarmsViewModel
 import com.example.viewmodel.AnalyticsViewModel
 import com.example.viewmodel.BoardExamViewModel
 import com.example.viewmodel.FitnessViewModel
@@ -118,22 +123,26 @@ import com.example.viewmodel.PlannerViewModel
 import com.example.viewmodel.PomodoroViewModel
 import com.example.viewmodel.SettingsViewModel
 import com.example.viewmodel.SubjectsViewModel
+import com.example.viewmodel.SyllabusViewModel
 import com.example.viewmodel.WinterArcViewModel
 import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector, val badgeText: String? = null) {
     object Onboarding : Screen("onboarding", "Profile Calibration", Icons.Default.Tune)
     object Home : Screen("home", "Dashboard", Icons.Default.Home)
-    object AiCoach : Screen("ai_coach", "AI Coach", Icons.Default.Psychology, "Gemini")
+    object AiChat : Screen("ai_chat", "AI Neural Chat", Icons.Default.Psychology, "Live AI")
+    object AiCoach : Screen("ai_coach", "AI Plans Generator", Icons.Default.AutoAwesome, "Gemini")
     object Goals : Screen("goals", "Apex Goals", Icons.Default.EmojiEvents, "Targets")
     object Schedule : Screen("schedule", "Schedule", Icons.Default.CalendarMonth)
-    object WinterArc : Screen("winter_arc", "Winter Arc", Icons.Default.TrendingUp, "90D")
-    object Subjects : Screen("subjects", "Study Tracker", Icons.Default.MenuBook)
+    object WinterArc : Screen("winter_arc", "Winter Arc Mission Control", Icons.Default.TrendingUp, "90D Arc")
+    object Syllabus : Screen("syllabus", "Class 12 Syllabus", Icons.Default.MenuBook, "70 Chaps")
+    object Subjects : Screen("subjects", "Study Tracker", Icons.Default.School)
     object Tasks : Screen("tasks", "Tasks", Icons.Default.TaskAlt)
     object Focus : Screen("focus", "Focus & Pomodoro", Icons.Default.Timer)
     object Fitness : Screen("fitness", "Fitness & Calisthenics", Icons.Default.FitnessCenter)
     object Habits : Screen("habits", "Habits & Discipline", Icons.Default.CheckCircle)
-    object BoardExam : Screen("board_exam", "Board Exam", Icons.Default.School)
+    object BoardExam : Screen("board_exam", "Board Exam Blueprint", Icons.Default.School)
+    object Alarms : Screen("alarms", "Smart Alarm Engine", Icons.Default.NotificationsActive, "Challenges")
     object Notes : Screen("notes", "Notes & Reflection", Icons.Default.Notes)
     object Analytics : Screen("analytics", "Analytics", Icons.Default.Analytics)
     object Notifications : Screen("notifications", "Notification Hub", Icons.Default.NotificationsActive, "9 Alarms")
@@ -154,6 +163,9 @@ fun RebuildAppScaffold(
     analyticsViewModel: AnalyticsViewModel,
     settingsViewModel: SettingsViewModel,
     aiCoachViewModel: AiCoachViewModel,
+    aiChatViewModel: AiChatViewModel,
+    syllabusViewModel: SyllabusViewModel,
+    alarmsViewModel: AlarmsViewModel,
     notesViewModel: NotesViewModel,
     onboardingViewModel: OnboardingViewModel
 ) {
@@ -278,7 +290,15 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 2. AI Coach
+                // 1.5 AI Neural Chat
+                composable(Screen.AiChat.route) {
+                    AiChatScreen(
+                        viewModel = aiChatViewModel,
+                        onOpenDrawer = openDrawer
+                    )
+                }
+
+                // 2. AI Coach Plans
                 composable(Screen.AiCoach.route) {
                     AiCoachScreen(
                         viewModel = aiCoachViewModel,
@@ -302,10 +322,18 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 4. Winter Arc
+                // 4. Winter Arc Mission Control
                 composable(Screen.WinterArc.route) {
                     WinterArcScreen(
                         viewModel = winterArcViewModel,
+                        onOpenDrawer = openDrawer
+                    )
+                }
+
+                // 4.5 Class 12 Syllabus Tracker
+                composable(Screen.Syllabus.route) {
+                    SyllabusScreen(
+                        viewModel = syllabusViewModel,
                         onOpenDrawer = openDrawer
                     )
                 }
@@ -319,6 +347,14 @@ fun RebuildAppScaffold(
                             pomodoroViewModel.setSelectedSubjectAndChapter(sub, chap)
                             navController.navigate(Screen.Focus.route)
                         }
+                    )
+                }
+
+                // 5.5 Smart Alarm Engine
+                composable(Screen.Alarms.route) {
+                    AlarmsScreen(
+                        viewModel = alarmsViewModel,
+                        onOpenDrawer = openDrawer
                     )
                 }
 
@@ -579,9 +615,9 @@ fun RebuildDrawerContent(
             }
         }
 
-        // Section 1: CORE PROTOCOL
+        // Section 1: CORE PROTOCOL & AI
         item {
-            DrawerSectionHeader(title = "CORE PROTOCOL")
+            DrawerSectionHeader(title = "CORE PROTOCOL & AI")
         }
 
         item {
@@ -589,6 +625,15 @@ fun RebuildDrawerContent(
                 screen = Screen.Home,
                 isSelected = currentRoute == Screen.Home.route,
                 onClick = { onNavigate(Screen.Home.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.AiChat,
+                isSelected = currentRoute == Screen.AiChat.route,
+                highlightColor = IceCyanPrimary,
+                onClick = { onNavigate(Screen.AiChat.route) }
             )
         }
 
@@ -653,6 +698,15 @@ fun RebuildDrawerContent(
 
         item {
             DrawerNavigationItem(
+                screen = Screen.Syllabus,
+                isSelected = currentRoute == Screen.Syllabus.route,
+                highlightColor = IceCyanPrimary,
+                onClick = { onNavigate(Screen.Syllabus.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
                 screen = Screen.Subjects,
                 isSelected = currentRoute == Screen.Subjects.route,
                 onClick = { onNavigate(Screen.Subjects.route) }
@@ -692,6 +746,15 @@ fun RebuildDrawerContent(
             HorizontalDivider(color = Color(0x11FFFFFF), thickness = 0.5.dp)
             Spacer(modifier = Modifier.height(4.dp))
             DrawerSectionHeader(title = "INSIGHTS & SYSTEM")
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Alarms,
+                isSelected = currentRoute == Screen.Alarms.route,
+                highlightColor = IceCyanPrimary,
+                onClick = { onNavigate(Screen.Alarms.route) }
+            )
         }
 
         item {

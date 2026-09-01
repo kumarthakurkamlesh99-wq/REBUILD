@@ -30,6 +30,34 @@ class AlarmNotificationReceiver : BroadcastReceiver() {
             else -> NotificationHelper.CHANNEL_TIMETABLE
         }
 
+        val isFullAlarm = intent.getBooleanExtra("is_full_alarm", false) || category == "Wake Up"
+        val customAlarmId = intent.getLongExtra("custom_alarm_id", 0L)
+        val challengeType = intent.getStringExtra(AlarmDismissActivity.EXTRA_CHALLENGE_TYPE) ?: "MATH"
+        val difficulty = intent.getStringExtra(AlarmDismissActivity.EXTRA_DIFFICULTY) ?: "MEDIUM"
+        val volume = intent.getIntExtra(AlarmDismissActivity.EXTRA_VOLUME, 90)
+        val isVibrate = intent.getBooleanExtra(AlarmDismissActivity.EXTRA_VIBRATE, true)
+        val maxSnoozes = intent.getIntExtra(AlarmDismissActivity.EXTRA_MAX_SNOOZES, 3)
+        val snoozeDuration = intent.getIntExtra(AlarmDismissActivity.EXTRA_SNOOZE_DURATION, 5)
+
+        if (isFullAlarm) {
+            try {
+                val dismissIntent = Intent(context, AlarmDismissActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    putExtra(AlarmDismissActivity.EXTRA_ALARM_ID, customAlarmId)
+                    putExtra(AlarmDismissActivity.EXTRA_ALARM_TITLE, title)
+                    putExtra(AlarmDismissActivity.EXTRA_CHALLENGE_TYPE, challengeType)
+                    putExtra(AlarmDismissActivity.EXTRA_DIFFICULTY, difficulty)
+                    putExtra(AlarmDismissActivity.EXTRA_VOLUME, volume)
+                    putExtra(AlarmDismissActivity.EXTRA_VIBRATE, isVibrate)
+                    putExtra(AlarmDismissActivity.EXTRA_MAX_SNOOZES, maxSnoozes)
+                    putExtra(AlarmDismissActivity.EXTRA_SNOOZE_DURATION, snoozeDuration)
+                }
+                context.startActivity(dismissIntent)
+            } catch (e: Exception) {
+                Log.e("AlarmReceiver", "Could not start AlarmDismissActivity directly", e)
+            }
+        }
+
         NotificationHelper.showNotification(
             context = context,
             notificationId = alarmId,

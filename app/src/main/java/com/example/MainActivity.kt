@@ -14,8 +14,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.navigation.RebuildAppScaffold
 import com.example.ui.theme.DarkNavy
 import com.example.ui.theme.REBUILDTheme
+import com.example.viewmodel.AiChatViewModel
+import com.example.viewmodel.AiChatViewModelFactory
 import com.example.viewmodel.AiCoachViewModel
 import com.example.viewmodel.AiCoachViewModelFactory
+import com.example.viewmodel.AlarmsViewModel
+import com.example.viewmodel.AlarmsViewModelFactory
 import com.example.viewmodel.AnalyticsViewModel
 import com.example.viewmodel.AnalyticsViewModelFactory
 import com.example.viewmodel.BoardExamViewModel
@@ -40,6 +44,8 @@ import com.example.viewmodel.SettingsViewModel
 import com.example.viewmodel.SettingsViewModelFactory
 import com.example.viewmodel.SubjectsViewModel
 import com.example.viewmodel.SubjectsViewModelFactory
+import com.example.viewmodel.SyllabusViewModel
+import com.example.viewmodel.SyllabusViewModelFactory
 import com.example.viewmodel.WinterArcViewModel
 import com.example.viewmodel.WinterArcViewModelFactory
 
@@ -102,6 +108,21 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private val aiChatViewModel: AiChatViewModel by viewModels {
+        AiChatViewModelFactory(
+            applicationInstance.geminiCoachRepository,
+            applicationInstance.repository
+        )
+    }
+
+    private val syllabusViewModel: SyllabusViewModel by viewModels {
+        SyllabusViewModelFactory(applicationInstance.repository)
+    }
+
+    private val alarmsViewModel: AlarmsViewModel by viewModels {
+        AlarmsViewModelFactory(applicationInstance.repository)
+    }
+
     private val notesViewModel: NotesViewModel by viewModels {
         NotesViewModelFactory(applicationInstance.repository)
     }
@@ -138,6 +159,9 @@ class MainActivity : ComponentActivity() {
                         analyticsViewModel = analyticsViewModel,
                         settingsViewModel = settingsViewModel,
                         aiCoachViewModel = aiCoachViewModel,
+                        aiChatViewModel = aiChatViewModel,
+                        syllabusViewModel = syllabusViewModel,
+                        alarmsViewModel = alarmsViewModel,
                         notesViewModel = notesViewModel,
                         onboardingViewModel = onboardingViewModel
                     )

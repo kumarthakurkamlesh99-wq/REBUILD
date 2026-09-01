@@ -25,6 +25,16 @@ import com.example.data.local.entity.WinterArcStateEntity
 import com.example.data.local.entity.WorkoutLevel
 import com.example.data.local.entity.WorkoutLogEntity
 import com.example.notification.AlarmScheduler
+import com.example.data.local.entity.AlarmEntity
+import com.example.data.local.entity.AlarmLogEntity
+import com.example.data.local.entity.ArcGoalPlanItemEntity
+import com.example.data.local.entity.ChatMessageEntity
+import com.example.data.local.entity.SyllabusChapterEntity
+import com.example.data.local.entity.SyllabusStatus
+import com.example.data.local.entity.SyllabusTopicEntity
+import com.example.data.local.entity.SyllabusUnitEntity
+import com.example.data.local.entity.WinterArcObjectiveEntity
+import com.example.data.master.MasterSyllabusProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import java.text.SimpleDateFormat
@@ -987,4 +997,345 @@ class RebuildRepository(
             AlarmScheduler.cancelGoalAlarm(context, goal.id)
         }
     }
+
+    // ----------------------------------------------------
+    // ADVANCED SYLLABUS TRACKER ENGINE
+    // ----------------------------------------------------
+
+    suspend fun initializeMasterSyllabusIfEmpty() {
+        val existingUnits = db.syllabusDao().getAllUnits().firstOrNull() ?: emptyList()
+        if (existingUnits.isNotEmpty()) return
+
+        val masterSubjects = MasterSyllabusProvider.getAllMasterSubjects()
+        var order = 0
+
+        for (subject in masterSubjects) {
+            for (unit in subject.units) {
+                var unitTopicsTotal = 0
+                val unitEntity = SyllabusUnitEntity(
+                    subjectCode = subject.code,
+                    subjectName = subject.name,
+                    unitNumber = unit.unitNumber,
+                    unitTitle = unit.unitTitle,
+                    description = unit.description,
+                    totalTopicsCount = unit.chapters.sumOf { it.topics.size },
+                    completedTopicsCount = 0,
+                    completionPercentage = 0,
+                    orderIndex = order++
+                )
+                val unitId = db.syllabusDao().insertUnit(unitEntity)
+
+                for (ch in unit.chapters) {
+                    val chapterEntity = SyllabusChapterEntity(
+                        unitId = unitId,
+                        subjectCode = subject.code,
+                        chapterNumber = ch.chapterNumber,
+                        title = ch.title,
+                        description = ch.description,
+                        status = SyllabusStatus.NOT_STARTED,
+                        totalTopicsCount = ch.topics.size,
+                        completedTopicsCount = 0,
+                        completionPercentage = 0
+                    )
+                    val chapterId = db.syllabusDao().insertChapter(chapterEntity)
+
+                    val topicEntities = ch.topics.mapIndexed { idx, topicTitle ->
+                        SyllabusTopicEntity(
+                            chapterId = chapterId,
+                            unitId = unitId,
+                            subjectCode = subject.code,
+                            topicNumber = idx + 1,
+                            title = topicTitle,
+                            status = SyllabusStatus.NOT_STARTED
+                        )
+                    }
+                    db.syllabusDao().insertTopics(topicEntities)
+                }
+            }
+        }
+    }
+
+    fun getSyllabusUnits(subjectCode: String): Flow<List<SyllabusUnitEntity>> =
+        db.syllabusDao().getUnitsForSubject(subjectCode)
+
+    fun getSyllabusChapters(unitId: Long): Flow<List<SyllabusChapterEntity>> =
+        db.syllabusDao().getChaptersForUnit(unitId)
+
+    fun getSyllabusTopics(chapterId: Long): Flow<List<SyllabusTopicEntity>> =
+        db.syllabusDao().getTopicsForChapter(chapterId)
+
+    fun getAllSyllabusChapters(): Flow<List<SyllabusChapterEntity>> =
+        db.syllabusDao().getAllChapters()
+
+    fun getAllSyllabusTopics(): Flow<List<SyllabusTopicEntity>> =
+        db.syllabusDao().getAllTopics()
+
+    suspend fun updateTopicStatus(topicId: Long, newStatus: SyllabusStatus) {
+        val topic = db.syllabusDao().getTopicById(topicId) ?: return
+        val updated = topic.copy(
+            status = newStatus,
+            lastUpdatedTimestamp = System.currentTimeMillis()
+        )
+        db.syllabusDao().updateTopic(updated)
+        recalculateSyllabusProgressForChapter(topic.chapterId)
+        if (newStatus == SyllabusStatus.COMPLETED || newStatus == SyllabusStatus.MASTERED) {
+            addXp(30)
+        }
+    }
+
+    suspend fun updateChapterStatus(chapterId: Long, newStatus: SyllabusStatus) {
+        val chapter = db.syllabusDao().getChapterById(chapterId) ?: return
+        val topics = db.syllabusDao().getTopicsForChapterDirect(chapterId)
+        val updatedTopics = topics.map { it.copy(status = newStatus) }
+        db.syllabusDao().insertTopics(updatedTopics)
+
+        val updatedChapter = chapter.copy(
+            status = newStatus,
+            completedTopicsCount = if (newStatus == SyllabusStatus.NOT_STARTED) 0 else chapter.totalTopicsCount,
+            completionPercentage = if (newStatus == SyllabusStatus.NOT_STARTED) 0 else 100,
+            notesDone = if (newStatus == SyllabusStatus.MASTERED) true else chapter.notesDone,
+            pyqsDone = if (newStatus == SyllabusStatus.MASTERED) true else chapter.pyqsDone,
+            revisionCount = if (newStatus == SyllabusStatus.REVISED_ONCE) 1 else if (newStatus == SyllabusStatus.REVISED_TWICE || newStatus == SyllabusStatus.MASTERED) 2 else chapter.revisionCount,
+            lastUpdatedTimestamp = System.currentTimeMillis()
+        )
+        db.syllabusDao().updateChapter(updatedChapter)
+        recalculateSyllabusProgressForUnit(chapter.unitId)
+        addXp(100)
+    }
+
+    private suspend fun recalculateSyllabusProgressForChapter(chapterId: Long) {
+        val chapter = db.syllabusDao().getChapterById(chapterId) ?: return
+        val topics = db.syllabusDao().getTopicsForChapterDirect(chapterId)
+        val total = topics.size
+        if (total == 0) return
+
+        val completedCount = topics.count { it.status == SyllabusStatus.COMPLETED || it.status == SyllabusStatus.REVISED_ONCE || it.status == SyllabusStatus.REVISED_TWICE || it.status == SyllabusStatus.MASTERED }
+        val masteredCount = topics.count { it.status == SyllabusStatus.MASTERED }
+        val inProgressCount = topics.count { it.status != SyllabusStatus.NOT_STARTED }
+        val pct = (completedCount * 100) / total
+
+        val derivedStatus = when {
+            masteredCount == total -> SyllabusStatus.MASTERED
+            completedCount == total -> SyllabusStatus.COMPLETED
+            inProgressCount > 0 -> SyllabusStatus.IN_PROGRESS
+            else -> SyllabusStatus.NOT_STARTED
+        }
+
+        db.syllabusDao().updateChapter(
+            chapter.copy(
+                totalTopicsCount = total,
+                completedTopicsCount = completedCount,
+                completionPercentage = pct,
+                status = derivedStatus
+            )
+        )
+        recalculateSyllabusProgressForUnit(chapter.unitId)
+    }
+
+    private suspend fun recalculateSyllabusProgressForUnit(unitId: Long) {
+        val unit = db.syllabusDao().getUnitById(unitId) ?: return
+        val chapters = db.syllabusDao().getChaptersForUnitDirect(unitId)
+        val totalTopics = chapters.sumOf { it.totalTopicsCount }
+        val completedTopics = chapters.sumOf { it.completedTopicsCount }
+        val pct = if (totalTopics > 0) (completedTopics * 100) / totalTopics else 0
+
+        db.syllabusDao().updateUnit(
+            unit.copy(
+                totalTopicsCount = totalTopics,
+                completedTopicsCount = completedTopics,
+                completionPercentage = pct
+            )
+        )
+    }
+
+    // ----------------------------------------------------
+    // REAL ALARMS & DISMISSAL ENGINE
+    // ----------------------------------------------------
+
+    fun getAllAlarms(): Flow<List<AlarmEntity>> = db.alarmDao().getAllAlarms()
+
+    fun getAlarmByIdFlow(id: Long): Flow<AlarmEntity?> = db.alarmDao().getAlarmByIdFlow(id)
+
+    suspend fun getAlarmById(id: Long): AlarmEntity? = db.alarmDao().getAlarmById(id)
+
+    suspend fun saveAlarm(alarm: AlarmEntity): Long {
+        val id = if (alarm.id == 0L) {
+            db.alarmDao().insertAlarm(alarm)
+        } else {
+            db.alarmDao().updateAlarm(alarm)
+            alarm.id
+        }
+        if (context != null && alarm.isEnabled) {
+            AlarmScheduler.scheduleCustomAlarm(context, alarm.copy(id = id))
+        } else if (context != null) {
+            AlarmScheduler.cancelCustomAlarm(context, id)
+        }
+        return id
+    }
+
+    suspend fun toggleAlarm(alarm: AlarmEntity) {
+        val newEnabled = !alarm.isEnabled
+        val updated = alarm.copy(isEnabled = newEnabled)
+        db.alarmDao().updateAlarm(updated)
+        if (context != null) {
+            if (newEnabled) {
+                AlarmScheduler.scheduleCustomAlarm(context, updated)
+            } else {
+                AlarmScheduler.cancelCustomAlarm(context, alarm.id)
+            }
+        }
+    }
+
+    suspend fun deleteAlarm(alarm: AlarmEntity) {
+        db.alarmDao().deleteAlarm(alarm)
+        if (context != null) {
+            AlarmScheduler.cancelCustomAlarm(context, alarm.id)
+        }
+    }
+
+    suspend fun logAlarmDismissal(log: AlarmLogEntity) {
+        db.alarmDao().insertAlarmLog(log)
+        if (log.solvedSuccessfully) {
+            addXp(50)
+        }
+    }
+
+    fun getRecentAlarmLogs(): Flow<List<AlarmLogEntity>> = db.alarmDao().getRecentAlarmLogs()
+
+    // ----------------------------------------------------
+    // WINTER ARC OBJECTIVES & MISSION CONTROL
+    // ----------------------------------------------------
+
+    fun getWinterArcObjectives(): Flow<List<WinterArcObjectiveEntity>> =
+        db.winterArcObjectivesDao().getAllObjectives()
+
+    suspend fun saveWinterArcObjective(objective: WinterArcObjectiveEntity): Long {
+        return if (objective.id == 0L) {
+            db.winterArcObjectivesDao().insertObjective(objective)
+        } else {
+            db.winterArcObjectivesDao().updateObjective(objective)
+            objective.id
+        }
+    }
+
+    suspend fun toggleWinterArcObjective(objective: WinterArcObjectiveEntity) {
+        val newCompleted = !objective.isCompleted
+        val updated = objective.copy(
+            isCompleted = newCompleted,
+            progressPercentage = if (newCompleted) 100 else 0,
+            currentValue = if (newCompleted) objective.targetValue else "0%"
+        )
+        db.winterArcObjectivesDao().updateObjective(updated)
+        if (newCompleted) {
+            addXp(200)
+        }
+    }
+
+    suspend fun deleteWinterArcObjective(objective: WinterArcObjectiveEntity) {
+        db.winterArcObjectivesDao().deleteObjective(objective)
+    }
+
+    fun getArcGoalsPlan(horizon: String): Flow<List<ArcGoalPlanItemEntity>> =
+        db.winterArcObjectivesDao().getArcGoalsByHorizon(horizon)
+
+    fun getAllArcGoalsPlan(): Flow<List<ArcGoalPlanItemEntity>> =
+        db.winterArcObjectivesDao().getAllArcGoals()
+
+    suspend fun saveArcGoal(goal: ArcGoalPlanItemEntity): Long {
+        return if (goal.id == 0L) {
+            db.winterArcObjectivesDao().insertArcGoal(goal)
+        } else {
+            db.winterArcObjectivesDao().updateArcGoal(goal)
+            goal.id
+        }
+    }
+
+    suspend fun toggleArcGoal(goal: ArcGoalPlanItemEntity) {
+        val newCompleted = !goal.isCompleted
+        val updated = goal.copy(isCompleted = newCompleted)
+        db.winterArcObjectivesDao().updateArcGoal(updated)
+        if (newCompleted) {
+            addXp(goal.xpReward)
+        }
+    }
+
+    suspend fun deleteArcGoal(goal: ArcGoalPlanItemEntity) {
+        db.winterArcObjectivesDao().deleteArcGoal(goal)
+    }
+
+    suspend fun initializeWinterArcObjectivesIfEmpty(profile: UserProfileEntity) {
+        val existing = db.winterArcObjectivesDao().getAllObjectivesDirect()
+        if (existing.isNotEmpty()) return
+
+        val defaultObjectives = listOf(
+            WinterArcObjectiveEntity(
+                title = "Board Exam Score Mastery",
+                description = "Achieve ${profile.targetPercentage}% in ${profile.targetExamName}",
+                category = com.example.data.local.entity.ObjectiveCategory.ACADEMIC,
+                targetValue = "${profile.targetPercentage}%",
+                currentValue = "0%",
+                progressPercentage = 0,
+                orderIndex = 0
+            ),
+            WinterArcObjectiveEntity(
+                title = "Daily Deep Study Consistency",
+                description = "Clock minimum ${profile.dailyStudyGoalHours.toInt()}h deep focus daily",
+                category = com.example.data.local.entity.ObjectiveCategory.ACADEMIC,
+                targetValue = "${profile.dailyStudyGoalHours.toInt()} Hours",
+                currentValue = "0 Hours",
+                progressPercentage = 0,
+                orderIndex = 1
+            ),
+            WinterArcObjectiveEntity(
+                title = "Physical Transformation Protocol",
+                description = "Complete ${profile.workoutType} sessions consistently",
+                category = com.example.data.local.entity.ObjectiveCategory.FITNESS,
+                targetValue = "90 Sessions",
+                currentValue = "0 Sessions",
+                progressPercentage = 0,
+                orderIndex = 2
+            ),
+            WinterArcObjectiveEntity(
+                title = "Zero-Relapse Monk Discipline",
+                description = "Complete 90 days clean from digital dopamine & adult content",
+                category = com.example.data.local.entity.ObjectiveCategory.DISCIPLINE,
+                targetValue = "90 Days",
+                currentValue = "0 Days",
+                progressPercentage = 0,
+                orderIndex = 3
+            ),
+            WinterArcObjectiveEntity(
+                title = "Precision Sleep & Wake Rhythm",
+                description = "Strict wake up at ${profile.wakeUpTime} & sleep at ${profile.sleepTime}",
+                category = com.example.data.local.entity.ObjectiveCategory.RESTORATION,
+                targetValue = "90 Days",
+                currentValue = "0 Days",
+                progressPercentage = 0,
+                orderIndex = 4
+            )
+        )
+        db.winterArcObjectivesDao().insertObjectives(defaultObjectives)
+
+        // Seed initial dynamic plan
+        val defaultGoals = listOf(
+            ArcGoalPlanItemEntity(timeHorizon = "DAILY", title = "Complete 2 Focus Sessions & Core Habit Matrix", description = "Maintain 100% discipline score today", xpReward = 100, priority = "CRITICAL", orderIndex = 0),
+            ArcGoalPlanItemEntity(timeHorizon = "DAILY", title = "Hit ${profile.workoutType} Training Block", description = "30 mins intense physical stimulation", xpReward = 75, priority = "HIGH", orderIndex = 1),
+            ArcGoalPlanItemEntity(timeHorizon = "WEEKLY", title = "Master 2 Pending Physics & Chemistry Chapters", description = "Complete lectures, notes and 25 PYQs", xpReward = 300, priority = "CRITICAL", orderIndex = 0),
+            ArcGoalPlanItemEntity(timeHorizon = "WEEKLY", title = "Zero Missed Wake-Up Alarms", description = "Solve morning challenge without snooze", xpReward = 250, priority = "HIGH", orderIndex = 1),
+            ArcGoalPlanItemEntity(timeHorizon = "MONTHLY", title = "Complete 35% Full Board Syllabus", description = "Move 6 major chapters into 'Mastered' status", xpReward = 1000, priority = "CRITICAL", orderIndex = 0),
+            ArcGoalPlanItemEntity(timeHorizon = "MONTHLY", title = "Reach Winter Arc Level 10 (4,000 XP)", description = "Sustain consistent daily progress", xpReward = 800, priority = "HIGH", orderIndex = 1)
+        )
+        db.winterArcObjectivesDao().insertArcGoals(defaultGoals)
+    }
+
+    // ----------------------------------------------------
+    // AI CHAT PERSISTENCE
+    // ----------------------------------------------------
+
+    fun getChatMessages(): Flow<List<ChatMessageEntity>> = db.chatDao().getAllMessages()
+
+    suspend fun saveChatMessage(message: ChatMessageEntity): Long = db.chatDao().insertMessage(message)
+
+    suspend fun clearChatHistory() = db.chatDao().clearChatHistory()
 }
+

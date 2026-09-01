@@ -3,17 +3,23 @@ package com.example.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.data.local.entity.ArcGoalPlanItemEntity
 import com.example.data.local.entity.BoardExamConfigEntity
 import com.example.data.local.entity.DailyDisciplineEntity
 import com.example.data.local.entity.HolidayEntity
+import com.example.data.local.entity.ObjectiveCategory
+import com.example.data.local.entity.UserProfileEntity
+import com.example.data.local.entity.WinterArcObjectiveEntity
 import com.example.data.local.entity.WinterArcStateEntity
 import com.example.data.repository.RebuildRepository
 import com.example.data.repository.UserPreferencesRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
@@ -22,15 +28,30 @@ data class WinterArcUiState(
     val daysRemaining: Int = 63,
     val progressPercentage: Int = 30,
     val rankTitle: String = "Frost Vanguard",
-    val recentScores: List<DailyDisciplineEntity> = emptyList()
+    val recentScores: List<DailyDisciplineEntity> = emptyList(),
+    val objectives: List<WinterArcObjectiveEntity> = emptyList(),
+    val dailyGoals: List<ArcGoalPlanItemEntity> = emptyList(),
+    val weeklyGoals: List<ArcGoalPlanItemEntity> = emptyList(),
+    val monthlyGoals: List<ArcGoalPlanItemEntity> = emptyList(),
+    val selectedTimeHorizon: String = "DAILY", // DAILY, WEEKLY, MONTHLY
+    val isCreatingObjective: Boolean = false,
+    val inputObjectiveTitle: String = "",
+    val inputObjectiveDesc: String = "",
+    val inputObjectiveCategory: ObjectiveCategory = ObjectiveCategory.ACADEMIC,
+    val inputObjectiveTarget: String = "100%"
 )
 
 class WinterArcViewModel(private val repository: RebuildRepository) : ViewModel() {
 
+    private val _horizon = MutableStateFlow("DAILY")
+
     val uiState: StateFlow<WinterArcUiState> = combine(
         repository.getWinterArcState(),
-        repository.getDisciplineTrends()
-    ) { arc, trends ->
+        repository.getDisciplineTrends(),
+        repository.getWinterArcObjectives(),
+        repository.getAllArcGoalsPlan(),
+        _horizon
+    ) { arc, trends, objs, allGoals, horizon ->
         val safeArc = arc ?: WinterArcStateEntity()
         val remaining = max(0, safeArc.targetDays - safeArc.currentDay)
         val perc = ((safeArc.currentDay.toFloat() / safeArc.targetDays) * 100).toInt()
@@ -43,12 +64,21 @@ class WinterArcViewModel(private val repository: RebuildRepository) : ViewModel(
             else -> "Novice Arc"
         }
 
+        val daily = allGoals.filter { it.timeHorizon == "DAILY" }
+        val weekly = allGoals.filter { it.timeHorizon == "WEEKLY" }
+        val monthly = allGoals.filter { it.timeHorizon == "MONTHLY" }
+
         WinterArcUiState(
             state = safeArc,
             daysRemaining = remaining,
             progressPercentage = perc,
             rankTitle = rank,
-            recentScores = trends
+            recentScores = trends,
+            objectives = objs,
+            dailyGoals = daily,
+            weeklyGoals = weekly,
+            monthlyGoals = monthly,
+            selectedTimeHorizon = horizon
         )
     }.stateIn(
         scope = viewModelScope,
@@ -56,8 +86,60 @@ class WinterArcViewModel(private val repository: RebuildRepository) : ViewModel(
         initialValue = WinterArcUiState()
     )
 
+    init {
+        viewModelScope.launch {
+            val profile = repository.getUserProfileDirect() ?: UserProfileEntity()
+            repository.initializeWinterArcObjectivesIfEmpty(profile)
+        }
+    }
+
+    fun selectHorizon(horizon: String) {
+        _horizon.value = horizon
+    }
+
     fun updateDayAndStreak(day: Int, streak: Int) = viewModelScope.launch {
         repository.updateWinterArcDay(day, streak)
+    }
+
+    fun toggleObjective(objective: WinterArcObjectiveEntity) = viewModelScope.launch {
+        repository.toggleWinterArcObjective(objective)
+    }
+
+    fun deleteObjective(objective: WinterArcObjectiveEntity) = viewModelScope.launch {
+        repository.deleteWinterArcObjective(objective)
+    }
+
+    fun toggleGoal(goal: ArcGoalPlanItemEntity) = viewModelScope.launch {
+        repository.toggleArcGoal(goal)
+    }
+
+    fun deleteGoal(goal: ArcGoalPlanItemEntity) = viewModelScope.launch {
+        repository.deleteArcGoal(goal)
+    }
+
+    fun addNewObjective(title: String, desc: String, category: ObjectiveCategory, target: String) = viewModelScope.launch {
+        if (title.isBlank()) return@launch
+        val entity = WinterArcObjectiveEntity(
+            title = title.trim(),
+            description = desc.trim(),
+            category = category,
+            targetValue = target.trim().ifEmpty { "100%" },
+            currentValue = "0%",
+            progressPercentage = 0
+        )
+        repository.saveWinterArcObjective(entity)
+    }
+
+    fun addNewGoal(title: String, desc: String, horizon: String, priority: String, xp: Int) = viewModelScope.launch {
+        if (title.isBlank()) return@launch
+        val goal = ArcGoalPlanItemEntity(
+            timeHorizon = horizon,
+            title = title.trim(),
+            description = desc.trim(),
+            priority = priority,
+            xpReward = xp
+        )
+        repository.saveArcGoal(goal)
     }
 }
 

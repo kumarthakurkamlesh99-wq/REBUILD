@@ -8,7 +8,9 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.data.local.dao.AiPlanDao
+import com.example.data.local.dao.AlarmDao
 import com.example.data.local.dao.BoardExamDao
+import com.example.data.local.dao.ChatDao
 import com.example.data.local.dao.DailyPlanDao
 import com.example.data.local.dao.DisciplineDao
 import com.example.data.local.dao.GoalDao
@@ -18,12 +20,18 @@ import com.example.data.local.dao.NoteDao
 import com.example.data.local.dao.ReflectionDao
 import com.example.data.local.dao.SchoolStatusDao
 import com.example.data.local.dao.SubjectDao
+import com.example.data.local.dao.SyllabusDao
 import com.example.data.local.dao.UserProfileDao
 import com.example.data.local.dao.WinterArcDao
+import com.example.data.local.dao.WinterArcObjectivesDao
 import com.example.data.local.dao.WorkoutDao
 import com.example.data.local.entity.AiPlanCacheEntity
+import com.example.data.local.entity.AlarmEntity
+import com.example.data.local.entity.AlarmLogEntity
+import com.example.data.local.entity.ArcGoalPlanItemEntity
 import com.example.data.local.entity.BoardExamConfigEntity
 import com.example.data.local.entity.ChapterEntity
+import com.example.data.local.entity.ChatMessageEntity
 import com.example.data.local.entity.DailyDisciplineEntity
 import com.example.data.local.entity.DailyPlanTaskEntity
 import com.example.data.local.entity.DailyReflectionEntity
@@ -36,7 +44,11 @@ import com.example.data.local.entity.NoteEntity
 import com.example.data.local.entity.SchoolStatusEntity
 import com.example.data.local.entity.StudySessionEntity
 import com.example.data.local.entity.SubjectEntity
+import com.example.data.local.entity.SyllabusChapterEntity
+import com.example.data.local.entity.SyllabusTopicEntity
+import com.example.data.local.entity.SyllabusUnitEntity
 import com.example.data.local.entity.UserProfileEntity
+import com.example.data.local.entity.WinterArcObjectiveEntity
 import com.example.data.local.entity.WinterArcStateEntity
 import com.example.data.local.entity.WorkoutLogEntity
 import kotlinx.coroutines.CoroutineScope
@@ -64,9 +76,17 @@ import java.util.Locale
         NoteEntity::class,
         DailyReflectionEntity::class,
         AiPlanCacheEntity::class,
-        GoalEntity::class
+        GoalEntity::class,
+        SyllabusUnitEntity::class,
+        SyllabusChapterEntity::class,
+        SyllabusTopicEntity::class,
+        AlarmEntity::class,
+        AlarmLogEntity::class,
+        WinterArcObjectiveEntity::class,
+        ArcGoalPlanItemEntity::class,
+        ChatMessageEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -84,6 +104,10 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun reflectionDao(): ReflectionDao
     abstract fun aiPlanDao(): AiPlanDao
     abstract fun goalDao(): GoalDao
+    abstract fun syllabusDao(): SyllabusDao
+    abstract fun alarmDao(): AlarmDao
+    abstract fun winterArcObjectivesDao(): WinterArcObjectivesDao
+    abstract fun chatDao(): ChatDao
 
     companion object {
         @Volatile
