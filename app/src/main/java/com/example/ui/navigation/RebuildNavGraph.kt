@@ -70,11 +70,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.R
+import com.example.RebuildApplication
 import com.example.ui.screens.AiChatScreen
 import com.example.ui.screens.AiCoachScreen
 import com.example.ui.screens.AlarmsScreen
@@ -109,22 +111,36 @@ import com.example.ui.theme.PurpleArc
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningAmber
 import com.example.viewmodel.AiChatViewModel
+import com.example.viewmodel.AiChatViewModelFactory
 import com.example.viewmodel.AiCoachViewModel
+import com.example.viewmodel.AiCoachViewModelFactory
 import com.example.viewmodel.AlarmsViewModel
+import com.example.viewmodel.AlarmsViewModelFactory
 import com.example.viewmodel.AnalyticsViewModel
+import com.example.viewmodel.AnalyticsViewModelFactory
 import com.example.viewmodel.BoardExamViewModel
+import com.example.viewmodel.BoardExamViewModelFactory
 import com.example.viewmodel.FitnessViewModel
+import com.example.viewmodel.FitnessViewModelFactory
 import com.example.viewmodel.GoalsViewModel
+import com.example.viewmodel.GoalsViewModelFactory
 import com.example.viewmodel.HabitsViewModel
+import com.example.viewmodel.HabitsViewModelFactory
 import com.example.viewmodel.HomeViewModel
 import com.example.viewmodel.NotesViewModel
+import com.example.viewmodel.NotesViewModelFactory
 import com.example.viewmodel.OnboardingViewModel
 import com.example.viewmodel.PlannerViewModel
+import com.example.viewmodel.PlannerViewModelFactory
 import com.example.viewmodel.PomodoroViewModel
+import com.example.viewmodel.PomodoroViewModelFactory
 import com.example.viewmodel.SettingsViewModel
 import com.example.viewmodel.SubjectsViewModel
+import com.example.viewmodel.SubjectsViewModelFactory
 import com.example.viewmodel.SyllabusViewModel
+import com.example.viewmodel.SyllabusViewModelFactory
 import com.example.viewmodel.WinterArcViewModel
+import com.example.viewmodel.WinterArcViewModelFactory
 import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector, val badgeText: String? = null) {
@@ -151,22 +167,9 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector,
 
 @Composable
 fun RebuildAppScaffold(
+    application: RebuildApplication,
     homeViewModel: HomeViewModel,
-    plannerViewModel: PlannerViewModel,
-    subjectsViewModel: SubjectsViewModel,
-    pomodoroViewModel: PomodoroViewModel,
-    fitnessViewModel: FitnessViewModel,
-    goalsViewModel: GoalsViewModel,
-    habitsViewModel: HabitsViewModel,
-    winterArcViewModel: WinterArcViewModel,
-    boardExamViewModel: BoardExamViewModel,
-    analyticsViewModel: AnalyticsViewModel,
     settingsViewModel: SettingsViewModel,
-    aiCoachViewModel: AiCoachViewModel,
-    aiChatViewModel: AiChatViewModel,
-    syllabusViewModel: SyllabusViewModel,
-    alarmsViewModel: AlarmsViewModel,
-    notesViewModel: NotesViewModel,
     onboardingViewModel: OnboardingViewModel
 ) {
     val navController = rememberNavController()
@@ -290,126 +293,181 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 1.5 AI Neural Chat
+                // 1.5 AI Neural Chat (Lazy Loaded)
                 composable(Screen.AiChat.route) {
+                    val aiChatVm: AiChatViewModel = viewModel(
+                        factory = AiChatViewModelFactory(
+                            application.geminiCoachRepository,
+                            application.repository
+                        )
+                    )
                     AiChatScreen(
-                        viewModel = aiChatViewModel,
+                        viewModel = aiChatVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 2. AI Coach Plans
+                // 2. AI Coach Plans (Lazy Loaded)
                 composable(Screen.AiCoach.route) {
+                    val aiCoachVm: AiCoachViewModel = viewModel(
+                        factory = AiCoachViewModelFactory(
+                            application.geminiCoachRepository,
+                            application.repository,
+                            application.userPreferencesRepository
+                        )
+                    )
                     AiCoachScreen(
-                        viewModel = aiCoachViewModel,
+                        viewModel = aiCoachVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 2.5 Goals
+                // 2.5 Goals (Lazy Loaded)
                 composable(Screen.Goals.route) {
+                    val goalsVm: GoalsViewModel = viewModel(
+                        factory = GoalsViewModelFactory(application.repository)
+                    )
                     GoalsScreen(
-                        viewModel = goalsViewModel,
+                        viewModel = goalsVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 3. Schedule
+                // 3. Schedule (Lazy Loaded)
                 composable(Screen.Schedule.route) {
+                    val plannerVm: PlannerViewModel = viewModel(
+                        factory = PlannerViewModelFactory(application.repository)
+                    )
                     ScheduleScreen(
-                        viewModel = plannerViewModel,
+                        viewModel = plannerVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 4. Winter Arc Mission Control
+                // 4. Winter Arc Mission Control (Lazy Loaded)
                 composable(Screen.WinterArc.route) {
+                    val winterArcVm: WinterArcViewModel = viewModel(
+                        factory = WinterArcViewModelFactory(application.repository)
+                    )
                     WinterArcScreen(
-                        viewModel = winterArcViewModel,
+                        viewModel = winterArcVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 4.5 Class 12 Syllabus Tracker
+                // 4.5 Class 12 Syllabus Tracker (Lazy Loaded)
                 composable(Screen.Syllabus.route) {
+                    val syllabusVm: SyllabusViewModel = viewModel(
+                        factory = SyllabusViewModelFactory(application.repository)
+                    )
                     SyllabusScreen(
-                        viewModel = syllabusViewModel,
+                        viewModel = syllabusVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 5. Study Tracker
+                // 5. Study Tracker (Lazy Loaded)
                 composable(Screen.Subjects.route) {
+                    val subjectsVm: SubjectsViewModel = viewModel(
+                        factory = SubjectsViewModelFactory(application.repository)
+                    )
+                    val pomodoroVm: PomodoroViewModel = viewModel(
+                        factory = PomodoroViewModelFactory(application.repository)
+                    )
                     SubjectsScreen(
-                        viewModel = subjectsViewModel,
+                        viewModel = subjectsVm,
                         onOpenDrawer = openDrawer,
                         onStartFocusSession = { sub, chap ->
-                            pomodoroViewModel.setSelectedSubjectAndChapter(sub, chap)
+                            pomodoroVm.setSelectedSubjectAndChapter(sub, chap)
                             navController.navigate(Screen.Focus.route)
                         }
                     )
                 }
 
-                // 5.5 Smart Alarm Engine
+                // 5.5 Smart Alarm Engine (Lazy Loaded)
                 composable(Screen.Alarms.route) {
+                    val alarmsVm: AlarmsViewModel = viewModel(
+                        factory = AlarmsViewModelFactory(application.repository)
+                    )
                     AlarmsScreen(
-                        viewModel = alarmsViewModel,
+                        viewModel = alarmsVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 6. Tasks
+                // 6. Tasks (Lazy Loaded)
                 composable(Screen.Tasks.route) {
+                    val plannerVm: PlannerViewModel = viewModel(
+                        factory = PlannerViewModelFactory(application.repository)
+                    )
                     TasksScreen(
-                        viewModel = plannerViewModel,
+                        viewModel = plannerVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 7. Focus & Pomodoro
+                // 7. Focus & Pomodoro (Lazy Loaded)
                 composable(Screen.Focus.route) {
+                    val pomodoroVm: PomodoroViewModel = viewModel(
+                        factory = PomodoroViewModelFactory(application.repository)
+                    )
                     PomodoroScreen(
-                        viewModel = pomodoroViewModel,
+                        viewModel = pomodoroVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 8. Fitness & Calisthenics
+                // 8. Fitness & Calisthenics (Lazy Loaded)
                 composable(Screen.Fitness.route) {
+                    val fitnessVm: FitnessViewModel = viewModel(
+                        factory = FitnessViewModelFactory(application.repository)
+                    )
                     FitnessScreen(
-                        viewModel = fitnessViewModel,
+                        viewModel = fitnessVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 9. Habits & Matrix
+                // 9. Habits & Matrix (Lazy Loaded)
                 composable(Screen.Habits.route) {
+                    val habitsVm: HabitsViewModel = viewModel(
+                        factory = HabitsViewModelFactory(application.repository)
+                    )
                     HabitsScreen(
-                        viewModel = habitsViewModel,
+                        viewModel = habitsVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 10. Board Exam
+                // 10. Board Exam (Lazy Loaded)
                 composable(Screen.BoardExam.route) {
+                    val boardExamVm: BoardExamViewModel = viewModel(
+                        factory = BoardExamViewModelFactory(application.repository)
+                    )
                     BoardExamScreen(
-                        viewModel = boardExamViewModel,
+                        viewModel = boardExamVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 11. Notes & Reflection
+                // 11. Notes & Reflection (Lazy Loaded)
                 composable(Screen.Notes.route) {
+                    val notesVm: NotesViewModel = viewModel(
+                        factory = NotesViewModelFactory(application.repository)
+                    )
                     NotesScreen(
-                        viewModel = notesViewModel,
+                        viewModel = notesVm,
                         onOpenDrawer = openDrawer
                     )
                 }
 
-                // 12. Analytics
+                // 12. Analytics (Lazy Loaded)
                 composable(Screen.Analytics.route) {
+                    val analyticsVm: AnalyticsViewModel = viewModel(
+                        factory = AnalyticsViewModelFactory(application.repository)
+                    )
                     AnalyticsScreen(
-                        viewModel = analyticsViewModel,
+                        viewModel = analyticsVm,
                         onOpenDrawer = openDrawer
                     )
                 }

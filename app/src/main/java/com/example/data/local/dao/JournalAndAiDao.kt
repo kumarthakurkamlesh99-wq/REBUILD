@@ -61,11 +61,26 @@ interface AiPlanDao {
     @Query("SELECT * FROM ai_plan_cache WHERE planType = :planType LIMIT 1")
     suspend fun getCachedPlanDirect(planType: String): AiPlanCacheEntity?
 
+    @Query("SELECT * FROM ai_plan_cache WHERE planType = :planType AND generatedDate = :date LIMIT 1")
+    fun getCachedPlanForDate(planType: String, date: String): Flow<AiPlanCacheEntity?>
+
+    @Query("SELECT * FROM ai_plan_cache WHERE planType = :planType AND generatedDate = :date LIMIT 1")
+    suspend fun getCachedPlanForDateDirect(planType: String, date: String): AiPlanCacheEntity?
+
+    @Query("SELECT * FROM ai_plan_cache WHERE generatedDate = :date")
+    fun getTodayCachedPlans(date: String): Flow<List<AiPlanCacheEntity>>
+
+    @Query("SELECT * FROM ai_plan_cache WHERE generatedDate = :date")
+    suspend fun getTodayCachedPlansDirect(date: String): List<AiPlanCacheEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdatePlan(plan: AiPlanCacheEntity)
 
     @Query("DELETE FROM ai_plan_cache WHERE planType = :planType")
     suspend fun deletePlan(planType: String)
+
+    @Query("DELETE FROM ai_plan_cache WHERE timestamp < :cutoffTimestamp")
+    suspend fun deleteOldPlans(cutoffTimestamp: Long)
 
     @Query("DELETE FROM ai_plan_cache")
     suspend fun clearAll()

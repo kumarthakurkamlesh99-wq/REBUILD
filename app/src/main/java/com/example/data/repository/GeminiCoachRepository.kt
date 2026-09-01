@@ -40,6 +40,19 @@ class GeminiCoachRepository(
 
     fun getCachedPlan(planType: String): Flow<AiPlanCacheEntity?> = db.aiPlanDao().getCachedPlan(planType)
 
+    suspend fun getCachedPlanDirect(planType: String): AiPlanCacheEntity? = db.aiPlanDao().getCachedPlanDirect(planType)
+
+    suspend fun isPlanCachedForToday(planType: AiPlanType): Boolean = withContext(Dispatchers.IO) {
+        val today = dateFormat.format(Date())
+        val cached = db.aiPlanDao().getCachedPlanDirect(planType.key)
+        cached != null && cached.content.isNotBlank() && cached.generatedDate == today
+    }
+
+    suspend fun clearExpiredAiPlans(daysToKeep: Int = 7) = withContext(Dispatchers.IO) {
+        val cutoff = System.currentTimeMillis() - (daysToKeep * 24L * 60L * 60L * 1000L)
+        db.aiPlanDao().deleteOldPlans(cutoff)
+    }
+
     suspend fun getEffectiveApiKey(): String {
         val profile = db.userProfileDao().getUserProfileDirect()
         if (profile != null && profile.geminiApiKey.isNotBlank()) {
@@ -158,8 +171,21 @@ class GeminiCoachRepository(
         }
     }
 
-    suspend fun generatePlan(planType: AiPlanType, customInstruction: String = ""): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun generatePlan(
+        planType: AiPlanType,
+        customInstruction: String = "",
+        forceRefresh: Boolean = false
+    ): Result<String> = withContext(Dispatchers.IO) {
         try {
+            val today = dateFormat.format(Date())
+            // Fast cache check: Return existing local plan without API calls
+            if (!forceRefresh && customInstruction.isBlank()) {
+                val cached = db.aiPlanDao().getCachedPlanDirect(planType.key)
+                if (cached != null && cached.content.isNotBlank() && cached.generatedDate == today) {
+                    return@withContext Result.success(cached.content)
+                }
+            }
+
             val apiKey = getEffectiveApiKey()
             val telemetry = buildAppContextSnapshot()
             val profile = db.userProfileDao().getUserProfileDirect()
@@ -218,7 +244,6 @@ class GeminiCoachRepository(
                 getOfflineFallbackPlan(planType, profile)
             }
 
-            val today = dateFormat.format(Date())
             db.aiPlanDao().insertOrUpdatePlan(
                 AiPlanCacheEntity(
                     planType = planType.key,
@@ -233,13 +258,13 @@ class GeminiCoachRepository(
         } catch (e: Exception) {
             val profile = db.userProfileDao().getUserProfileDirect()
             val fallback = getOfflineFallbackPlan(planType, profile)
-            val today = dateFormat.format(Date())
+            val todayStr = dateFormat.format(Date())
             db.aiPlanDao().insertOrUpdatePlan(
                 AiPlanCacheEntity(
                     planType = planType.key,
                     title = planType.title,
                     content = fallback,
-                    generatedDate = today,
+                    generatedDate = todayStr,
                     timestamp = System.currentTimeMillis()
                 )
             )

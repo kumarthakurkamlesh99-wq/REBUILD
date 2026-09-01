@@ -14,7 +14,13 @@ enum class SyllabusStatus(val label: String, val weight: Int, val colorHex: Stri
     MASTERED("Mastered", 100, "#00E676")
 }
 
-@Entity(tableName = "syllabus_units")
+@Entity(
+    tableName = "syllabus_units",
+    indices = [
+        Index(value = ["subjectCode"]),
+        Index(value = ["orderIndex"])
+    ]
+)
 data class SyllabusUnitEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -39,7 +45,11 @@ data class SyllabusUnitEntity(
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["unitId"]), Index(value = ["subjectCode"])]
+    indices = [
+        Index(value = ["unitId"]),
+        Index(value = ["subjectCode"]),
+        Index(value = ["status"])
+    ]
 )
 data class SyllabusChapterEntity(
     @PrimaryKey(autoGenerate = true)
@@ -69,7 +79,12 @@ data class SyllabusChapterEntity(
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["chapterId"]), Index(value = ["subjectCode"])]
+    indices = [
+        Index(value = ["chapterId"]),
+        Index(value = ["unitId"]),
+        Index(value = ["subjectCode"]),
+        Index(value = ["status"])
+    ]
 )
 data class SyllabusTopicEntity(
     @PrimaryKey(autoGenerate = true)

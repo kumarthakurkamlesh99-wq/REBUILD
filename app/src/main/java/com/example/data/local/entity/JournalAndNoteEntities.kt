@@ -1,9 +1,16 @@
 package com.example.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "notes")
+@Entity(
+    tableName = "notes",
+    indices = [
+        Index(value = ["isPinned", "timestamp"]),
+        Index(value = ["subjectTag"])
+    ]
+)
 data class NoteEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -16,7 +23,12 @@ data class NoteEntity(
     val colorHex: String = "#7C8CFF"
 )
 
-@Entity(tableName = "daily_reflections")
+@Entity(
+    tableName = "daily_reflections",
+    indices = [
+        Index(value = ["timestamp"])
+    ]
+)
 data class DailyReflectionEntity(
     @PrimaryKey
     val date: String, // "yyyy-MM-dd"
@@ -29,7 +41,13 @@ data class DailyReflectionEntity(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "ai_plan_cache")
+@Entity(
+    tableName = "ai_plan_cache",
+    indices = [
+        Index(value = ["generatedDate"]),
+        Index(value = ["timestamp"])
+    ]
+)
 data class AiPlanCacheEntity(
     @PrimaryKey
     val planType: String, // "DAILY_SCHEDULE", "WEEKLY_PLAN", "REVISION_PLAN", "WORKOUT_PLAN", "RECOVERY_PLAN", "EXAM_STRATEGY", "TIME_BLOCKING", "FOCUS_SESSIONS", "PRIORITY_TASKS"

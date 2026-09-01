@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -413,6 +414,59 @@ fun AiPlansSection(viewModel: AiCoachViewModel, state: AiCoachUiState) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Cache & Persistence Status Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (state.isFromCache) SuccessGreen.copy(alpha = 0.15f) else IceCyanPrimary.copy(alpha = 0.15f),
+                    border = BorderStroke(
+                        1.dp,
+                        if (state.isFromCache) SuccessGreen.copy(alpha = 0.4f) else IceCyanPrimary.copy(alpha = 0.4f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (state.isFromCache) Icons.Default.Bolt else Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = if (state.isFromCache) SuccessGreen else IceCyanPrimary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (state.isFromCache) "Room Cached (Offline)" else "AI Neural Blueprint",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (state.isFromCache) SuccessGreen else IceCyanPrimary
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (state.lastCachedDate.isNotBlank()) "Saved for ${state.lastCachedDate}" else "Live Telemetry",
+                    fontSize = 11.sp,
+                    color = GlassWhiteMuted
+                )
+            }
+
+            Text(
+                text = "Zero API overhead",
+                fontSize = 10.sp,
+                color = FrostBlueAccent
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
         // Content Area Card
         Surface(
             modifier = Modifier
@@ -477,7 +531,7 @@ fun AiPlansSection(viewModel: AiCoachViewModel, state: AiCoachUiState) {
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Button(
-                onClick = { viewModel.generatePlan(state.selectedPlanType) },
+                onClick = { viewModel.generatePlan(state.selectedPlanType, forceRefresh = true) },
                 colors = ButtonDefaults.buttonColors(containerColor = LuxuryCard),
                 border = BorderStroke(1.dp, LuxuryAccent.copy(alpha = 0.6f)),
                 shape = RoundedCornerShape(14.dp),

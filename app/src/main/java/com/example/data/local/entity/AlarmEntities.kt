@@ -1,6 +1,7 @@
 package com.example.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 enum class AlarmChallengeType(val label: String, val description: String) {
@@ -23,7 +24,13 @@ enum class AlarmVibrationPattern(val label: String) {
     STEADY("Steady Wave")
 }
 
-@Entity(tableName = "alarms")
+@Entity(
+    tableName = "alarms",
+    indices = [
+        Index(value = ["isEnabled"]),
+        Index(value = ["hour", "minute"])
+    ]
+)
 data class AlarmEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -47,7 +54,14 @@ data class AlarmEntity(
     val createdAtTimestamp: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "alarm_logs")
+@Entity(
+    tableName = "alarm_logs",
+    indices = [
+        Index(value = ["alarmId"]),
+        Index(value = ["date"]),
+        Index(value = ["timestamp"])
+    ]
+)
 data class AlarmLogEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,

@@ -14,83 +14,20 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.navigation.RebuildAppScaffold
 import com.example.ui.theme.DarkNavy
 import com.example.ui.theme.REBUILDTheme
-import com.example.viewmodel.AiChatViewModel
-import com.example.viewmodel.AiChatViewModelFactory
-import com.example.viewmodel.AiCoachViewModel
-import com.example.viewmodel.AiCoachViewModelFactory
-import com.example.viewmodel.AlarmsViewModel
-import com.example.viewmodel.AlarmsViewModelFactory
-import com.example.viewmodel.AnalyticsViewModel
-import com.example.viewmodel.AnalyticsViewModelFactory
-import com.example.viewmodel.BoardExamViewModel
-import com.example.viewmodel.BoardExamViewModelFactory
-import com.example.viewmodel.FitnessViewModel
-import com.example.viewmodel.FitnessViewModelFactory
-import com.example.viewmodel.GoalsViewModel
-import com.example.viewmodel.GoalsViewModelFactory
-import com.example.viewmodel.HabitsViewModel
-import com.example.viewmodel.HabitsViewModelFactory
 import com.example.viewmodel.HomeViewModel
 import com.example.viewmodel.HomeViewModelFactory
-import com.example.viewmodel.NotesViewModel
-import com.example.viewmodel.NotesViewModelFactory
 import com.example.viewmodel.OnboardingViewModel
 import com.example.viewmodel.OnboardingViewModelFactory
-import com.example.viewmodel.PlannerViewModel
-import com.example.viewmodel.PlannerViewModelFactory
-import com.example.viewmodel.PomodoroViewModel
-import com.example.viewmodel.PomodoroViewModelFactory
 import com.example.viewmodel.SettingsViewModel
 import com.example.viewmodel.SettingsViewModelFactory
-import com.example.viewmodel.SubjectsViewModel
-import com.example.viewmodel.SubjectsViewModelFactory
-import com.example.viewmodel.SyllabusViewModel
-import com.example.viewmodel.SyllabusViewModelFactory
-import com.example.viewmodel.WinterArcViewModel
-import com.example.viewmodel.WinterArcViewModelFactory
 
 class MainActivity : ComponentActivity() {
 
     private val applicationInstance by lazy { application as RebuildApplication }
 
+    // Critical ViewModels required for initial screen rendering
     private val homeViewModel: HomeViewModel by viewModels {
         HomeViewModelFactory(applicationInstance.repository)
-    }
-
-    private val plannerViewModel: PlannerViewModel by viewModels {
-        PlannerViewModelFactory(applicationInstance.repository)
-    }
-
-    private val subjectsViewModel: SubjectsViewModel by viewModels {
-        SubjectsViewModelFactory(applicationInstance.repository)
-    }
-
-    private val pomodoroViewModel: PomodoroViewModel by viewModels {
-        PomodoroViewModelFactory(applicationInstance.repository)
-    }
-
-    private val fitnessViewModel: FitnessViewModel by viewModels {
-        FitnessViewModelFactory(applicationInstance.repository)
-    }
-
-    private val goalsViewModel: GoalsViewModel by viewModels {
-        GoalsViewModelFactory(applicationInstance.repository)
-    }
-
-    private val habitsViewModel: HabitsViewModel by viewModels {
-        HabitsViewModelFactory(applicationInstance.repository)
-    }
-
-    private val winterArcViewModel: WinterArcViewModel by viewModels {
-        WinterArcViewModelFactory(applicationInstance.repository)
-    }
-
-    private val boardExamViewModel: BoardExamViewModel by viewModels {
-        BoardExamViewModelFactory(applicationInstance.repository)
-    }
-
-    private val analyticsViewModel: AnalyticsViewModel by viewModels {
-        AnalyticsViewModelFactory(applicationInstance.repository)
     }
 
     private val settingsViewModel: SettingsViewModel by viewModels {
@@ -98,33 +35,6 @@ class MainActivity : ComponentActivity() {
             applicationInstance.userPreferencesRepository,
             applicationContext
         )
-    }
-
-    private val aiCoachViewModel: AiCoachViewModel by viewModels {
-        AiCoachViewModelFactory(
-            applicationInstance.geminiCoachRepository,
-            applicationInstance.repository,
-            applicationInstance.userPreferencesRepository
-        )
-    }
-
-    private val aiChatViewModel: AiChatViewModel by viewModels {
-        AiChatViewModelFactory(
-            applicationInstance.geminiCoachRepository,
-            applicationInstance.repository
-        )
-    }
-
-    private val syllabusViewModel: SyllabusViewModel by viewModels {
-        SyllabusViewModelFactory(applicationInstance.repository)
-    }
-
-    private val alarmsViewModel: AlarmsViewModel by viewModels {
-        AlarmsViewModelFactory(applicationInstance.repository)
-    }
-
-    private val notesViewModel: NotesViewModel by viewModels {
-        NotesViewModelFactory(applicationInstance.repository)
     }
 
     private val onboardingViewModel: OnboardingViewModel by viewModels {
@@ -147,22 +57,9 @@ class MainActivity : ComponentActivity() {
                     color = DarkNavy
                 ) {
                     RebuildAppScaffold(
+                        application = applicationInstance,
                         homeViewModel = homeViewModel,
-                        plannerViewModel = plannerViewModel,
-                        subjectsViewModel = subjectsViewModel,
-                        pomodoroViewModel = pomodoroViewModel,
-                        fitnessViewModel = fitnessViewModel,
-                        goalsViewModel = goalsViewModel,
-                        habitsViewModel = habitsViewModel,
-                        winterArcViewModel = winterArcViewModel,
-                        boardExamViewModel = boardExamViewModel,
-                        analyticsViewModel = analyticsViewModel,
                         settingsViewModel = settingsViewModel,
-                        aiCoachViewModel = aiCoachViewModel,
-                        aiChatViewModel = aiChatViewModel,
-                        syllabusViewModel = syllabusViewModel,
-                        alarmsViewModel = alarmsViewModel,
-                        notesViewModel = notesViewModel,
                         onboardingViewModel = onboardingViewModel
                     )
                 }

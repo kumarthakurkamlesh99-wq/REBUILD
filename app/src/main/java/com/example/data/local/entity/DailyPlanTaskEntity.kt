@@ -1,6 +1,7 @@
 package com.example.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 enum class TaskType {
@@ -12,7 +13,14 @@ enum class TaskType {
     CUSTOM
 }
 
-@Entity(tableName = "daily_plan_tasks")
+@Entity(
+    tableName = "daily_plan_tasks",
+    indices = [
+        Index(value = ["date"]),
+        Index(value = ["isCompleted"]),
+        Index(value = ["date", "orderIndex"])
+    ]
+)
 data class DailyPlanTaskEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,

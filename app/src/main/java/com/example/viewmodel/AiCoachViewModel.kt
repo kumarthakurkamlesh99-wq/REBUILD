@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -26,6 +27,9 @@ data class AiCoachUiState(
     val currentPlanContent: String = "",
     val isGenerating: Boolean = false,
     val isApplyingPlan: Boolean = false,
+    val isFromCache: Boolean = false,
+    val lastCachedDate: String = "",
+    val lastCachedTimestamp: Long = 0L,
     val apiKey: String = "",
     val hasApiKey: Boolean = false,
     val chatMessages: List<ChatMessage> = listOf(
@@ -56,13 +60,40 @@ class AiCoachViewModel(
             }
         }
 
-        refreshContextSnapshot()
-        generatePlan(AiPlanType.DAILY_SCHEDULE)
+        // Lazy local load: Read cached plan from Room DB without hitting Gemini on launch
+        viewModelScope.launch {
+            geminiRepository.getCachedPlan(AiPlanType.DAILY_SCHEDULE.key).collectLatest { cached ->
+                if (cached != null && cached.content.isNotBlank()) {
+                    _uiState.update {
+                        it.copy(
+                            currentPlanContent = cached.content,
+                            isFromCache = true,
+                            lastCachedDate = cached.generatedDate,
+                            lastCachedTimestamp = cached.timestamp
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun selectPlanType(type: AiPlanType) {
         _uiState.update { it.copy(selectedPlanType = type) }
-        generatePlan(type)
+        viewModelScope.launch {
+            val cached = geminiRepository.getCachedPlan(type.key).firstOrNull()
+            if (cached != null && cached.content.isNotBlank()) {
+                _uiState.update {
+                    it.copy(
+                        currentPlanContent = cached.content,
+                        isFromCache = true,
+                        lastCachedDate = cached.generatedDate,
+                        lastCachedTimestamp = cached.timestamp
+                    )
+                }
+            } else {
+                generatePlan(type, forceRefresh = false)
+            }
+        }
     }
 
     fun setChatInput(text: String) {
@@ -76,13 +107,26 @@ class AiCoachViewModel(
         }
     }
 
-    fun generatePlan(type: AiPlanType = _uiState.value.selectedPlanType, customInstruction: String = "") {
+    fun generatePlan(
+        type: AiPlanType = _uiState.value.selectedPlanType,
+        customInstruction: String = "",
+        forceRefresh: Boolean = false
+    ) {
         viewModelScope.launch {
             _uiState.update { it.copy(isGenerating = true, actionFeedback = null) }
 
-            val result = geminiRepository.generatePlan(type, customInstruction)
+            val result = geminiRepository.generatePlan(type, customInstruction, forceRefresh = forceRefresh)
             result.onSuccess { content ->
-                _uiState.update { it.copy(currentPlanContent = content, isGenerating = false) }
+                val cached = geminiRepository.getCachedPlanDirect(type.key)
+                _uiState.update {
+                    it.copy(
+                        currentPlanContent = content,
+                        isGenerating = false,
+                        isFromCache = !forceRefresh,
+                        lastCachedDate = cached?.generatedDate ?: "",
+                        lastCachedTimestamp = cached?.timestamp ?: System.currentTimeMillis()
+                    )
+                }
             }.onFailure { err ->
                 _uiState.update {
                     it.copy(
