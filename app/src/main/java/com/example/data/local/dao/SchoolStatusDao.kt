@@ -33,4 +33,7 @@ interface SchoolStatusDao {
 
     @Update
     suspend fun update(status: SchoolStatusEntity)
+
+    @Query("DELETE FROM school_status_logs")
+    suspend fun clearAll()
 }

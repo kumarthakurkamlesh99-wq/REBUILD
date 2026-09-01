@@ -131,9 +131,7 @@ fun NotificationCenterScreen(
         topBar = {
             RebuildTopAppBar(
                 title = "Notification Engine",
-                onMenuClick = onBack,
-                navigationIcon = Icons.Default.ArrowBack,
-                navigationContentDescription = "Back",
+                onBack = onBack,
                 actions = {
                     IconButton(
                         onClick = {

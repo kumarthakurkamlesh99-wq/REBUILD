@@ -325,4 +325,13 @@ object AlarmScheduler {
         val alarmId = (GOAL_ALARM_ID_BASE + (goalId % 9999)).toInt()
         cancelAlarm(context, alarmId)
     }
+
+    fun scheduleAllDefaultAlarms(context: Context) {
+        scheduleProfileAlarms(context, UserProfileEntity())
+    }
+
+    fun cancelAllAlarms(context: Context) {
+        val alarms = getProfileAlarmsList(UserProfileEntity())
+        alarms.forEach { cancelAlarm(context, it.id) }
+    }
 }

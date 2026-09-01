@@ -286,6 +286,90 @@ fun CompactScreenHeader(
 }
 
 @Composable
+fun RebuildTopAppBar(
+    title: String,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    onMenuClick: (() -> Unit)? = null,
+    onBack: (() -> Unit)? = null,
+    navigationIcon: ImageVector? = null,
+    navigationContentDescription: String? = null,
+    actions: (@Composable () -> Unit)? = null,
+    trailingContent: (@Composable () -> Unit)? = null
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (onBack != null || (navigationIcon != null && onMenuClick != null)) {
+            val clickAction = onBack ?: onMenuClick!!
+            IconButton(
+                onClick = clickAction,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(FrostedNavyCard)
+                    .testTag("back_button")
+            ) {
+                Icon(
+                    imageVector = navigationIcon ?: Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = navigationContentDescription ?: "Back",
+                    tint = GlassWhite,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+        } else if (onMenuClick != null) {
+            IconButton(
+                onClick = onMenuClick,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(FrostedNavyCard)
+                    .testTag("menu_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "Open Navigation Menu",
+                    tint = GlassWhite,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = GlassWhite,
+                letterSpacing = 0.3.sp,
+                maxLines = 1
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontSize = 12.sp,
+                    color = GlassWhiteMuted,
+                    maxLines = 1
+                )
+            }
+        }
+
+        val trailing = actions ?: trailingContent
+        if (trailing != null) {
+            Spacer(modifier = Modifier.width(8.dp))
+            trailing()
+        }
+    }
+}
+
+@Composable
 fun CompactLevelXpBadge(
     level: Int,
     xp: Int,
