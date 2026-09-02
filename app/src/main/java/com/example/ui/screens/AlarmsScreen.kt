@@ -1,10 +1,12 @@
 package com.example.ui.screens
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -40,12 +42,15 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Snooze
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -65,6 +70,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,6 +91,7 @@ import com.example.data.local.entity.AlarmChallengeType
 import com.example.data.local.entity.AlarmDifficulty
 import com.example.data.local.entity.AlarmEntity
 import com.example.notification.AlarmDismissActivity
+import com.example.notification.AlarmScheduler
 import com.example.ui.components.RebuildTopAppBar
 import com.example.ui.theme.DarkNavy
 import com.example.ui.theme.ElectricBlue
@@ -106,6 +113,27 @@ fun AlarmsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // Permission tracking states for Android 12+ & Android 13+
+    var hasNotificationPermission by remember {
+        mutableStateOf(AlarmScheduler.hasNotificationPermission(context))
+    }
+    var canScheduleExactAlarms by remember {
+        mutableStateOf(AlarmScheduler.canScheduleExactAlarms(context))
+    }
+
+    // Refresh permissions on resume / interaction
+    DisposableEffect(Unit) {
+        hasNotificationPermission = AlarmScheduler.hasNotificationPermission(context)
+        canScheduleExactAlarms = AlarmScheduler.canScheduleExactAlarms(context)
+        onDispose { }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasNotificationPermission = isGranted
+    }
 
     Box(
         modifier = Modifier
@@ -129,6 +157,114 @@ fun AlarmsScreen(
                 contentPadding = PaddingValues(top = 10.dp, bottom = 80.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // Permission Warning Card for Exact Alarms (Android 12+)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !canScheduleExactAlarms) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = FireOrange.copy(alpha = 0.15f)),
+                            border = BorderStroke(1.dp, FireOrange)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = FireOrange,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = "Exact Alarm Permission Required",
+                                        fontWeight = FontWeight.Bold,
+                                        color = FireOrange,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                                Text(
+                                    text = "Android 12+ requires explicit permission to trigger exact wake-up alarms on time when the device is locked or asleep.",
+                                    fontSize = 12.sp,
+                                    color = GlassWhiteMuted
+                                )
+                                Button(
+                                    onClick = { AlarmScheduler.openExactAlarmSettings(context) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = FireOrange,
+                                        contentColor = DarkNavy
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Grant Exact Alarm Permission", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Permission Warning Card for Notifications (Android 13+)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = WarningAmber.copy(alpha = 0.15f)),
+                            border = BorderStroke(1.dp, WarningAmber)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.NotificationsActive,
+                                        contentDescription = null,
+                                        tint = WarningAmber,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = "Notification Permission Required",
+                                        fontWeight = FontWeight.Bold,
+                                        color = WarningAmber,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                                Text(
+                                    text = "Android 13+ requires notification permissions to alert you and trigger the foreground ringing service.",
+                                    fontSize = 12.sp,
+                                    color = GlassWhiteMuted
+                                )
+                                Button(
+                                    onClick = {
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = WarningAmber,
+                                        contentColor = DarkNavy
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Allow Notifications", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Challenge Testing Hero Card
                 item {
                     Card(
@@ -260,7 +396,17 @@ fun AlarmsScreen(
                 items(uiState.alarms, key = { "alarm_${it.id}" }) { alarm ->
                     AlarmCardItem(
                         alarm = alarm,
-                        onToggle = { viewModel.toggleAlarm(alarm) },
+                        onToggle = {
+                            if (!alarm.isEnabled) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !AlarmScheduler.hasNotificationPermission(context)) {
+                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !AlarmScheduler.canScheduleExactAlarms(context)) {
+                                    AlarmScheduler.openExactAlarmSettings(context)
+                                }
+                            }
+                            viewModel.toggleAlarm(alarm)
+                        },
                         onEdit = { viewModel.openEditDialog(alarm) },
                         onDelete = { viewModel.deleteAlarm(alarm) },
                         onTestTrigger = {
@@ -502,6 +648,10 @@ fun AlarmEditDialog(
     var diffMenuExpanded by remember { mutableStateOf(false) }
     var soundMenuExpanded by remember { mutableStateOf(false) }
     var snoozeSoundMenuExpanded by remember { mutableStateOf(false) }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { }
 
     val ringtonePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -1016,7 +1166,15 @@ fun AlarmEditDialog(
                     }
 
                     Button(
-                        onClick = { viewModel.saveAlarm() },
+                        onClick = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !AlarmScheduler.hasNotificationPermission(context)) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !AlarmScheduler.canScheduleExactAlarms(context)) {
+                                AlarmScheduler.openExactAlarmSettings(context)
+                            }
+                            viewModel.saveAlarm()
+                        },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
