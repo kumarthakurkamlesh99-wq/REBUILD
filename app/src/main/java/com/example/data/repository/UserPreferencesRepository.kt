@@ -15,6 +15,7 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "re
 class UserPreferencesRepository(private val context: Context) {
 
     private object PreferencesKeys {
+        val IS_ONBOARDING_COMPLETED = booleanPreferencesKey("is_onboarding_completed")
         val DARK_THEME = booleanPreferencesKey("dark_theme")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val SOUND_ENABLED = booleanPreferencesKey("sound_enabled")
@@ -22,6 +23,16 @@ class UserPreferencesRepository(private val context: Context) {
         val USER_NAME = stringPreferencesKey("user_name")
         val GOAL_HOURS = stringPreferencesKey("goal_hours")
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
+    }
+
+    val isOnboardingCompleted: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.IS_ONBOARDING_COMPLETED] ?: false
+    }
+
+    suspend fun setOnboardingCompleted(completed: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.IS_ONBOARDING_COMPLETED] = completed
+        }
     }
 
     val isDarkTheme: Flow<Boolean> = context.dataStore.data.map { preferences ->

@@ -195,6 +195,7 @@ class OnboardingViewModel(
         _uiState.update { it.copy(isSaving = true) }
         viewModelScope.launch {
             repository.initializeUserSystem(entity)
+            userPreferencesRepository.setOnboardingCompleted(true)
             userPreferencesRepository.setUserName(entity.name)
             userPreferencesRepository.setDailyGoalHours(entity.dailyStudyGoalHours.toInt().toString())
             if (entity.geminiApiKey.isNotBlank()) {
