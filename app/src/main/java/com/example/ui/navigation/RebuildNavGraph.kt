@@ -98,6 +98,7 @@ import com.example.ui.screens.SubjectsScreen
 import com.example.ui.screens.SyllabusScreen
 import com.example.ui.screens.TasksScreen
 import com.example.ui.screens.WinterArcScreen
+import com.example.ui.splash.RebuildSplashScreen
 import com.example.ui.theme.DarkNavy
 import com.example.ui.theme.ElectricBlue
 import com.example.ui.theme.FireOrange
@@ -145,6 +146,7 @@ import com.example.viewmodel.WinterArcViewModelFactory
 import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector, val badgeText: String? = null) {
+    object Splash : Screen("splash", "Splash", Icons.Default.Bolt)
     object Onboarding : Screen("onboarding", "Profile Calibration", Icons.Default.Tune)
     object Home : Screen("home", "Dashboard", Icons.Default.Home)
     object AiChat : Screen("ai_chat", "AI Neural Chat", Icons.Default.Psychology, "Live AI")
@@ -171,13 +173,16 @@ fun RebuildAppScaffold(
     application: RebuildApplication,
     homeViewModel: HomeViewModel,
     settingsViewModel: SettingsViewModel,
-    onboardingViewModel: OnboardingViewModel
+    onboardingViewModel: OnboardingViewModel,
+    startDestination: String = Screen.Splash.route,
+    startupState: com.example.viewmodel.AppStartupState = com.example.viewmodel.AppStartupState.Loading,
+    onOnboardingComplete: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Home.route
+    val currentRoute = navBackStackEntry?.destination?.route ?: startDestination
 
     val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
 
@@ -201,16 +206,6 @@ fun RebuildAppScaffold(
     }
 
     val userProfile = homeUiState.userProfile
-    val isUserOnboarded = userProfile != null && userProfile.isCompleted
-
-    // Auto-navigate to Onboarding on first launch if profile not completed
-    LaunchedEffect(isUserOnboarded) {
-        if (!isUserOnboarded && currentRoute != Screen.Onboarding.route) {
-            navController.navigate(Screen.Onboarding.route) {
-                popUpTo(0) { inclusive = true }
-            }
-        }
-    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -266,16 +261,33 @@ fun RebuildAppScaffold(
         ) {
             NavHost(
                 navController = navController,
-                startDestination = if (isUserOnboarded) Screen.Home.route else Screen.Onboarding.route,
+                startDestination = startDestination,
                 modifier = Modifier.fillMaxSize(),
                 enterTransition = { fadeIn(tween(180)) },
                 exitTransition = { fadeOut(tween(180)) }
             ) {
+                // -1. Splash Screen
+                composable(Screen.Splash.route) {
+                    RebuildSplashScreen(
+                        onFinished = {
+                            val targetRoute = if (startupState is com.example.viewmodel.AppStartupState.NeedsOnboarding) {
+                                Screen.Onboarding.route
+                            } else {
+                                Screen.Home.route
+                            }
+                            navController.navigate(targetRoute) {
+                                popUpTo(Screen.Splash.route) { inclusive = true }
+                            }
+                        }
+                    )
+                }
+
                 // 0. Onboarding
                 composable(Screen.Onboarding.route) {
                     OnboardingScreen(
                         viewModel = onboardingViewModel,
                         onComplete = {
+                            onOnboardingComplete()
                             navController.navigate(Screen.Home.route) {
                                 popUpTo(Screen.Onboarding.route) { inclusive = true }
                             }
