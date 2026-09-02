@@ -1,5 +1,10 @@
 package com.example.viewmodel
 
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.RingtoneManager
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -30,7 +35,11 @@ data class AlarmsUiState(
     val inputVibrate: Boolean = true,
     val inputMaxSnoozes: Int = 3,
     val inputSnoozeDuration: Int = 5,
-    val inputDaysOfWeek: String = "Mon,Tue,Wed,Thu,Fri,Sat,Sun"
+    val inputDaysOfWeek: String = "Mon,Tue,Wed,Thu,Fri,Sat,Sun",
+    val inputRingtonePreset: String = "CYBER_SIREN",
+    val inputSnoozeRingtonePreset: String = "TICK_TOCK",
+    val isPreviewingSound: Boolean = false,
+    val previewingToneName: String = ""
 )
 
 class AlarmsViewModel(
@@ -39,6 +48,8 @@ class AlarmsViewModel(
 
     private val _uiState = MutableStateFlow(AlarmsUiState())
     val uiState: StateFlow<AlarmsUiState> = _uiState.asStateFlow()
+
+    private var previewMediaPlayer: MediaPlayer? = null
 
     init {
         viewModelScope.launch {
@@ -56,7 +67,9 @@ class AlarmsViewModel(
                             volumePercent = 95,
                             isVibrationEnabled = true,
                             maxSnoozes = 3,
-                            snoozeDurationMinutes = 5
+                            snoozeDurationMinutes = 5,
+                            ringtonePreset = "CYBER_SIREN",
+                            snoozeRingtonePreset = "TICK_TOCK"
                         ),
                         AlarmEntity(
                             title = "School Departure Call",
@@ -68,7 +81,9 @@ class AlarmsViewModel(
                             volumePercent = 85,
                             isVibrationEnabled = true,
                             maxSnoozes = 2,
-                            snoozeDurationMinutes = 5
+                            snoozeDurationMinutes = 5,
+                            ringtonePreset = "ZEN_CHIME",
+                            snoozeRingtonePreset = "BELL"
                         ),
                         AlarmEntity(
                             title = "Evening Deep Focus Session",
@@ -80,7 +95,9 @@ class AlarmsViewModel(
                             volumePercent = 90,
                             isVibrationEnabled = true,
                             maxSnoozes = 2,
-                            snoozeDurationMinutes = 5
+                            snoozeDurationMinutes = 5,
+                            ringtonePreset = "APEX_HORNS",
+                            snoozeRingtonePreset = "TICK_TOCK"
                         )
                     )
                     defaultAlarms.forEach { rebuildRepository.saveAlarm(it) }
@@ -98,6 +115,7 @@ class AlarmsViewModel(
     }
 
     fun openCreateDialog() {
+        stopSoundPreview()
         _uiState.update {
             it.copy(
                 isCreatingOrEditing = true,
@@ -110,12 +128,16 @@ class AlarmsViewModel(
                 inputVolume = 90,
                 inputVibrate = true,
                 inputMaxSnoozes = 3,
-                inputSnoozeDuration = 5
+                inputSnoozeDuration = 5,
+                inputRingtonePreset = "CYBER_SIREN",
+                inputSnoozeRingtonePreset = "TICK_TOCK",
+                isPreviewingSound = false
             )
         }
     }
 
     fun openEditDialog(alarm: AlarmEntity) {
+        stopSoundPreview()
         _uiState.update {
             it.copy(
                 isCreatingOrEditing = true,
@@ -129,13 +151,17 @@ class AlarmsViewModel(
                 inputVibrate = alarm.isVibrationEnabled,
                 inputMaxSnoozes = alarm.maxSnoozes,
                 inputSnoozeDuration = alarm.snoozeDurationMinutes,
-                inputDaysOfWeek = alarm.repeatDaysJson
+                inputDaysOfWeek = alarm.repeatDaysJson,
+                inputRingtonePreset = alarm.ringtonePreset,
+                inputSnoozeRingtonePreset = alarm.snoozeRingtonePreset,
+                isPreviewingSound = false
             )
         }
     }
 
     fun dismissDialog() {
-        _uiState.update { it.copy(isCreatingOrEditing = false, editingAlarm = null) }
+        stopSoundPreview()
+        _uiState.update { it.copy(isCreatingOrEditing = false, editingAlarm = null, isPreviewingSound = false) }
     }
 
     fun setInputTitle(title: String) = _uiState.update { it.copy(inputTitle = title) }
@@ -145,8 +171,67 @@ class AlarmsViewModel(
     fun setInputVolume(vol: Int) = _uiState.update { it.copy(inputVolume = vol) }
     fun setInputVibrate(vibrate: Boolean) = _uiState.update { it.copy(inputVibrate = vibrate) }
     fun setInputMaxSnoozes(snoozes: Int) = _uiState.update { it.copy(inputMaxSnoozes = snoozes) }
+    fun setInputSnoozeDuration(minutes: Int) = _uiState.update { it.copy(inputSnoozeDuration = minutes) }
+    fun setInputRingtonePreset(preset: String) = _uiState.update { it.copy(inputRingtonePreset = preset) }
+    fun setInputSnoozeRingtonePreset(preset: String) = _uiState.update { it.copy(inputSnoozeRingtonePreset = preset) }
+
+    fun previewSound(context: Context, presetOrUri: String) {
+        stopSoundPreview()
+        try {
+            var alertUri: Uri? = null
+            if (presetOrUri.startsWith("content://") || presetOrUri.startsWith("file://") || presetOrUri.startsWith("android.resource://")) {
+                try {
+                    alertUri = Uri.parse(presetOrUri)
+                } catch (e: Exception) {
+                    alertUri = null
+                }
+            }
+            if (alertUri == null) {
+                alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            }
+
+            if (alertUri != null) {
+                previewMediaPlayer = MediaPlayer().apply {
+                    setDataSource(context.applicationContext, alertUri)
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    isLooping = true
+                    setVolume(0.85f, 0.85f)
+                    prepare()
+                    start()
+                }
+                _uiState.update { it.copy(isPreviewingSound = true, previewingToneName = presetOrUri) }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            _uiState.update { it.copy(isPreviewingSound = false) }
+        }
+    }
+
+    fun stopSoundPreview() {
+        try {
+            previewMediaPlayer?.stop()
+            previewMediaPlayer?.release()
+            previewMediaPlayer = null
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        _uiState.update { it.copy(isPreviewingSound = false, previewingToneName = "") }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopSoundPreview()
+    }
 
     fun saveAlarm() {
+        stopSoundPreview()
         val state = _uiState.value
         val entity = AlarmEntity(
             id = state.editingAlarm?.id ?: 0L,
@@ -160,7 +245,9 @@ class AlarmsViewModel(
             isVibrationEnabled = state.inputVibrate,
             maxSnoozes = state.inputMaxSnoozes,
             snoozeDurationMinutes = state.inputSnoozeDuration,
-            repeatDaysJson = state.inputDaysOfWeek
+            repeatDaysJson = state.inputDaysOfWeek,
+            ringtonePreset = state.inputRingtonePreset,
+            snoozeRingtonePreset = state.inputSnoozeRingtonePreset
         )
         viewModelScope.launch {
             rebuildRepository.saveAlarm(entity)

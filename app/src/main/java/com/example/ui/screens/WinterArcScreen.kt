@@ -182,7 +182,7 @@ fun WinterArcScreen(
                     }
                 }
 
-                items(uiState.objectives, key = { it.id }) { objective ->
+                items(uiState.objectives, key = { "obj_${it.id}" }) { objective ->
                     ObjectiveCardItem(
                         objective = objective,
                         onToggle = { viewModel.toggleObjective(objective) },
@@ -287,7 +287,7 @@ fun WinterArcScreen(
                         }
                     }
                 } else {
-                    items(currentGoals, key = { it.id }) { goal ->
+                    items(currentGoals, key = { "goal_${it.id}" }) { goal ->
                         GoalPlanRowItem(
                             goal = goal,
                             onToggle = { viewModel.toggleGoal(goal) },

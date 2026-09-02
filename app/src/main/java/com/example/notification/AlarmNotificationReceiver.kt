@@ -38,6 +38,8 @@ class AlarmNotificationReceiver : BroadcastReceiver() {
         val isVibrate = intent.getBooleanExtra(AlarmDismissActivity.EXTRA_VIBRATE, true)
         val maxSnoozes = intent.getIntExtra(AlarmDismissActivity.EXTRA_MAX_SNOOZES, 3)
         val snoozeDuration = intent.getIntExtra(AlarmDismissActivity.EXTRA_SNOOZE_DURATION, 5)
+        val ringtonePreset = intent.getStringExtra(AlarmDismissActivity.EXTRA_RINGTONE_PRESET) ?: "CYBER_SIREN"
+        val snoozeRingtonePreset = intent.getStringExtra(AlarmDismissActivity.EXTRA_SNOOZE_RINGTONE_PRESET) ?: "TICK_TOCK"
 
         if (isFullAlarm) {
             try {
@@ -51,6 +53,8 @@ class AlarmNotificationReceiver : BroadcastReceiver() {
                     putExtra(AlarmDismissActivity.EXTRA_VIBRATE, isVibrate)
                     putExtra(AlarmDismissActivity.EXTRA_MAX_SNOOZES, maxSnoozes)
                     putExtra(AlarmDismissActivity.EXTRA_SNOOZE_DURATION, snoozeDuration)
+                    putExtra(AlarmDismissActivity.EXTRA_RINGTONE_PRESET, ringtonePreset)
+                    putExtra(AlarmDismissActivity.EXTRA_SNOOZE_RINGTONE_PRESET, snoozeRingtonePreset)
                 }
                 context.startActivity(dismissIntent)
             } catch (e: Exception) {

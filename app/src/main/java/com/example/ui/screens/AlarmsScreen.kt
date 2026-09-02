@@ -1,7 +1,12 @@
 package com.example.ui.screens
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -34,9 +39,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Snooze
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
@@ -250,7 +257,7 @@ fun AlarmsScreen(
                 }
 
                 // Alarms List Items
-                items(uiState.alarms, key = { it.id }) { alarm ->
+                items(uiState.alarms, key = { "alarm_${it.id}" }) { alarm ->
                     AlarmCardItem(
                         alarm = alarm,
                         onToggle = { viewModel.toggleAlarm(alarm) },
@@ -279,7 +286,7 @@ fun AlarmsScreen(
                         )
                     }
 
-                    items(uiState.alarmLogs.take(5)) { log ->
+                    items(uiState.alarmLogs.take(5), key = { "log_${it.id}_${it.timestamp}" }) { log ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -490,8 +497,43 @@ fun AlarmEditDialog(
     uiState: com.example.viewmodel.AlarmsUiState,
     viewModel: AlarmsViewModel
 ) {
+    val context = LocalContext.current
     var challengeMenuExpanded by remember { mutableStateOf(false) }
     var diffMenuExpanded by remember { mutableStateOf(false) }
+    var soundMenuExpanded by remember { mutableStateOf(false) }
+    var snoozeSoundMenuExpanded by remember { mutableStateOf(false) }
+
+    val ringtonePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri: Uri? = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            }
+            if (uri != null) {
+                viewModel.setInputRingtonePreset(uri.toString())
+            }
+        }
+    }
+
+    val presetRingtones = listOf(
+        "CYBER_SIREN" to "Cyber Siren (High Alert)",
+        "APEX_HORNS" to "Apex Horns (Deep Impact)",
+        "ZEN_CHIME" to "Zen Chime (Gentle Awakening)",
+        "BELL" to "Classic Metal Bell",
+        "MILITARY" to "Military Bugle Reveille",
+        "SYSTEM_DEFAULT" to "System Alarm Default"
+    )
+
+    val presetSnoozeSounds = listOf(
+        "TICK_TOCK" to "Tick Tock Warning",
+        "BELL" to "Single Soft Bell",
+        "ZEN_CHIME" to "Zen Ripple",
+        "SYSTEM_DEFAULT" to "System Notification Default"
+    )
 
     Dialog(onDismissRequest = { viewModel.dismissDialog() }) {
         Card(
@@ -588,9 +630,123 @@ fun AlarmEditDialog(
                     }
                 }
 
+                // Sound / Ringtone Selection
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Alarm Sound & Ringtone", fontSize = 12.sp, color = GlassWhiteMuted)
+                        if (uiState.isPreviewingSound) {
+                            Text(
+                                text = "Playing Preview...",
+                                fontSize = 11.sp,
+                                color = SuccessGreen,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DarkNavy)
+                                .border(1.dp, FrostBlueAccent.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                .clickable { soundMenuExpanded = true }
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Icon(
+                                    imageVector = Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    tint = IceCyanPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                val displaySoundName = presetRingtones.find { it.first == uiState.inputRingtonePreset }?.second
+                                    ?: if (uiState.inputRingtonePreset.startsWith("content://")) "Custom Android Ringtone" else uiState.inputRingtonePreset
+                                Text(
+                                    text = displaySoundName,
+                                    color = GlassWhite,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+                            Text("Change ▼", fontSize = 11.sp, color = FrostBlueAccent)
+                        }
+
+                        DropdownMenu(
+                            expanded = soundMenuExpanded,
+                            onDismissRequest = { soundMenuExpanded = false },
+                            modifier = Modifier.background(FrostedNavyCard)
+                        ) {
+                            presetRingtones.forEach { (key, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label, color = GlassWhite, fontSize = 13.sp) },
+                                    onClick = {
+                                        viewModel.setInputRingtonePreset(key)
+                                        soundMenuExpanded = false
+                                    }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Choose From Android Ringtones...", color = IceCyanPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                                onClick = {
+                                    soundMenuExpanded = false
+                                    val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM or RingtoneManager.TYPE_RINGTONE)
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select Alarm Ringtone")
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                                    }
+                                    ringtonePickerLauncher.launch(intent)
+                                }
+                            )
+                        }
+                    }
+
+                    // Sound Preview Button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (uiState.isPreviewingSound) {
+                            OutlinedButton(
+                                onClick = { viewModel.stopSoundPreview() },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = FireOrange)
+                            ) {
+                                Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Stop Sound", fontSize = 11.sp)
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = { viewModel.previewSound(context, uiState.inputRingtonePreset) },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = IceCyanPrimary)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Test Sound", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+
                 // Challenge Selection
                 Column {
                     Text("Dismissal Challenge Type", fontSize = 12.sp, color = GlassWhiteMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
                     Box(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier
@@ -632,6 +788,7 @@ fun AlarmEditDialog(
                 // Difficulty Selection
                 Column {
                     Text("Challenge Difficulty", fontSize = 12.sp, color = GlassWhiteMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
                     Box(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier
@@ -667,6 +824,52 @@ fun AlarmEditDialog(
                                 )
                             }
                         }
+                    }
+                }
+
+                // Snooze Settings (Max Snoozes & Duration)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Max Snoozes", fontSize = 12.sp, color = GlassWhiteMuted)
+                        OutlinedTextField(
+                            value = "${uiState.inputMaxSnoozes}",
+                            onValueChange = {
+                                val s = it.toIntOrNull()?.coerceIn(0, 10) ?: 0
+                                viewModel.setInputMaxSnoozes(s)
+                            },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = GlassWhite,
+                                unfocusedTextColor = GlassWhite,
+                                focusedBorderColor = IceCyanPrimary,
+                                unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.4f),
+                                focusedContainerColor = DarkNavy,
+                                unfocusedContainerColor = DarkNavy
+                            )
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Snooze (Mins)", fontSize = 12.sp, color = GlassWhiteMuted)
+                        OutlinedTextField(
+                            value = "${uiState.inputSnoozeDuration}",
+                            onValueChange = {
+                                val d = it.toIntOrNull()?.coerceIn(1, 30) ?: 5
+                                viewModel.setInputSnoozeDuration(d)
+                            },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = GlassWhite,
+                                unfocusedTextColor = GlassWhite,
+                                focusedBorderColor = IceCyanPrimary,
+                                unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.4f),
+                                focusedContainerColor = DarkNavy,
+                                unfocusedContainerColor = DarkNavy
+                            )
+                        )
                     }
                 }
 

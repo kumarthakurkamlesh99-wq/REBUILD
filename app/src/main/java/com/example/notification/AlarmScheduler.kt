@@ -52,6 +52,8 @@ object AlarmScheduler {
             putExtra(AlarmDismissActivity.EXTRA_VIBRATE, alarm.isVibrationEnabled)
             putExtra(AlarmDismissActivity.EXTRA_MAX_SNOOZES, alarm.maxSnoozes)
             putExtra(AlarmDismissActivity.EXTRA_SNOOZE_DURATION, alarm.snoozeDurationMinutes)
+            putExtra(AlarmDismissActivity.EXTRA_RINGTONE_PRESET, alarm.ringtonePreset)
+            putExtra(AlarmDismissActivity.EXTRA_SNOOZE_RINGTONE_PRESET, alarm.snoozeRingtonePreset)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(

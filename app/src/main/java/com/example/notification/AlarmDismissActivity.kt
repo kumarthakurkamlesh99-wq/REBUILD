@@ -130,6 +130,8 @@ class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
         const val EXTRA_VIBRATE = "extra_vibrate"
         const val EXTRA_MAX_SNOOZES = "extra_max_snoozes"
         const val EXTRA_SNOOZE_DURATION = "extra_snooze_duration"
+        const val EXTRA_RINGTONE_PRESET = "extra_ringtone_preset"
+        const val EXTRA_SNOOZE_RINGTONE_PRESET = "extra_snooze_ringtone_preset"
     }
 
     private var mediaPlayer: MediaPlayer? = null
@@ -150,6 +152,8 @@ class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
     private var isVibrate = true
     private var maxSnoozes = 3
     private var snoozeDurationMinutes = 5
+    private var ringtonePreset = "CYBER_SIREN"
+    private var snoozeRingtonePreset = "TICK_TOCK"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -178,6 +182,8 @@ class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
         isVibrate = intent.getBooleanExtra(EXTRA_VIBRATE, true)
         maxSnoozes = intent.getIntExtra(EXTRA_MAX_SNOOZES, 3)
         snoozeDurationMinutes = intent.getIntExtra(EXTRA_SNOOZE_DURATION, 5)
+        ringtonePreset = intent.getStringExtra(EXTRA_RINGTONE_PRESET) ?: "CYBER_SIREN"
+        snoozeRingtonePreset = intent.getStringExtra(EXTRA_SNOOZE_RINGTONE_PRESET) ?: "TICK_TOCK"
 
         // Initialize Sensors
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
@@ -235,22 +241,35 @@ class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
 
     private fun startAudioPlayback(volume: Int) {
         try {
-            val alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            var alertUri: android.net.Uri? = null
+            if (ringtonePreset.startsWith("content://") || ringtonePreset.startsWith("file://") || ringtonePreset.startsWith("android.resource://")) {
+                try {
+                    alertUri = android.net.Uri.parse(ringtonePreset)
+                } catch (e: Exception) {
+                    alertUri = null
+                }
+            }
+            if (alertUri == null) {
+                alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            }
 
-            mediaPlayer = MediaPlayer().apply {
-                setDataSource(applicationContext, alertUri)
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                isLooping = true
-                val vol = (volume.coerceIn(10, 100) / 100f)
-                setVolume(vol, vol)
-                prepare()
-                start()
+            if (alertUri != null) {
+                mediaPlayer = MediaPlayer().apply {
+                    setDataSource(applicationContext, alertUri)
+                    setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    isLooping = true
+                    val vol = (volume.coerceIn(10, 100) / 100f)
+                    setVolume(vol, vol)
+                    prepare()
+                    start()
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()

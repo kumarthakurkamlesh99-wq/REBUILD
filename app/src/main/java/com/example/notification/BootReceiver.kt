@@ -24,6 +24,11 @@ class BootReceiver : BroadcastReceiver() {
                         AlarmScheduler.scheduleProfileAlarms(context, profile)
                         Log.d("BootReceiver", "Restored all alarms for profile: ${profile.name}")
                     }
+                    val enabledCustomAlarms = db.alarmDao().getEnabledAlarmsDirect()
+                    for (alarm in enabledCustomAlarms) {
+                        AlarmScheduler.scheduleCustomAlarm(context, alarm)
+                        Log.d("BootReceiver", "Restored custom alarm: ${alarm.title} (${alarm.id})")
+                    }
                 } catch (e: Exception) {
                     Log.e("BootReceiver", "Failed to restore alarms on reboot", e)
                 } finally {

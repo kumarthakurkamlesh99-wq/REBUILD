@@ -350,7 +350,7 @@ fun GoalsScreen(
                             )
                         }
 
-                        items(uiState.activeGoals, key = { it.id }) { goal ->
+                        items(uiState.activeGoals, key = { "active_goal_${it.id}" }) { goal ->
                             GoalCardItem(
                                 goal = goal,
                                 onToggle = { viewModel.toggleGoal(goal) },
@@ -389,7 +389,7 @@ fun GoalsScreen(
                         }
 
                         if (isCompletedExpanded) {
-                            items(uiState.completedGoals, key = { it.id }) { goal ->
+                            items(uiState.completedGoals, key = { "comp_goal_${it.id}" }) { goal ->
                                 GoalCardItem(
                                     goal = goal,
                                     onToggle = { viewModel.toggleGoal(goal) },
