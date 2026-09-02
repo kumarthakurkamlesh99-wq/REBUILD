@@ -15,10 +15,24 @@ object NotificationHelper {
     const val CHANNEL_TIMETABLE = "rebuild_timetable_channel"
     const val CHANNEL_POMODORO = "rebuild_pomodoro_channel"
     const val CHANNEL_HABITS = "rebuild_habits_channel"
+    const val CHANNEL_RINGING_ALARM = "rebuild_ringing_alarm_channel"
 
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            val ringingAlarmChannel = NotificationChannel(
+                CHANNEL_RINGING_ALARM,
+                "Apex Active Alarm Alert",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Full-screen high-priority waking and mission-critical alarms"
+                enableVibration(true)
+                enableLights(true)
+                lightColor = 0xFF38E1FF.toInt()
+                lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
+                setBypassDnd(true)
+            }
 
             val timetableChannel = NotificationChannel(
                 CHANNEL_TIMETABLE,
@@ -51,7 +65,7 @@ object NotificationHelper {
             }
 
             notificationManager.createNotificationChannels(
-                listOf(timetableChannel, pomodoroChannel, habitsChannel)
+                listOf(ringingAlarmChannel, timetableChannel, pomodoroChannel, habitsChannel)
             )
         }
     }

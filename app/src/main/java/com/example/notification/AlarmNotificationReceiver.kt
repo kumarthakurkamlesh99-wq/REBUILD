@@ -38,13 +38,37 @@ class AlarmNotificationReceiver : BroadcastReceiver() {
         val isVibrate = intent.getBooleanExtra(AlarmDismissActivity.EXTRA_VIBRATE, true)
         val maxSnoozes = intent.getIntExtra(AlarmDismissActivity.EXTRA_MAX_SNOOZES, 3)
         val snoozeDuration = intent.getIntExtra(AlarmDismissActivity.EXTRA_SNOOZE_DURATION, 5)
+        val currentSnoozes = intent.getIntExtra(AlarmDismissActivity.EXTRA_CURRENT_SNOOZES, 0)
         val ringtonePreset = intent.getStringExtra(AlarmDismissActivity.EXTRA_RINGTONE_PRESET) ?: "CYBER_SIREN"
         val snoozeRingtonePreset = intent.getStringExtra(AlarmDismissActivity.EXTRA_SNOOZE_RINGTONE_PRESET) ?: "TICK_TOCK"
+        val isSnoozeTrigger = intent.getBooleanExtra("is_snooze_trigger", false)
 
         if (isFullAlarm) {
+            // 1. Launch Foreground Service to play ringtone, vibrate, hold wake lock
+            AlarmForegroundService.startAlarm(
+                context = context,
+                alarmId = customAlarmId,
+                title = title,
+                challengeType = challengeType,
+                difficulty = difficulty,
+                volume = volume,
+                isVibrate = isVibrate,
+                maxSnoozes = maxSnoozes,
+                snoozeDuration = snoozeDuration,
+                currentSnoozeCount = currentSnoozes,
+                ringtonePreset = ringtonePreset,
+                snoozeRingtonePreset = snoozeRingtonePreset,
+                isSnoozeTrigger = isSnoozeTrigger
+            )
+
+            // 2. Launch AlarmDismissActivity / AlarmRingingActivity directly
             try {
                 val dismissIntent = Intent(context, AlarmDismissActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    )
                     putExtra(AlarmDismissActivity.EXTRA_ALARM_ID, customAlarmId)
                     putExtra(AlarmDismissActivity.EXTRA_ALARM_TITLE, title)
                     putExtra(AlarmDismissActivity.EXTRA_CHALLENGE_TYPE, challengeType)
@@ -53,23 +77,25 @@ class AlarmNotificationReceiver : BroadcastReceiver() {
                     putExtra(AlarmDismissActivity.EXTRA_VIBRATE, isVibrate)
                     putExtra(AlarmDismissActivity.EXTRA_MAX_SNOOZES, maxSnoozes)
                     putExtra(AlarmDismissActivity.EXTRA_SNOOZE_DURATION, snoozeDuration)
+                    putExtra(AlarmDismissActivity.EXTRA_CURRENT_SNOOZES, currentSnoozes)
                     putExtra(AlarmDismissActivity.EXTRA_RINGTONE_PRESET, ringtonePreset)
                     putExtra(AlarmDismissActivity.EXTRA_SNOOZE_RINGTONE_PRESET, snoozeRingtonePreset)
+                    putExtra(AlarmDismissActivity.EXTRA_IS_SNOOZE_TRIGGER, isSnoozeTrigger)
                 }
                 context.startActivity(dismissIntent)
             } catch (e: Exception) {
                 Log.e("AlarmReceiver", "Could not start AlarmDismissActivity directly", e)
             }
+        } else {
+            NotificationHelper.showNotification(
+                context = context,
+                notificationId = alarmId,
+                channelId = channelId,
+                title = title,
+                message = message,
+                priorityHigh = true
+            )
         }
-
-        NotificationHelper.showNotification(
-            context = context,
-            notificationId = alarmId,
-            channelId = channelId,
-            title = title,
-            message = message,
-            priorityHigh = true
-        )
 
         // Reschedule for next day using the user's profile
         val pendingResult = goAsync()

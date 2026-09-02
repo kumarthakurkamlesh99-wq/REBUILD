@@ -519,6 +519,22 @@ fun AlarmEditDialog(
         }
     }
 
+    val snoozeRingtonePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri: Uri? = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            }
+            if (uri != null) {
+                viewModel.setInputSnoozeRingtonePreset(uri.toString())
+            }
+        }
+    }
+
     val presetRingtones = listOf(
         "CYBER_SIREN" to "Cyber Siren (High Alert)",
         "APEX_HORNS" to "Apex Horns (Deep Impact)",
@@ -737,8 +753,101 @@ fun AlarmEditDialog(
                             ) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Test Sound", fontSize = 11.sp)
+                                Text("Test Alarm Sound", fontSize = 11.sp)
                             }
+                        }
+                    }
+                }
+
+                // Snooze Sound Selection
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Snooze Sound / Tone", fontSize = 12.sp, color = GlassWhiteMuted)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DarkNavy)
+                                .border(1.dp, FrostBlueAccent.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                .clickable { snoozeSoundMenuExpanded = true }
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                Icon(
+                                    imageVector = Icons.Default.Snooze,
+                                    contentDescription = null,
+                                    tint = WarningAmber,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                val displaySnoozeName = presetSnoozeSounds.find { it.first == uiState.inputSnoozeRingtonePreset }?.second
+                                    ?: viewModel.getRingtoneDisplayName(context, uiState.inputSnoozeRingtonePreset)
+                                Text(
+                                    text = displaySnoozeName,
+                                    color = GlassWhite,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+                            Text("Change ▼", fontSize = 11.sp, color = FrostBlueAccent)
+                        }
+
+                        DropdownMenu(
+                            expanded = snoozeSoundMenuExpanded,
+                            onDismissRequest = { snoozeSoundMenuExpanded = false },
+                            modifier = Modifier.background(FrostedNavyCard)
+                        ) {
+                            presetSnoozeSounds.forEach { (key, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label, color = GlassWhite, fontSize = 13.sp) },
+                                    onClick = {
+                                        viewModel.setInputSnoozeRingtonePreset(key)
+                                        snoozeSoundMenuExpanded = false
+                                    }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Choose Custom Snooze Tone...", color = WarningAmber, fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                                onClick = {
+                                    snoozeSoundMenuExpanded = false
+                                    val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION or RingtoneManager.TYPE_ALARM)
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select Snooze Tone")
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                                        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                                    }
+                                    snoozeRingtonePickerLauncher.launch(intent)
+                                }
+                            )
+                        }
+                    }
+
+                    // Snooze Sound Preview Button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { viewModel.previewSound(context, uiState.inputSnoozeRingtonePreset) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = WarningAmber)
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Test Snooze Sound", fontSize = 11.sp)
                         }
                     }
                 }

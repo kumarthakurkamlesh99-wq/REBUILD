@@ -113,13 +113,14 @@ import com.example.ui.theme.IceCyanPrimary
 import com.example.ui.theme.REBUILDTheme
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningAmber
+import android.util.Log
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.sqrt
 import kotlin.random.Random
 
-class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
+open class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
 
     companion object {
         const val EXTRA_ALARM_ID = "extra_alarm_id"
@@ -130,8 +131,10 @@ class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
         const val EXTRA_VIBRATE = "extra_vibrate"
         const val EXTRA_MAX_SNOOZES = "extra_max_snoozes"
         const val EXTRA_SNOOZE_DURATION = "extra_snooze_duration"
+        const val EXTRA_CURRENT_SNOOZES = "extra_current_snoozes"
         const val EXTRA_RINGTONE_PRESET = "extra_ringtone_preset"
         const val EXTRA_SNOOZE_RINGTONE_PRESET = "extra_snooze_ringtone_preset"
+        const val EXTRA_IS_SNOOZE_TRIGGER = "extra_is_snooze_trigger"
     }
 
     private var mediaPlayer: MediaPlayer? = null
@@ -152,14 +155,16 @@ class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
     private var isVibrate = true
     private var maxSnoozes = 3
     private var snoozeDurationMinutes = 5
+    private var currentSnoozesUsed = 0
     private var ringtonePreset = "CYBER_SIREN"
     private var snoozeRingtonePreset = "TICK_TOCK"
+    private var isSnoozeTrigger = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Configure Lockscreen & Turn Screen On Flags
+        // 1. Configure Lockscreen & Turn Screen On Flags (Android 8.0+ / 8.1+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -170,6 +175,16 @@ class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
             WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         )
+
+        // 2. Dismiss Keyguard when possible
+        try {
+            val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                keyguardManager?.requestDismissKeyguard(this, null)
+            }
+        } catch (e: Exception) {
+            Log.e("AlarmDismissActivity", "Could not request keyguard dismissal", e)
+        }
 
         // Parse extras
         alarmId = intent.getLongExtra(EXTRA_ALARM_ID, 0L)
@@ -182,16 +197,31 @@ class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
         isVibrate = intent.getBooleanExtra(EXTRA_VIBRATE, true)
         maxSnoozes = intent.getIntExtra(EXTRA_MAX_SNOOZES, 3)
         snoozeDurationMinutes = intent.getIntExtra(EXTRA_SNOOZE_DURATION, 5)
+        currentSnoozesUsed = intent.getIntExtra(EXTRA_CURRENT_SNOOZES, 0)
         ringtonePreset = intent.getStringExtra(EXTRA_RINGTONE_PRESET) ?: "CYBER_SIREN"
         snoozeRingtonePreset = intent.getStringExtra(EXTRA_SNOOZE_RINGTONE_PRESET) ?: "TICK_TOCK"
+        isSnoozeTrigger = intent.getBooleanExtra(EXTRA_IS_SNOOZE_TRIGGER, false)
 
-        // Initialize Sensors
+        // Initialize Sensors for shake / walk challenge
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
         accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
-        // Start Audio & Vibration
-        startAudioPlayback(volumePercent)
-        startVibration()
+        // Ensure background service is running alarm playback
+        AlarmForegroundService.startAlarm(
+            context = this,
+            alarmId = alarmId,
+            title = alarmTitle,
+            challengeType = challengeType.name,
+            difficulty = difficulty.name,
+            volume = volumePercent,
+            isVibrate = isVibrate,
+            maxSnoozes = maxSnoozes,
+            snoozeDuration = snoozeDurationMinutes,
+            currentSnoozeCount = currentSnoozesUsed,
+            ringtonePreset = ringtonePreset,
+            snoozeRingtonePreset = snoozeRingtonePreset,
+            isSnoozeTrigger = isSnoozeTrigger
+        )
 
         setContent {
             REBUILDTheme(darkTheme = true) {
@@ -204,10 +234,12 @@ class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
                         challengeType = challengeType,
                         difficulty = difficulty,
                         maxSnoozes = maxSnoozes,
+                        initialSnoozesUsed = currentSnoozesUsed,
+                        snoozeDurationMinutes = snoozeDurationMinutes,
                         shakeCount = shakeCountState.intValue,
                         targetShakes = targetShakes,
-                        onSnoozeClicked = { currentSnoozes ->
-                            handleSmartSnooze(currentSnoozes)
+                        onSnoozeClicked = { updatedSnoozeCount ->
+                            handleSmartSnooze(updatedSnoozeCount)
                         },
                         onChallengeSolved = { snoozesUsed ->
                             handleDismissSuccess(snoozesUsed)
@@ -234,100 +266,34 @@ class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
 
     override fun onDestroy() {
         super.onDestroy()
-        stopAudioPlayback()
-        stopVibration()
         sensorManager?.unregisterListener(this)
     }
 
-    private fun startAudioPlayback(volume: Int) {
-        try {
-            var alertUri: android.net.Uri? = null
-            if (ringtonePreset.startsWith("content://") || ringtonePreset.startsWith("file://") || ringtonePreset.startsWith("android.resource://")) {
-                try {
-                    alertUri = android.net.Uri.parse(ringtonePreset)
-                } catch (e: Exception) {
-                    alertUri = null
-                }
-            }
-            if (alertUri == null) {
-                alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            }
+    private fun handleSmartSnooze(snoozesCount: Int) {
+        // Schedule next exact snooze alarm
+        AlarmScheduler.scheduleSnooze(
+            context = applicationContext,
+            alarmId = alarmId,
+            title = alarmTitle,
+            challengeType = challengeType.name,
+            difficulty = difficulty.name,
+            volume = volumePercent,
+            isVibrate = isVibrate,
+            maxSnoozes = maxSnoozes,
+            snoozeMinutes = snoozeDurationMinutes,
+            snoozesUsedSoFar = snoozesCount,
+            ringtonePreset = ringtonePreset,
+            snoozeRingtonePreset = snoozeRingtonePreset
+        )
 
-            if (alertUri != null) {
-                mediaPlayer = MediaPlayer().apply {
-                    setDataSource(applicationContext, alertUri)
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build()
-                    )
-                    isLooping = true
-                    val vol = (volume.coerceIn(10, 100) / 100f)
-                    setVolume(vol, vol)
-                    prepare()
-                    start()
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun stopAudioPlayback() {
-        try {
-            mediaPlayer?.stop()
-            mediaPlayer?.release()
-            mediaPlayer = null
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun startVibration() {
-        if (!isVibrate) return
-        try {
-            vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-                vibratorManager.defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-            }
-
-            val pattern = longArrayOf(0, 800, 400, 800, 400, 1200)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator?.vibrate(pattern, 0)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun stopVibration() {
-        try {
-            vibrator?.cancel()
-            vibrator = null
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun handleSmartSnooze(currentSnoozeCount: Int) {
-        // Lower volume during snooze mode but keep ticking/alarm armed
-        val snoozeVolume = 0.25f
-        mediaPlayer?.setVolume(snoozeVolume, snoozeVolume)
-        vibrator?.cancel()
+        // Stop current ringing audio & service
+        AlarmForegroundService.stopAlarm(this)
+        finish()
     }
 
     private fun handleDismissSuccess(snoozesUsed: Int) {
-        stopAudioPlayback()
-        stopVibration()
+        // Stop background alarm service
+        AlarmForegroundService.stopAlarm(this)
 
         // Log to Room Database
         val app = application as? RebuildApplication
@@ -389,44 +355,40 @@ fun AlarmDismissScreen(
     challengeType: AlarmChallengeType,
     difficulty: AlarmDifficulty,
     maxSnoozes: Int,
+    initialSnoozesUsed: Int = 0,
+    snoozeDurationMinutes: Int = 5,
     shakeCount: Int,
     targetShakes: Int,
     onSnoozeClicked: (Int) -> Unit,
     onChallengeSolved: (Int) -> Unit
 ) {
-    var snoozesUsed by remember { mutableIntStateOf(0) }
-    var isSnoozing by remember { mutableStateOf(false) }
-    var snoozeSecondsLeft by remember { mutableIntStateOf(0) }
+    var snoozesUsed by remember { mutableIntStateOf(initialSnoozesUsed) }
     var isChallengeSolved by remember { mutableStateOf(false) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.05f,
+        initialValue = 0.96f,
+        targetValue = 1.04f,
         animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
+            animation = tween(900, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulseScale"
     )
 
-    val timeFormat = remember { SimpleDateFormat("hh:mm", Locale.getDefault()) }
-    val amPmFormat = remember { SimpleDateFormat("a", Locale.getDefault()) }
-    val currentTimeStr = remember { timeFormat.format(Date()) }
-    val currentAmPm = remember { amPmFormat.format(Date()) }
-
-    // Snooze Timer Effect
-    LaunchedEffect(isSnoozing) {
-        if (isSnoozing && snoozeSecondsLeft > 0) {
-            while (snoozeSecondsLeft > 0 && isSnoozing) {
-                kotlinx.coroutines.delay(1000)
-                snoozeSecondsLeft -= 1
-            }
-            if (snoozeSecondsLeft <= 0) {
-                isSnoozing = false // Snooze ended, ring loudly again
-            }
+    // Live clock updating every second
+    var currentDateTime by remember { mutableStateOf(Date()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentDateTime = Date()
+            kotlinx.coroutines.delay(1000)
         }
     }
+
+    val timeFormat = remember { SimpleDateFormat("hh:mm", Locale.getDefault()) }
+    val secondsFormat = remember { SimpleDateFormat(":ss", Locale.getDefault()) }
+    val amPmFormat = remember { SimpleDateFormat("a", Locale.getDefault()) }
+    val dateFormat = remember { SimpleDateFormat("EEEE, MMMM dd", Locale.getDefault()) }
 
     Box(
         modifier = Modifier
@@ -458,42 +420,59 @@ fun AlarmDismissScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(if (isSnoozing) WarningAmber.copy(alpha = 0.2f) else FireOrange.copy(alpha = 0.2f))
-                        .border(1.dp, if (isSnoozing) WarningAmber else FireOrange, RoundedCornerShape(20.dp))
+                        .background(FireOrange.copy(alpha = 0.2f))
+                        .border(1.dp, FireOrange, RoundedCornerShape(20.dp))
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     Icon(
-                        imageVector = if (isSnoozing) Icons.Default.Snooze else Icons.Default.Alarm,
+                        imageVector = Icons.Default.Alarm,
                         contentDescription = null,
-                        tint = if (isSnoozing) WarningAmber else FireOrange,
+                        tint = FireOrange,
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = if (isSnoozing) "SMART SNOOZE ACTIVE (${snoozeSecondsLeft}s)" else "MISSION CRITICAL ALARM",
+                        text = "WAKE UP PROTOCOL ACTIVE",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSnoozing) WarningAmber else FireOrange,
+                        color = FireOrange,
                         letterSpacing = 1.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = dateFormat.format(currentDateTime).uppercase(),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = FrostBlueAccent,
+                    letterSpacing = 1.5.sp
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Row(
                     verticalAlignment = Alignment.Bottom,
-                    modifier = Modifier.scale(if (!isSnoozing) pulseScale else 1.0f)
+                    modifier = Modifier.scale(pulseScale)
                 ) {
                     Text(
-                        text = currentTimeStr,
-                        fontSize = 64.sp,
+                        text = timeFormat.format(currentDateTime),
+                        fontSize = 62.sp,
                         fontWeight = FontWeight.Black,
                         color = IceCyanPrimary,
                         letterSpacing = 2.sp
                     )
+                    Text(
+                        text = secondsFormat.format(currentDateTime),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = FrostBlueAccent.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = currentAmPm,
-                        fontSize = 24.sp,
+                        text = amPmFormat.format(currentDateTime),
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = FrostBlueAccent,
                         modifier = Modifier.padding(bottom = 12.dp)
@@ -509,7 +488,7 @@ fun AlarmDismissScreen(
                 )
 
                 Text(
-                    text = "Traditional dismiss disabled. Solve challenge to prove awakening.",
+                    text = "Solve awakening challenge to silence alarm.",
                     fontSize = 12.sp,
                     color = GlassWhiteMuted,
                     textAlign = TextAlign.Center,
@@ -521,7 +500,7 @@ fun AlarmDismissScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 16.dp),
+                    .padding(vertical = 14.dp),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = FrostedNavyCard),
                 border = BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.3f))
@@ -562,7 +541,7 @@ fun AlarmDismissScreen(
                 }
             }
 
-            // Bottom Actions: Smart Snooze Controls & Status
+            // Bottom Actions: Snooze Controls & Status
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -572,13 +551,12 @@ fun AlarmDismissScreen(
             ) {
                 val snoozesRemaining = maxOf(0, maxSnoozes - snoozesUsed)
 
-                if (snoozesRemaining > 0 && !isSnoozing) {
+                if (snoozesRemaining > 0) {
                     OutlinedButton(
                         onClick = {
-                            snoozesUsed += 1
-                            isSnoozing = true
-                            snoozeSecondsLeft = 300 // 5 minutes snooze
-                            onSnoozeClicked(snoozesUsed)
+                            val newSnoozeCount = snoozesUsed + 1
+                            snoozesUsed = newSnoozeCount
+                            onSnoozeClicked(newSnoozeCount)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -596,14 +574,14 @@ fun AlarmDismissScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Smart Snooze ($snoozesRemaining left)",
+                            text = "Snooze (${snoozeDurationMinutes}m • $snoozesRemaining left)",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                } else if (snoozesRemaining == 0) {
+                } else {
                     Text(
-                        text = "Maximum snoozes reached. You must complete the challenge now.",
+                        text = "Maximum snoozes reached ($maxSnoozes/$maxSnoozes). You must complete the challenge now.",
                         fontSize = 12.sp,
                         color = FireOrange,
                         fontWeight = FontWeight.Medium,
@@ -624,7 +602,7 @@ fun AlarmDismissScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Anti-Slumber Protocol • REBUILD OS",
+                        text = "Apex Winter Arc Protocol • Lock Screen Armed",
                         fontSize = 11.sp,
                         color = GlassWhiteMuted
                     )

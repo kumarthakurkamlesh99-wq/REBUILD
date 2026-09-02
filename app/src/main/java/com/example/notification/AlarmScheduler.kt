@@ -54,6 +54,7 @@ object AlarmScheduler {
             putExtra(AlarmDismissActivity.EXTRA_SNOOZE_DURATION, alarm.snoozeDurationMinutes)
             putExtra(AlarmDismissActivity.EXTRA_RINGTONE_PRESET, alarm.ringtonePreset)
             putExtra(AlarmDismissActivity.EXTRA_SNOOZE_RINGTONE_PRESET, alarm.snoozeRingtonePreset)
+            putExtra("is_snooze_trigger", false)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
@@ -73,27 +74,122 @@ object AlarmScheduler {
             }
         }
 
+        val triggerTime = calendar.timeInMillis
+
+        // Show Intent for Alarm Clock info (opens dismiss activity or main screen)
+        val showIntent = Intent(context, AlarmDismissActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(AlarmDismissActivity.EXTRA_ALARM_ID, alarm.id)
+            putExtra(AlarmDismissActivity.EXTRA_ALARM_TITLE, alarm.title)
+        }
+        val showPendingIntent = PendingIntent.getActivity(
+            context,
+            requestCode,
+            showIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerTime, showPendingIntent)
+                alarmManager.setAlarmClock(alarmClockInfo, pendingIntent)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
-                    calendar.timeInMillis,
+                    triggerTime,
                     pendingIntent
                 )
             } else {
                 alarmManager.setExact(
                     AlarmManager.RTC_WAKEUP,
-                    calendar.timeInMillis,
+                    triggerTime,
                     pendingIntent
                 )
             }
-            Log.d("AlarmScheduler", "Scheduled custom alarm ${alarm.id} (${alarm.title}) for ${alarm.hour}:${alarm.minute}")
+            Log.d("AlarmScheduler", "Scheduled custom alarm ${alarm.id} (${alarm.title}) for ${alarm.hour}:${alarm.minute} at $triggerTime")
         } catch (e: SecurityException) {
+            Log.w("AlarmScheduler", "Exact alarm permission missing, falling back to inexact alarm", e)
             alarmManager.set(
                 AlarmManager.RTC_WAKEUP,
-                calendar.timeInMillis,
+                triggerTime,
                 pendingIntent
             )
+        }
+    }
+
+    fun scheduleSnooze(
+        context: Context,
+        alarmId: Long,
+        title: String,
+        challengeType: String = "MATH",
+        difficulty: String = "MEDIUM",
+        volume: Int = 90,
+        isVibrate: Boolean = true,
+        maxSnoozes: Int = 3,
+        snoozeMinutes: Int = 5,
+        snoozesUsedSoFar: Int = 1,
+        ringtonePreset: String = "CYBER_SIREN",
+        snoozeRingtonePreset: String = "TICK_TOCK"
+    ) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val requestCode = (CUSTOM_ALARM_ID_BASE + 5000 + (alarmId % 4999)).toInt()
+
+        val intent = Intent(context, AlarmNotificationReceiver::class.java).apply {
+            putExtra(AlarmNotificationReceiver.EXTRA_ALARM_ID, requestCode)
+            putExtra(AlarmNotificationReceiver.EXTRA_TITLE, "$title (Snooze $snoozesUsedSoFar/$maxSnoozes)")
+            putExtra(AlarmNotificationReceiver.EXTRA_MESSAGE, "Snooze expired. Time to wake up and conquer.")
+            putExtra(AlarmNotificationReceiver.EXTRA_CATEGORY, "Wake Up")
+            putExtra("is_full_alarm", true)
+            putExtra("custom_alarm_id", alarmId)
+            putExtra(AlarmDismissActivity.EXTRA_CHALLENGE_TYPE, challengeType)
+            putExtra(AlarmDismissActivity.EXTRA_DIFFICULTY, difficulty)
+            putExtra(AlarmDismissActivity.EXTRA_VOLUME, volume)
+            putExtra(AlarmDismissActivity.EXTRA_VIBRATE, isVibrate)
+            putExtra(AlarmDismissActivity.EXTRA_MAX_SNOOZES, maxSnoozes)
+            putExtra(AlarmDismissActivity.EXTRA_SNOOZE_DURATION, snoozeMinutes)
+            putExtra(AlarmDismissActivity.EXTRA_RINGTONE_PRESET, ringtonePreset)
+            putExtra(AlarmDismissActivity.EXTRA_SNOOZE_RINGTONE_PRESET, snoozeRingtonePreset)
+            putExtra(AlarmDismissActivity.EXTRA_CURRENT_SNOOZES, snoozesUsedSoFar)
+            putExtra("is_snooze_trigger", true)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val triggerTime = System.currentTimeMillis() + (snoozeMinutes * 60 * 1000L)
+
+        val showIntent = Intent(context, AlarmDismissActivity::class.java)
+        val showPendingIntent = PendingIntent.getActivity(
+            context,
+            requestCode,
+            showIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerTime, showPendingIntent)
+                alarmManager.setAlarmClock(alarmClockInfo, pendingIntent)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerTime,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setExact(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerTime,
+                    pendingIntent
+                )
+            }
+            Log.d("AlarmScheduler", "Scheduled snooze alarm for $alarmId in $snoozeMinutes minutes ($snoozesUsedSoFar/$maxSnoozes)")
+        } catch (e: Exception) {
+            Log.e("AlarmScheduler", "Failed to schedule snooze alarm", e)
         }
     }
 

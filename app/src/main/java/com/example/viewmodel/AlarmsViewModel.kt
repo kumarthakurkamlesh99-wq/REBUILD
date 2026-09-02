@@ -175,6 +175,42 @@ class AlarmsViewModel(
     fun setInputRingtonePreset(preset: String) = _uiState.update { it.copy(inputRingtonePreset = preset) }
     fun setInputSnoozeRingtonePreset(preset: String) = _uiState.update { it.copy(inputSnoozeRingtonePreset = preset) }
 
+    fun setCustomRingtoneUri(context: Context, uri: Uri?) {
+        if (uri == null) return
+        val uriString = uri.toString()
+        _uiState.update { it.copy(inputRingtonePreset = uriString) }
+    }
+
+    fun setCustomSnoozeRingtoneUri(context: Context, uri: Uri?) {
+        if (uri == null) return
+        val uriString = uri.toString()
+        _uiState.update { it.copy(inputSnoozeRingtonePreset = uriString) }
+    }
+
+    fun getRingtoneDisplayName(context: Context, presetOrUri: String): String {
+        return when (presetOrUri) {
+            "CYBER_SIREN" -> "Cyber Siren (High Alert)"
+            "APEX_HORNS" -> "Apex Horns (Brass Wake)"
+            "QUANTUM_PULSE" -> "Quantum Pulse (Electronic)"
+            "ZEN_CHIME" -> "Zen Chime (Gentle Acoustic)"
+            "BELL" -> "Classic Alarm Bell"
+            "TICK_TOCK" -> "Urgent Tick-Tock"
+            "SYSTEM_DEFAULT" -> "System Default Alarm"
+            else -> {
+                if (presetOrUri.startsWith("content://") || presetOrUri.startsWith("file://") || presetOrUri.startsWith("android.resource://")) {
+                    try {
+                        val ringtone = RingtoneManager.getRingtone(context, Uri.parse(presetOrUri))
+                        ringtone?.getTitle(context) ?: "Custom Device Ringtone"
+                    } catch (e: Exception) {
+                        "Custom Audio Track"
+                    }
+                } else {
+                    presetOrUri.replace("_", " ")
+                }
+            }
+        }
+    }
+
     fun previewSound(context: Context, presetOrUri: String) {
         stopSoundPreview()
         try {
