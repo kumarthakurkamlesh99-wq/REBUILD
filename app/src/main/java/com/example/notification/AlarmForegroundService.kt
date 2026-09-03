@@ -211,7 +211,7 @@ class AlarmForegroundService : Service() {
     }
 
     private fun startForegroundNotification() {
-        val fullScreenIntent = Intent(this, AlarmDismissActivity::class.java).apply {
+        val fullScreenIntent = Intent(this, AlarmRingingActivity::class.java).apply {
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or
                 Intent.FLAG_ACTIVITY_CLEAR_TOP or

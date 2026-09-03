@@ -75,6 +75,9 @@ interface DisciplineDao {
     @Query("SELECT * FROM daily_discipline_scores ORDER BY date DESC LIMIT 30")
     fun getRecentDisciplineScores(): Flow<List<DailyDisciplineEntity>>
 
+    @Query("SELECT * FROM daily_discipline_scores ORDER BY date ASC")
+    fun getAllDisciplineScores(): Flow<List<DailyDisciplineEntity>>
+
     @Query("SELECT AVG(totalScore) FROM daily_discipline_scores")
     fun getAverageDisciplineScore(): Flow<Float?>
 

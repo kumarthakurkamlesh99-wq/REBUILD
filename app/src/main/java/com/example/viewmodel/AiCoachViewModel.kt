@@ -3,6 +3,7 @@ package com.example.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.data.local.entity.AiPlanCacheEntity
 import com.example.data.repository.AiPlanType
 import com.example.data.repository.GeminiCoachRepository
 import com.example.data.repository.RebuildRepository
@@ -14,6 +15,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class ChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -25,19 +29,19 @@ data class ChatMessage(
 data class AiCoachUiState(
     val selectedPlanType: AiPlanType = AiPlanType.DAILY_SCHEDULE,
     val currentPlanContent: String = "",
+    val promptInput: String = "",
+    val isEditMode: Boolean = false,
+    val editedPlanText: String = "",
+    val savedPlans: List<AiPlanCacheEntity> = emptyList(),
     val isGenerating: Boolean = false,
     val isApplyingPlan: Boolean = false,
     val isFromCache: Boolean = false,
+    val isLocalGenerated: Boolean = false,
     val lastCachedDate: String = "",
     val lastCachedTimestamp: Long = 0L,
     val apiKey: String = "",
     val hasApiKey: Boolean = false,
-    val chatMessages: List<ChatMessage> = listOf(
-        ChatMessage(
-            sender = "COACH",
-            text = "Welcome back, Apex Candidate. I am your REBUILD AI Coach. I have direct access to your 148-day countdown, school timings (09:45 AM - 01:00 PM), habit streaks, and 70-chapter syllabus. How can we optimize your performance today?"
-        )
-    ),
+    val chatMessages: List<ChatMessage> = emptyList(),
     val chatInput: String = "",
     val contextSnapshot: String = "",
     val actionFeedback: String? = null
@@ -53,6 +57,7 @@ class AiCoachViewModel(
     val uiState: StateFlow<AiCoachUiState> = _uiState.asStateFlow()
 
     init {
+        // Collect API key
         viewModelScope.launch {
             preferencesRepository.geminiApiKey.collectLatest { key ->
                 val effective = geminiRepository.getEffectiveApiKey()
@@ -60,21 +65,50 @@ class AiCoachViewModel(
             }
         }
 
-        // Lazy local load: Read cached plan from Room DB without hitting Gemini on launch
+        // Collect all saved plans from Room DB
         viewModelScope.launch {
-            geminiRepository.getCachedPlan(AiPlanType.DAILY_SCHEDULE.key).collectLatest { cached ->
-                if (cached != null && cached.content.isNotBlank()) {
-                    _uiState.update {
-                        it.copy(
-                            currentPlanContent = cached.content,
-                            isFromCache = true,
-                            lastCachedDate = cached.generatedDate,
-                            lastCachedTimestamp = cached.timestamp
-                        )
-                    }
-                }
+            geminiRepository.getAllCachedPlans().collectLatest { plans ->
+                _uiState.update { it.copy(savedPlans = plans) }
             }
         }
+
+        // Initialize Chat with dynamic telemetry greeting
+        viewModelScope.launch {
+            val exam = rebuildRepository.getBoardExamConfigDirect()
+            val daysLeft = if (exam != null) rebuildRepository.calculateDaysUntilBoardExam(exam.examDate) else 0L
+            val profile = rebuildRepository.getUserProfileDirect()
+            val schoolHours = if (profile != null && profile.hasSchool) "${profile.schoolStartTime} - ${profile.schoolEndTime}" else "Full Day Self Study"
+            val chapsCount = rebuildRepository.getTotalChaptersCount().firstOrNull() ?: 70
+
+            val welcome = "Welcome back, ${profile?.name ?: "Candidate"}. I am your REBUILD AI Coach. Live telemetry active: $daysLeft days to Board Exam, school schedule ($schoolHours), and $chapsCount syllabus chapters. How can we optimize your performance today?"
+            _uiState.update {
+                it.copy(
+                    chatMessages = listOf(ChatMessage(sender = "COACH", text = welcome))
+                )
+            }
+        }
+
+        // Ensure non-blank screen: load cached plan, or generate offline study plan immediately
+        viewModelScope.launch {
+            val cached = geminiRepository.getCachedPlanDirect(AiPlanType.DAILY_SCHEDULE.key)
+            if (cached != null && cached.content.isNotBlank()) {
+                _uiState.update {
+                    it.copy(
+                        currentPlanContent = cached.content,
+                        isFromCache = true,
+                        lastCachedDate = cached.generatedDate,
+                        lastCachedTimestamp = cached.timestamp
+                    )
+                }
+            } else {
+                // Generate immediate local offline study plan so UI is never blank
+                generateLocalPlan()
+            }
+        }
+    }
+
+    fun setPromptInput(text: String) {
+        _uiState.update { it.copy(promptInput = text) }
     }
 
     fun selectPlanType(type: AiPlanType) {
@@ -86,13 +120,177 @@ class AiCoachViewModel(
                     it.copy(
                         currentPlanContent = cached.content,
                         isFromCache = true,
+                        isLocalGenerated = false,
                         lastCachedDate = cached.generatedDate,
                         lastCachedTimestamp = cached.timestamp
                     )
                 }
             } else {
-                generatePlan(type, forceRefresh = false)
+                generateLocalPlan(type)
             }
+        }
+    }
+
+    fun generateLocalPlan(type: AiPlanType = _uiState.value.selectedPlanType) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isGenerating = true, actionFeedback = null) }
+            val prompt = _uiState.value.promptInput.trim()
+            val content = geminiRepository.generateLocalOfflinePlan(type, prompt)
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+            _uiState.update {
+                it.copy(
+                    currentPlanContent = content,
+                    isGenerating = false,
+                    isFromCache = false,
+                    isLocalGenerated = true,
+                    lastCachedDate = today,
+                    lastCachedTimestamp = System.currentTimeMillis(),
+                    actionFeedback = "Offline Study Planner generated based on your syllabus and schedule."
+                )
+            }
+        }
+    }
+
+    fun generatePlan(
+        type: AiPlanType = _uiState.value.selectedPlanType,
+        customInstruction: String = _uiState.value.promptInput,
+        forceRefresh: Boolean = false
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isGenerating = true, actionFeedback = null) }
+
+            val effectiveKey = geminiRepository.getEffectiveApiKey()
+            if (effectiveKey.isBlank()) {
+                // If AI unavailable, show useful offline study planner
+                val content = geminiRepository.generateLocalOfflinePlan(type, customInstruction)
+                val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                _uiState.update {
+                    it.copy(
+                        currentPlanContent = content,
+                        isGenerating = false,
+                        isFromCache = false,
+                        isLocalGenerated = true,
+                        lastCachedDate = today,
+                        lastCachedTimestamp = System.currentTimeMillis(),
+                        actionFeedback = "AI key not configured: Generated high-yield offline study planner."
+                    )
+                }
+                return@launch
+            }
+
+            val result = geminiRepository.generatePlan(type, customInstruction, forceRefresh = forceRefresh)
+            result.onSuccess { content ->
+                val cached = geminiRepository.getCachedPlanDirect(type.key)
+                _uiState.update {
+                    it.copy(
+                        currentPlanContent = content,
+                        isGenerating = false,
+                        isFromCache = !forceRefresh,
+                        isLocalGenerated = false,
+                        lastCachedDate = cached?.generatedDate ?: "",
+                        lastCachedTimestamp = cached?.timestamp ?: System.currentTimeMillis(),
+                        actionFeedback = "AI Plan generated successfully!"
+                    )
+                }
+            }.onFailure { err ->
+                // Fallback to offline planner so screen is NEVER blank
+                val fallback = geminiRepository.generateLocalOfflinePlan(type, customInstruction)
+                val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                _uiState.update {
+                    it.copy(
+                        currentPlanContent = fallback,
+                        isGenerating = false,
+                        isFromCache = false,
+                        isLocalGenerated = true,
+                        lastCachedDate = today,
+                        lastCachedTimestamp = System.currentTimeMillis(),
+                        actionFeedback = "AI unavailable (${err.message}). Showing offline study planner."
+                    )
+                }
+            }
+        }
+    }
+
+    // Editable Plan Handlers
+    fun startEditingPlan() {
+        _uiState.update {
+            it.copy(
+                isEditMode = true,
+                editedPlanText = it.currentPlanContent
+            )
+        }
+    }
+
+    fun updateEditedPlanText(newText: String) {
+        _uiState.update { it.copy(editedPlanText = newText) }
+    }
+
+    fun cancelEditingPlan() {
+        _uiState.update { it.copy(isEditMode = false) }
+    }
+
+    fun saveEditedPlan() {
+        val updatedText = _uiState.value.editedPlanText
+        val type = _uiState.value.selectedPlanType
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+        viewModelScope.launch {
+            val entity = AiPlanCacheEntity(
+                planType = type.key,
+                title = type.title,
+                content = updatedText,
+                generatedDate = today,
+                timestamp = System.currentTimeMillis()
+            )
+            geminiRepository.saveCustomPlan(entity)
+            _uiState.update {
+                it.copy(
+                    currentPlanContent = updatedText,
+                    isEditMode = false,
+                    lastCachedDate = today,
+                    actionFeedback = "Plan edits saved to local database!"
+                )
+            }
+        }
+    }
+
+    fun savePlanWithCustomTitle(customTitle: String) {
+        val type = _uiState.value.selectedPlanType
+        val title = if (customTitle.isNotBlank()) customTitle.trim() else type.title
+        val key = "${type.key}_${System.currentTimeMillis()}"
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+        viewModelScope.launch {
+            val entity = AiPlanCacheEntity(
+                planType = key,
+                title = title,
+                content = _uiState.value.currentPlanContent,
+                generatedDate = today,
+                timestamp = System.currentTimeMillis()
+            )
+            geminiRepository.saveCustomPlan(entity)
+            _uiState.update { it.copy(actionFeedback = "Saved '$title' to your plans library.") }
+        }
+    }
+
+    fun loadSavedPlan(plan: AiPlanCacheEntity) {
+        _uiState.update {
+            it.copy(
+                currentPlanContent = plan.content,
+                lastCachedDate = plan.generatedDate,
+                lastCachedTimestamp = plan.timestamp,
+                isFromCache = true,
+                isEditMode = false,
+                actionFeedback = "Loaded '${plan.title}'"
+            )
+        }
+    }
+
+    fun deleteSavedPlan(plan: AiPlanCacheEntity) {
+        viewModelScope.launch {
+            geminiRepository.deletePlan(plan.planType)
+            _uiState.update { it.copy(actionFeedback = "Deleted plan '${plan.title}'.") }
         }
     }
 
@@ -104,37 +302,6 @@ class AiCoachViewModel(
         viewModelScope.launch {
             val snapshot = geminiRepository.buildAppContextSnapshot()
             _uiState.update { it.copy(contextSnapshot = snapshot) }
-        }
-    }
-
-    fun generatePlan(
-        type: AiPlanType = _uiState.value.selectedPlanType,
-        customInstruction: String = "",
-        forceRefresh: Boolean = false
-    ) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isGenerating = true, actionFeedback = null) }
-
-            val result = geminiRepository.generatePlan(type, customInstruction, forceRefresh = forceRefresh)
-            result.onSuccess { content ->
-                val cached = geminiRepository.getCachedPlanDirect(type.key)
-                _uiState.update {
-                    it.copy(
-                        currentPlanContent = content,
-                        isGenerating = false,
-                        isFromCache = !forceRefresh,
-                        lastCachedDate = cached?.generatedDate ?: "",
-                        lastCachedTimestamp = cached?.timestamp ?: System.currentTimeMillis()
-                    )
-                }
-            }.onFailure { err ->
-                _uiState.update {
-                    it.copy(
-                        actionFeedback = "AI Status: ${err.message}",
-                        isGenerating = false
-                    )
-                }
-            }
         }
     }
 
@@ -164,7 +331,7 @@ class AiCoachViewModel(
             }.onFailure { _ ->
                 val coachMsg = ChatMessage(
                     sender = "COACH",
-                    text = "Offline Mode: Maintain your discipline protocol! Execute your study sessions and stay consistent with the Winter Arc."
+                    text = "Offline Mode: Maintain your discipline protocol! Execute your study sessions and stay consistent with your Bihar Board PCM syllabus and Winter Arc."
                 )
                 _uiState.update {
                     it.copy(
@@ -183,7 +350,7 @@ class AiCoachViewModel(
                 val count = geminiRepository.applyAiPlanToLocalSchedule(_uiState.value.currentPlanContent)
                 _uiState.update {
                     it.copy(
-                        actionFeedback = "⚡ Applied $count AI-optimized study & workout blocks to your today's schedule and alarms!",
+                        actionFeedback = "⚡ Applied $count study & workout blocks to your today's schedule and alarms!",
                         isApplyingPlan = false
                     )
                 }

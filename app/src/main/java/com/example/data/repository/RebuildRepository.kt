@@ -35,9 +35,13 @@ import com.example.data.local.entity.SyllabusTopicEntity
 import com.example.data.local.entity.SyllabusUnitEntity
 import com.example.data.local.entity.WinterArcObjectiveEntity
 import com.example.data.master.MasterSyllabusProvider
+import com.example.data.model.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -565,6 +569,10 @@ class RebuildRepository(
 
     fun getAllSubjects(): Flow<List<SubjectEntity>> = db.subjectDao().getAllSubjects()
 
+    fun getTotalCompletedChapters(): Flow<Int> = db.subjectDao().getTotalCompletedChapters()
+
+    fun getTotalChaptersCount(): Flow<Int> = db.subjectDao().getTotalChaptersCount()
+
     fun getChaptersForSubject(subjectId: Long): Flow<List<ChapterEntity>> =
         db.subjectDao().getChaptersForSubject(subjectId)
 
@@ -734,6 +742,8 @@ class RebuildRepository(
 
     fun getAllHabits(): Flow<List<HabitEntity>> = db.habitDao().getAllHabits()
 
+    fun getAllHabitLogs(): Flow<List<HabitLogEntity>> = db.habitDao().getAllHabitLogs()
+
     fun getTodayHabitLogs(): Flow<List<HabitLogEntity>> {
         return db.habitDao().getLogsForDate(getTodayDateString())
     }
@@ -840,19 +850,107 @@ class RebuildRepository(
     }
 
     // ----------------------------------------------------
-    // WINTER ARC & XP SYSTEM
+    // WINTER ARC & XP SYSTEM (REAL DATA-DRIVEN CALCULATIONS)
     // ----------------------------------------------------
 
     fun getWinterArcState(): Flow<WinterArcStateEntity?> = db.winterArcDao().getWinterArcState()
+        .map { arc ->
+            val base = arc ?: WinterArcStateEntity(id = 1)
+            val dayNum = calculateWinterArcDayNumber(base.startDate, base.targetDays)
+            base.copy(currentDay = dayNum)
+        }
+
+    fun calculateWinterArcDayNumber(startDateStr: String, targetDays: Int = 90): Int {
+        return try {
+            val start = dateFormat.parse(startDateStr) ?: return 1
+            val now = Date()
+            val diffMs = now.time - start.time
+            val days = TimeUnit.MILLISECONDS.toDays(diffMs).toInt()
+            (days + 1).coerceIn(1, targetDays)
+        } catch (e: Exception) {
+            1
+        }
+    }
+
+    fun calculateWinterArcDaysRemaining(startDateStr: String, targetDays: Int = 90): Int {
+        val currentDay = calculateWinterArcDayNumber(startDateStr, targetDays)
+        return max(0, targetDays - currentDay)
+    }
+
+    suspend fun calculateRealStreak(): Int {
+        val cal = Calendar.getInstance()
+        var streak = 0
+        val todayStr = dateFormat.format(cal.time)
+
+        val todayTasks = db.dailyPlanDao().getTasksForDateDirect(todayStr)
+        val todayCompletedTasks = todayTasks.count { it.isCompleted }
+        val todayHabitLogs = db.habitDao().getLogsForDateDirect(todayStr).count { it.isCompleted }
+        val todayWorkouts = db.workoutDao().getWorkoutsForDateDirect(todayStr).count { it.isCompleted }
+        val todayDiscipline = db.disciplineDao().getDisciplineForDateDirect(todayStr)?.totalScore ?: 0
+
+        val todayActive = (todayCompletedTasks > 0 || todayHabitLogs > 0 || todayWorkouts > 0 || todayDiscipline > 0)
+        if (todayActive) {
+            streak++
+        }
+
+        cal.add(Calendar.DAY_OF_YEAR, -1)
+        for (i in 0 until 90) {
+            val prevDateStr = dateFormat.format(cal.time)
+            val prevTasks = db.dailyPlanDao().getTasksForDateDirect(prevDateStr)
+            val prevCompletedTasks = prevTasks.count { it.isCompleted }
+            val prevHabitLogs = db.habitDao().getLogsForDateDirect(prevDateStr).count { it.isCompleted }
+            val prevWorkouts = db.workoutDao().getWorkoutsForDateDirect(prevDateStr).count { it.isCompleted }
+            val prevDiscipline = db.disciplineDao().getDisciplineForDateDirect(prevDateStr)?.totalScore ?: 0
+
+            val prevActive = (prevCompletedTasks > 0 || prevHabitLogs > 0 || prevWorkouts > 0 || prevDiscipline > 0)
+            if (prevActive) {
+                streak++
+                cal.add(Calendar.DAY_OF_YEAR, -1)
+            } else {
+                break
+            }
+        }
+        return streak
+    }
+
+    suspend fun calculateTodayScore(): Int {
+        val todayStr = dateFormat.format(Date())
+        val tasks = db.dailyPlanDao().getTasksForDateDirect(todayStr)
+        if (tasks.isEmpty()) return 0
+        val completed = tasks.count { it.isCompleted }
+        return ((completed.toFloat() / tasks.size) * 100).toInt()
+    }
+
+    suspend fun calculateTodayProgress(): Float {
+        val todayStr = dateFormat.format(Date())
+        val tasks = db.dailyPlanDao().getTasksForDateDirect(todayStr)
+        if (tasks.isEmpty()) return 0f
+        val completed = tasks.count { it.isCompleted }
+        return completed.toFloat() / tasks.size.toFloat()
+    }
+
+    suspend fun syncWinterArcCalculations(): WinterArcStateEntity {
+        val current = db.winterArcDao().getWinterArcStateDirect() ?: WinterArcStateEntity(id = 1)
+        val dayNum = calculateWinterArcDayNumber(current.startDate, current.targetDays)
+        val realStreak = calculateRealStreak()
+        val score = calculateTodayScore()
+        val updated = current.copy(
+            currentDay = dayNum,
+            streak = realStreak,
+            bestStreak = max(realStreak, current.bestStreak),
+            transformationScore = score
+        )
+        db.winterArcDao().insertOrUpdate(updated)
+        return updated
+    }
 
     suspend fun addXp(amount: Int) {
         val current = db.winterArcDao().getWinterArcStateDirect() ?: WinterArcStateEntity(id = 1)
-        val newXp = current.xp + amount
+        val newXp = max(0, current.xp + amount)
         val newLevel = max(1, newXp / 400 + 1)
         val updated = current.copy(
             xp = newXp,
-            level = newLevel,
-            transformationScore = min(100, current.transformationScore + 1)
+            level = newLevel
         )
         db.winterArcDao().insertOrUpdate(updated)
     }
@@ -873,17 +971,19 @@ class RebuildRepository(
 
     fun getBoardExamConfig(): Flow<BoardExamConfigEntity?> = db.boardExamDao().getBoardExamConfig()
 
+    suspend fun getBoardExamConfigDirect(): BoardExamConfigEntity? = db.boardExamDao().getBoardExamConfigDirect()
+
     suspend fun updateBoardExamConfig(config: BoardExamConfigEntity) {
         db.boardExamDao().insertOrUpdate(config)
     }
 
     fun calculateDaysUntilBoardExam(examDateStr: String): Long {
         return try {
-            val examDate = dateFormat.parse(examDateStr) ?: Date()
+            val examDate = dateFormat.parse(examDateStr) ?: return 0L
             val diffMs = examDate.time - System.currentTimeMillis()
-            max(0, TimeUnit.MILLISECONDS.toDays(diffMs))
+            max(0L, TimeUnit.MILLISECONDS.toDays(diffMs))
         } catch (e: Exception) {
-            148L
+            0L
         }
     }
 
@@ -1337,5 +1437,318 @@ class RebuildRepository(
     suspend fun saveChatMessage(message: ChatMessageEntity): Long = db.chatDao().insertMessage(message)
 
     suspend fun clearChatHistory() = db.chatDao().clearChatHistory()
+
+    // ----------------------------------------------------
+    // REAL DATA-DRIVEN ANALYTICS & EXECUTIVE REPORTS
+    // ----------------------------------------------------
+
+    fun getDailyStudyGraph(): Flow<List<DailyStudyPoint>> = db.subjectDao().getAllStudySessions()
+        .map { sessions ->
+            val cal = Calendar.getInstance()
+            val dayFormat = SimpleDateFormat("EEE", Locale.getDefault())
+            val dateList = mutableListOf<String>()
+            val dayLabelList = mutableListOf<String>()
+
+            val tempCal = cal.clone() as Calendar
+            tempCal.add(Calendar.DAY_OF_YEAR, -6)
+            for (i in 0 until 7) {
+                dateList.add(dateFormat.format(tempCal.time))
+                dayLabelList.add(dayFormat.format(tempCal.time))
+                tempCal.add(Calendar.DAY_OF_YEAR, 1)
+            }
+
+            val sessionsByDate = sessions.groupBy { it.date }
+            dateList.mapIndexed { index, d ->
+                val dateSessions = sessionsByDate[d] ?: emptyList()
+                val totalMins = dateSessions.sumOf { it.durationMinutes }
+                val hours = (totalMins / 60f * 10).toInt() / 10f
+                DailyStudyPoint(
+                    date = d,
+                    dayLabel = dayLabelList[index],
+                    hours = hours,
+                    minutes = totalMins
+                )
+            }
+        }
+
+    fun getWeeklyStudyGraph(): Flow<List<WeeklyStudyPoint>> = db.subjectDao().getAllStudySessions()
+        .map { sessions ->
+            val cal = Calendar.getInstance()
+            val weeks = mutableListOf<WeeklyStudyPoint>()
+            val tempCal = cal.clone() as Calendar
+            tempCal.add(Calendar.WEEK_OF_YEAR, -3)
+
+            for (w in 0 until 4) {
+                val weekStart = tempCal.clone() as Calendar
+                weekStart.set(Calendar.DAY_OF_WEEK, weekStart.firstDayOfWeek)
+                val weekEnd = weekStart.clone() as Calendar
+                weekEnd.add(Calendar.DAY_OF_WEEK, 6)
+
+                val startStr = dateFormat.format(weekStart.time)
+                val endStr = dateFormat.format(weekEnd.time)
+
+                val weekSessions = sessions.filter { it.date in startStr..endStr }
+                val totalMins = weekSessions.sumOf { it.durationMinutes }
+                val hours = (totalMins / 60f * 10).toInt() / 10f
+                val label = if (w == 3) "This Wk" else "Wk ${w + 1}"
+                weeks.add(WeeklyStudyPoint(weekLabel = label, hours = hours))
+
+                tempCal.add(Calendar.WEEK_OF_YEAR, 1)
+            }
+            weeks
+        }
+
+    fun getMonthlyStudyGraph(): Flow<List<MonthlyStudyPoint>> = db.subjectDao().getAllStudySessions()
+        .map { sessions ->
+            val cal = Calendar.getInstance()
+            val monthFormat = SimpleDateFormat("MMM", Locale.getDefault())
+            val months = mutableListOf<MonthlyStudyPoint>()
+            val tempCal = cal.clone() as Calendar
+            tempCal.add(Calendar.MONTH, -5)
+
+            for (m in 0 until 6) {
+                val yearMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(tempCal.time)
+                val monthLabel = monthFormat.format(tempCal.time)
+                val monthSessions = sessions.filter { it.date.startsWith(yearMonth) }
+                val totalMins = monthSessions.sumOf { it.durationMinutes }
+                val hours = (totalMins / 60f * 10).toInt() / 10f
+                months.add(MonthlyStudyPoint(monthLabel = monthLabel, hours = hours))
+                tempCal.add(Calendar.MONTH, 1)
+            }
+            months
+        }
+
+    fun getHabitHeatmap(): Flow<List<HabitHeatmapDay>> = combine(
+        db.habitDao().getAllHabitLogs(),
+        db.habitDao().getAllHabits()
+    ) { logs, habits ->
+        val totalHabitCount = habits.size
+        val cal = Calendar.getInstance()
+        val days = mutableListOf<HabitHeatmapDay>()
+
+        val tempCal = cal.clone() as Calendar
+        tempCal.add(Calendar.DAY_OF_YEAR, -27)
+
+        val logsByDate = logs.groupBy { it.date }
+        for (i in 0 until 28) {
+            val dStr = dateFormat.format(tempCal.time)
+            val dayOfWeek = tempCal.get(Calendar.DAY_OF_WEEK)
+            val dateLogs = logsByDate[dStr] ?: emptyList()
+            val completedCount = dateLogs.count { it.isCompleted }
+            val rate = if (totalHabitCount > 0) {
+                (completedCount.toFloat() / totalHabitCount).coerceIn(0f, 1f)
+            } else if (completedCount > 0) 1f else 0f
+
+            days.add(
+                HabitHeatmapDay(
+                    date = dStr,
+                    dayOfWeek = dayOfWeek,
+                    completedCount = completedCount,
+                    totalCount = totalHabitCount,
+                    completionRate = rate
+                )
+            )
+            tempCal.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        days
+    }
+
+    fun getSubjectProgressList(): Flow<List<SubjectProgressItem>> = combine(
+        db.subjectDao().getAllSubjects(),
+        db.subjectDao().getAllChapters(),
+        db.subjectDao().getAllStudySessions()
+    ) { subjects, chapters, sessions ->
+        val chaptersBySubject = chapters.groupBy { it.subjectId }
+        val sessionsBySubjectName = sessions.groupBy { it.subjectName.lowercase().trim() }
+
+        subjects.map { sub ->
+            val subChapters = chaptersBySubject[sub.id] ?: emptyList()
+            val totalChaps = subChapters.size
+            val completedChaps = subChapters.count { it.isCompleted }
+            val perc = if (totalChaps > 0) ((completedChaps.toFloat() / totalChaps) * 100).toInt() else 0
+
+            val subSessions = sessionsBySubjectName[sub.name.lowercase().trim()] ?: emptyList()
+            val totalMins = subSessions.sumOf { it.durationMinutes }
+            val hours = (totalMins / 60f * 10).toInt() / 10f
+
+            SubjectProgressItem(
+                subjectId = sub.id,
+                name = sub.name,
+                colorHex = sub.colorHex,
+                studyHours = hours,
+                totalChapters = totalChaps,
+                completedChapters = completedChaps,
+                percentage = perc
+            )
+        }
+    }
+
+    fun getXpGrowthTrend(): Flow<List<XpGrowthPoint>> = combine(
+        db.disciplineDao().getAllDisciplineScores(),
+        db.winterArcDao().getWinterArcState()
+    ) { disciplines: List<DailyDisciplineEntity>, arcState: WinterArcStateEntity? ->
+        val cal = Calendar.getInstance()
+        val dayFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
+        val points = mutableListOf<XpGrowthPoint>()
+
+        val tempCal = cal.clone() as Calendar
+        tempCal.add(Calendar.DAY_OF_YEAR, -6)
+
+        val discByDate = disciplines.associateBy { it.date }
+        var runningCumulative = 0
+
+        for (i in 0 until 7) {
+            val dStr = dateFormat.format(tempCal.time)
+            val label = dayFormat.format(tempCal.time)
+            val disc = discByDate[dStr]
+            val xpGain = disc?.xpEarned ?: 0
+            runningCumulative += xpGain
+            points.add(
+                XpGrowthPoint(
+                    date = dStr,
+                    dayLabel = label,
+                    xpGained = xpGain,
+                    cumulativeXp = runningCumulative
+                )
+            )
+            tempCal.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        points
+    }
+
+    fun getStreakTrend(): Flow<List<StreakTrendPoint>> = db.disciplineDao().getAllDisciplineScores()
+        .map { disciplines: List<DailyDisciplineEntity> ->
+            val cal = Calendar.getInstance()
+            val dayFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
+            val points = mutableListOf<StreakTrendPoint>()
+
+            val tempCal = cal.clone() as Calendar
+            tempCal.add(Calendar.DAY_OF_YEAR, -6)
+
+            for (i in 0 until 7) {
+                val dStr = dateFormat.format(tempCal.time)
+                val label = dayFormat.format(tempCal.time)
+                val disc = disciplines.firstOrNull { it.date == dStr }
+                val score = disc?.totalScore ?: 0
+                points.add(
+                    StreakTrendPoint(
+                        date = dStr,
+                        dayLabel = label,
+                        streak = if (score > 0) 1 else 0
+                    )
+                )
+                tempCal.add(Calendar.DAY_OF_YEAR, 1)
+            }
+            points
+        }
+
+    fun getProtocolCompletionTrend(): Flow<List<ProtocolCompletionPoint>> = db.dailyPlanDao().getAllTasks()
+        .map { allTasks ->
+            val cal = Calendar.getInstance()
+            val dayFormat = SimpleDateFormat("EEE", Locale.getDefault())
+            val points = mutableListOf<ProtocolCompletionPoint>()
+
+            val tempCal = cal.clone() as Calendar
+            tempCal.add(Calendar.DAY_OF_YEAR, -6)
+
+            val tasksByDate = allTasks.groupBy { it.date }
+            for (i in 0 until 7) {
+                val dStr = dateFormat.format(tempCal.time)
+                val label = dayFormat.format(tempCal.time)
+                val dayTasks = tasksByDate[dStr] ?: emptyList()
+                val completed = dayTasks.count { it.isCompleted }
+                val total = dayTasks.size
+                val rate = if (total > 0) (completed.toFloat() / total) else 0f
+                points.add(
+                    ProtocolCompletionPoint(
+                        date = dStr,
+                        dayLabel = label,
+                        completedCount = completed,
+                        totalCount = total,
+                        completionRate = rate
+                    )
+                )
+                tempCal.add(Calendar.DAY_OF_YEAR, 1)
+            }
+            points
+        }
+
+    fun getExecutiveReport(period: ReportPeriod): Flow<ExecutiveReportData> = combine(
+        db.dailyPlanDao().getAllTasks(),
+        db.subjectDao().getAllStudySessions(),
+        db.subjectDao().getAllSubjects(),
+        db.subjectDao().getAllChapters()
+    ) { tasks, sessions, subjects, chapters ->
+        val cal = Calendar.getInstance()
+        val todayStr = dateFormat.format(cal.time)
+        val startDateStr: String
+        val title: String
+
+        when (period) {
+            ReportPeriod.DAILY -> {
+                startDateStr = todayStr
+                title = "Daily Performance Protocol"
+            }
+            ReportPeriod.WEEKLY -> {
+                val temp = cal.clone() as Calendar
+                temp.add(Calendar.DAY_OF_YEAR, -6)
+                startDateStr = dateFormat.format(temp.time)
+                title = "Weekly Executive Audit"
+            }
+            ReportPeriod.MONTHLY -> {
+                val temp = cal.clone() as Calendar
+                temp.add(Calendar.DAY_OF_YEAR, -29)
+                startDateStr = dateFormat.format(temp.time)
+                title = "Monthly Arc Performance Review"
+            }
+        }
+
+        val periodTasks = tasks.filter { it.date >= startDateStr && it.date <= todayStr }
+        val periodSessions = sessions.filter { it.date >= startDateStr && it.date <= todayStr }
+
+        val totalMins = periodSessions.sumOf { it.durationMinutes }
+        val studyHours = (totalMins / 60f * 10).toInt() / 10f
+        val completedTasks = periodTasks.count { it.isCompleted }
+        val totalTasks = periodTasks.size
+        val completionPerc = if (totalTasks > 0) ((completedTasks.toFloat() / totalTasks) * 100).toInt() else 0
+        val missedTasks = periodTasks.count { !it.isCompleted && it.date < todayStr }
+        val xpEarned = periodTasks.filter { it.isCompleted }.sumOf { it.xpReward } + (totalMins / 3)
+
+        val chaptersBySub = chapters.groupBy { it.subjectId }
+        val sessionsBySubName = periodSessions.groupBy { it.subjectName.lowercase().trim() }
+        val tasksBySubName = periodTasks.groupBy { it.subject.lowercase().trim() }
+
+        val breakdown = subjects.map { sub ->
+            val subChaps = chaptersBySub[sub.id] ?: emptyList()
+            val subSessions = sessionsBySubName[sub.name.lowercase().trim()] ?: emptyList()
+            val subTasks = tasksBySubName[sub.name.lowercase().trim()] ?: emptyList()
+
+            SubjectReportBreakdown(
+                subjectName = sub.name,
+                studyHours = (subSessions.sumOf { it.durationMinutes } / 60f * 10).toInt() / 10f,
+                completedTasks = subTasks.count { it.isCompleted },
+                totalChapters = subChaps.size,
+                completedChapters = subChaps.count { it.isCompleted }
+            )
+        }
+
+        val hasData = (periodTasks.isNotEmpty() || periodSessions.isNotEmpty())
+        val dateRange = if (period == ReportPeriod.DAILY) todayStr else "$startDateStr to $todayStr"
+
+        ExecutiveReportData(
+            period = period,
+            title = title,
+            dateRange = dateRange,
+            studyHours = studyHours,
+            tasksCompleted = completedTasks,
+            totalTasks = totalTasks,
+            completionPercentage = completionPerc,
+            currentStreak = calculateRealStreak(),
+            xpEarned = xpEarned,
+            missedTasksCount = missedTasks,
+            subjectBreakdown = breakdown,
+            hasData = hasData
+        )
+    }
 }
 

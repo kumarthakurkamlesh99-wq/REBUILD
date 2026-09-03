@@ -69,12 +69,12 @@ data class WinterArcStateEntity(
     val id: Int = 1,
     val startDate: String = "2026-08-01", // "yyyy-MM-dd"
     val targetDays: Int = 90,
-    val currentDay: Int = 27,
-    val xp: Int = 5420,
-    val level: Int = 14,
-    val streak: Int = 11,
-    val bestStreak: Int = 21,
-    val transformationScore: Int = 86,
+    val currentDay: Int = 1,
+    val xp: Int = 0,
+    val level: Int = 1,
+    val streak: Int = 0,
+    val bestStreak: Int = 0,
+    val transformationScore: Int = 0,
     val targetDailyDeepWorkHours: Float = 6.0f
 )
 
@@ -82,10 +82,10 @@ data class WinterArcStateEntity(
 data class BoardExamConfigEntity(
     @PrimaryKey
     val id: Int = 1,
-    val examName: String = "Class 12 CBSE Board Exam",
+    val examName: String = "Class 12 Bihar Board / CBSE",
     val examDate: String = "2027-02-15", // "yyyy-MM-dd"
     val totalSyllabusChapters: Int = 70,
-    val completedChapters: Int = 38,
+    val completedChapters: Int = 0,
     val targetPercentage: Int = 95,
     val dailyTargetLectures: Int = 2,
     val dailyTargetRevisions: Int = 1

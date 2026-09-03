@@ -52,8 +52,11 @@ interface ReflectionDao {
 
 @Dao
 interface AiPlanDao {
-    @Query("SELECT * FROM ai_plan_cache")
+    @Query("SELECT * FROM ai_plan_cache ORDER BY timestamp DESC")
     fun getAllCachedPlans(): Flow<List<AiPlanCacheEntity>>
+
+    @Query("SELECT * FROM ai_plan_cache ORDER BY timestamp DESC")
+    suspend fun getAllCachedPlansDirect(): List<AiPlanCacheEntity>
 
     @Query("SELECT * FROM ai_plan_cache WHERE planType = :planType LIMIT 1")
     fun getCachedPlan(planType: String): Flow<AiPlanCacheEntity?>

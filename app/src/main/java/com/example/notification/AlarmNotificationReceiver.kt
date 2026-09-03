@@ -61,9 +61,9 @@ class AlarmNotificationReceiver : BroadcastReceiver() {
                 isSnoozeTrigger = isSnoozeTrigger
             )
 
-            // 2. Launch AlarmDismissActivity / AlarmRingingActivity directly
+            // 2. Launch AlarmRingingActivity directly
             try {
-                val dismissIntent = Intent(context, AlarmDismissActivity::class.java).apply {
+                val dismissIntent = Intent(context, AlarmRingingActivity::class.java).apply {
                     addFlags(
                         Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_CLEAR_TOP or

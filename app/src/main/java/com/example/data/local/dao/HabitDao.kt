@@ -52,6 +52,12 @@ interface HabitDao {
     @Query("SELECT * FROM habit_logs WHERE date >= :startDate AND date <= :endDate")
     fun getLogsBetween(startDate: String, endDate: String): Flow<List<HabitLogEntity>>
 
+    @Query("SELECT * FROM habit_logs")
+    fun getAllHabitLogs(): Flow<List<HabitLogEntity>>
+
+    @Query("SELECT * FROM habit_logs")
+    suspend fun getAllHabitLogsDirect(): List<HabitLogEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateLog(log: HabitLogEntity): Long
 

@@ -81,7 +81,7 @@ object AlarmScheduler {
         val triggerTime = calendar.timeInMillis
 
         // Show Intent for Alarm Clock info (opens dismiss activity or main screen)
-        val showIntent = Intent(context, AlarmDismissActivity::class.java).apply {
+        val showIntent = Intent(context, AlarmRingingActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(AlarmDismissActivity.EXTRA_ALARM_ID, alarm.id)
             putExtra(AlarmDismissActivity.EXTRA_ALARM_TITLE, alarm.title)

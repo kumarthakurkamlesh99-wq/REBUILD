@@ -53,6 +53,35 @@ class GeminiCoachRepository(
         db.aiPlanDao().deleteOldPlans(cutoff)
     }
 
+    suspend fun saveCustomPlan(plan: AiPlanCacheEntity) = withContext(Dispatchers.IO) {
+        db.aiPlanDao().insertOrUpdatePlan(plan)
+    }
+
+    suspend fun deletePlan(planType: String) = withContext(Dispatchers.IO) {
+        db.aiPlanDao().deletePlan(planType)
+    }
+
+    suspend fun generateLocalOfflinePlan(type: AiPlanType, prompt: String = ""): String = withContext(Dispatchers.IO) {
+        val profile = db.userProfileDao().getUserProfileDirect()
+        val basePlan = getOfflineFallbackPlan(type, profile)
+        val fullPlan = if (prompt.isNotBlank()) {
+            "$basePlan\n\n---\n### 💡 Custom Focus Directive:\n*\"$prompt\"*\n> Local Planner calibrated to target this priority while maintaining your Bihar Board Class 12 syllabus balance and school schedule."
+        } else {
+            basePlan
+        }
+        val today = dateFormat.format(Date())
+        db.aiPlanDao().insertOrUpdatePlan(
+            AiPlanCacheEntity(
+                planType = type.key,
+                title = type.title,
+                content = fullPlan,
+                generatedDate = today,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+        fullPlan
+    }
+
     suspend fun getEffectiveApiKey(): String {
         val profile = db.userProfileDao().getUserProfileDirect()
         if (profile != null && profile.geminiApiKey.isNotBlank()) {

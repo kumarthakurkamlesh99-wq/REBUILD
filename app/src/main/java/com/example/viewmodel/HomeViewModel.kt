@@ -23,14 +23,22 @@ data class HomeUiState(
     val disciplineScore: DailyDisciplineEntity = DailyDisciplineEntity(date = "", totalScore = 0),
     val schoolStatus: SchoolStatusEntity = SchoolStatusEntity(date = ""),
     val todayTasks: List<DailyPlanTaskEntity> = emptyList(),
-    val daysUntilExam: Long = 148,
+    val daysUntilExam: Long = 0,
     val todayStudyMinutes: Int = 0,
     val completedTasksCount: Int = 0,
     val totalTasksCount: Int = 0,
-    val progressPercentage: Int = 0
+    val progressPercentage: Int = 0,
+    val realStreak: Int = 0,
+    val winterArcDaysRemaining: Int = 0
 )
 
 class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
+
+    init {
+        viewModelScope.launch {
+            repository.syncWinterArcCalculations()
+        }
+    }
 
     private val baseProfileFlow = combine(
         repository.getUserProfile(),
@@ -57,18 +65,31 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
         val totalCount = tasks.size
         val progress = if (totalCount > 0) ((completedCount.toFloat() / totalCount) * 100).toInt() else 0
 
+        val dayNum = repository.calculateWinterArcDayNumber(safeWinterArc.startDate, safeWinterArc.targetDays)
+        val arcDaysLeft = repository.calculateWinterArcDaysRemaining(safeWinterArc.startDate, safeWinterArc.targetDays)
+        val realStreak = repository.calculateRealStreak()
+        val score = if (totalCount > 0) ((completedCount.toFloat() / totalCount) * 100).toInt() else safeDiscipline.totalScore
+
+        val dynamicArc = safeWinterArc.copy(
+            currentDay = dayNum,
+            streak = realStreak,
+            transformationScore = score
+        )
+
         HomeUiState(
             userProfile = profile,
-            winterArcState = safeWinterArc,
+            winterArcState = dynamicArc,
             boardExamConfig = safeExamConfig,
-            disciplineScore = safeDiscipline,
+            disciplineScore = safeDiscipline.copy(totalScore = score),
             schoolStatus = safeSchool,
             todayTasks = tasks,
             daysUntilExam = daysLeft,
             todayStudyMinutes = studyMins,
             completedTasksCount = completedCount,
             totalTasksCount = totalCount,
-            progressPercentage = progress
+            progressPercentage = progress,
+            realStreak = realStreak,
+            winterArcDaysRemaining = arcDaysLeft
         )
     }.stateIn(
         scope = viewModelScope,

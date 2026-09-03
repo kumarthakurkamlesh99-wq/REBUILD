@@ -11,6 +11,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.result.contract.ActivityResultContracts
+import android.os.Build
+import com.example.notification.AlarmScheduler
 import com.example.ui.navigation.RebuildAppScaffold
 import com.example.ui.navigation.Screen
 import com.example.ui.theme.DarkNavy
@@ -54,11 +57,23 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        // Notification permission granted or denied
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Install Android 12+ system splash screen for seamless cold-start handoff
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (!AlarmScheduler.hasNotificationPermission(this)) {
+                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
 
         setContent {
             val settingsUiState by settingsViewModel.uiState.collectAsStateWithLifecycle()

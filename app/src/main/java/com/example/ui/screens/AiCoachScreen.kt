@@ -31,14 +31,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Star
@@ -373,6 +377,8 @@ fun AiCoachScreen(
 @Composable
 fun AiPlansSection(viewModel: AiCoachViewModel, state: AiCoachUiState) {
     val scrollState = rememberScrollState()
+    var showSavePlanDialog by remember { mutableStateOf(false) }
+    var savePlanTitleInput by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -384,7 +390,7 @@ fun AiPlansSection(viewModel: AiCoachViewModel, state: AiCoachUiState) {
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(vertical = 6.dp),
+                .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             AiPlanType.values().forEach { type ->
@@ -403,7 +409,7 @@ fun AiPlansSection(viewModel: AiCoachViewModel, state: AiCoachUiState) {
                 ) {
                     Text(
                         text = type.title,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         color = if (isSelected) DarkNavy else GlassWhite
@@ -412,23 +418,141 @@ fun AiPlansSection(viewModel: AiCoachViewModel, state: AiCoachUiState) {
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
-        // Cache & Persistence Status Header
+        // Custom Prompt Box / Editable Text Input
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            color = LuxuryCard,
+            border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.25f))
+        ) {
+            Column(modifier = Modifier.padding(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "CUSTOM COACH INSTRUCTION",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = FrostBlueAccent,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = if (state.promptInput.isNotBlank()) "${state.promptInput.length} chars" else "Optional",
+                        fontSize = 10.sp,
+                        color = GlassWhiteMuted
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = state.promptInput,
+                    onValueChange = { viewModel.setPromptInput(it) },
+                    placeholder = {
+                        Text(
+                            text = "e.g., Focus on Electrostatics & Chemistry revision before 9 PM...",
+                            fontSize = 12.sp,
+                            color = GlassWhiteMuted
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp)
+                        .testTag("ai_prompt_input"),
+                    textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, color = GlassWhite),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = LuxuryAccent,
+                        unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
+                        focusedTextColor = GlassWhite,
+                        unfocusedTextColor = GlassWhite
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Saved Plans Row / Library
+        if (state.savedPlans.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Saved Plans:",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = FrostBlueAccent,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+                state.savedPlans.forEach { plan ->
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = FrostedNavyCard,
+                        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.3f)),
+                        modifier = Modifier.clickable { viewModel.loadSavedPlan(plan) }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Bookmark,
+                                contentDescription = null,
+                                tint = IceCyanPrimary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = plan.title.take(18),
+                                fontSize = 11.sp,
+                                color = GlassWhite,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete Plan",
+                                tint = WarningAmber,
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clickable { viewModel.deleteSavedPlan(plan) }
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+        }
+
+        // Cache & Persistence Status Header + Edit/Save Controls
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp),
+                .padding(vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = if (state.isFromCache) SuccessGreen.copy(alpha = 0.15f) else IceCyanPrimary.copy(alpha = 0.15f),
+                    color = when {
+                        state.isLocalGenerated -> LuxuryAccent.copy(alpha = 0.2f)
+                        state.isFromCache -> SuccessGreen.copy(alpha = 0.15f)
+                        else -> IceCyanPrimary.copy(alpha = 0.15f)
+                    },
                     border = BorderStroke(
                         1.dp,
-                        if (state.isFromCache) SuccessGreen.copy(alpha = 0.4f) else IceCyanPrimary.copy(alpha = 0.4f)
+                        when {
+                            state.isLocalGenerated -> LuxuryAccent.copy(alpha = 0.5f)
+                            state.isFromCache -> SuccessGreen.copy(alpha = 0.4f)
+                            else -> IceCyanPrimary.copy(alpha = 0.4f)
+                        }
                     )
                 ) {
                     Row(
@@ -443,26 +567,116 @@ fun AiPlansSection(viewModel: AiCoachViewModel, state: AiCoachUiState) {
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (state.isFromCache) "Room Cached (Offline)" else "AI Neural Blueprint",
+                            text = when {
+                                state.isLocalGenerated -> "Local Study Planner (Offline)"
+                                state.isFromCache -> "Room Cached (Offline)"
+                                else -> "AI Neural Blueprint"
+                            },
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (state.isFromCache) SuccessGreen else IceCyanPrimary
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (state.lastCachedDate.isNotBlank()) "Saved for ${state.lastCachedDate}" else "Live Telemetry",
-                    fontSize = 11.sp,
-                    color = GlassWhiteMuted
-                )
             }
 
-            Text(
-                text = "Zero API overhead",
-                fontSize = 10.sp,
-                color = FrostBlueAccent
-            )
+            // Quick Actions: Edit Plan & Save Plan
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (state.isEditMode) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = LuxuryCard,
+                        border = BorderStroke(1.dp, GlassWhiteMuted),
+                        modifier = Modifier.clickable { viewModel.cancelEditingPlan() }
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            fontSize = 11.sp,
+                            color = GlassWhiteMuted,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = LuxuryAccent,
+                        modifier = Modifier.clickable { viewModel.saveEditedPlan() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Save,
+                                contentDescription = null,
+                                tint = DarkNavy,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "Save Edits",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = DarkNavy
+                            )
+                        }
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = LuxuryCard,
+                        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.4f)),
+                        modifier = Modifier.clickable { viewModel.startEditingPlan() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = null,
+                                tint = IceCyanPrimary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "Edit Plan",
+                                fontSize = 11.sp,
+                                color = GlassWhite,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = LuxuryCard,
+                        border = BorderStroke(1.dp, LuxuryAccent.copy(alpha = 0.4f)),
+                        modifier = Modifier.clickable {
+                            savePlanTitleInput = state.selectedPlanType.title
+                            showSavePlanDialog = true
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Bookmark,
+                                contentDescription = null,
+                                tint = LuxuryAccent,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "Save Plan",
+                                fontSize = 11.sp,
+                                color = GlassWhite,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -499,11 +713,44 @@ fun AiPlansSection(viewModel: AiCoachViewModel, state: AiCoachUiState) {
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Analyzing school schedule, Physics/Chem/Bio chapters, calisthenics logs, and 148-day countdown.",
+                            text = "Calibrating Bihar Board Class 12 PCM schedule, school hours, and active revision protocol.",
                             style = MaterialTheme.typography.bodySmall,
                             color = GlassWhiteMuted,
                             textAlign = TextAlign.Center,
                             fontSize = 12.sp
+                        )
+                    }
+                } else if (state.isEditMode) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = "EDITING PLAN DIRECTLY",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = LuxuryAccent,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = state.editedPlanText,
+                            onValueChange = { viewModel.updateEditedPlanText(it) },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("edit_plan_textarea"),
+                            textStyle = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                                color = GlassWhite
+                            ),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = LuxuryAccent,
+                                unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
+                                focusedTextColor = GlassWhite,
+                                unfocusedTextColor = GlassWhite
+                            )
                         )
                     }
                 } else {
@@ -514,73 +761,168 @@ fun AiPlansSection(viewModel: AiCoachViewModel, state: AiCoachUiState) {
                             .padding(16.dp)
                     ) {
                         MarkdownText(
-                            text = state.currentPlanContent.ifBlank { "Tap Generate to produce this plan." }
+                            text = state.currentPlanContent.ifBlank { "Generating optimal study plan..." }
                         )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Bottom Action Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Button(
+                onClick = { viewModel.generateLocalPlan(state.selectedPlanType) },
+                colors = ButtonDefaults.buttonColors(containerColor = LuxuryCard),
+                border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.6f)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(46.dp)
+                    .testTag("generate_local_plan_btn")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Bolt,
+                    contentDescription = null,
+                    tint = IceCyanPrimary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Local Plan",
+                    color = GlassWhite,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+
             Button(
                 onClick = { viewModel.generatePlan(state.selectedPlanType, forceRefresh = true) },
                 colors = ButtonDefaults.buttonColors(containerColor = LuxuryCard),
                 border = BorderStroke(1.dp, LuxuryAccent.copy(alpha = 0.6f)),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .weight(1f)
-                    .height(48.dp)
+                    .height(46.dp)
                     .testTag("regenerate_plan_btn")
             ) {
                 Icon(
-                    imageVector = Icons.Default.Refresh,
+                    imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
-                    tint = IceCyanPrimary,
-                    modifier = Modifier.size(18.dp)
+                    tint = LuxuryAccent,
+                    modifier = Modifier.size(16.dp)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "Regenerate",
+                    text = "AI Generate",
                     color = GlassWhite,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
+                    fontSize = 12.sp
                 )
             }
 
             Button(
                 onClick = { viewModel.applyPlanToLocalSchedule() },
                 colors = ButtonDefaults.buttonColors(containerColor = LuxuryAccent),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(12.dp),
                 enabled = !state.isApplyingPlan,
                 modifier = Modifier
-                    .weight(1.3f)
-                    .height(48.dp)
+                    .weight(1.2f)
+                    .height(46.dp)
                     .testTag("apply_plan_btn")
             ) {
                 if (state.isApplyingPlan) {
-                    CircularProgressIndicator(color = DarkNavy, modifier = Modifier.size(18.dp))
+                    CircularProgressIndicator(color = DarkNavy, modifier = Modifier.size(16.dp))
                 } else {
                     Icon(
-                        imageVector = Icons.Default.AutoAwesome,
+                        imageVector = Icons.Default.Check,
                         contentDescription = null,
                         tint = DarkNavy,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Apply to Schedule",
+                        text = "Apply Schedule",
                         color = DarkNavy,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        fontSize = 12.sp
                     )
+                }
+            }
+        }
+    }
+
+    // Save Plan Dialog
+    if (showSavePlanDialog) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showSavePlanDialog = false }) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = LuxuryCard,
+                border = BorderStroke(1.dp, LuxuryAccent.copy(alpha = 0.5f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Save Plan to Library",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = GlassWhite
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Give this plan a recognizable title to access it anytime offline.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = GlassWhiteMuted,
+                        textAlign = TextAlign.Center,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    OutlinedTextField(
+                        value = savePlanTitleInput,
+                        onValueChange = { savePlanTitleInput = it },
+                        label = { Text("Plan Title") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = LuxuryAccent,
+                            unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.4f),
+                            focusedTextColor = GlassWhite,
+                            unfocusedTextColor = GlassWhite
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showSavePlanDialog = false }) {
+                            Text("Cancel", color = GlassWhiteMuted)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                viewModel.savePlanWithCustomTitle(savePlanTitleInput)
+                                showSavePlanDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = LuxuryAccent)
+                        ) {
+                            Text("Save", color = DarkNavy, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }

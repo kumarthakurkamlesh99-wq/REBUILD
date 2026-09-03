@@ -25,9 +25,9 @@ import kotlin.math.max
 
 data class WinterArcUiState(
     val state: WinterArcStateEntity = WinterArcStateEntity(),
-    val daysRemaining: Int = 63,
-    val progressPercentage: Int = 30,
-    val rankTitle: String = "Frost Vanguard",
+    val daysRemaining: Int = 0,
+    val progressPercentage: Int = 0,
+    val rankTitle: String = "Novice Arc",
     val recentScores: List<DailyDisciplineEntity> = emptyList(),
     val objectives: List<WinterArcObjectiveEntity> = emptyList(),
     val dailyGoals: List<ArcGoalPlanItemEntity> = emptyList(),
@@ -53,8 +53,11 @@ class WinterArcViewModel(private val repository: RebuildRepository) : ViewModel(
         _horizon
     ) { arc, trends, objs, allGoals, horizon ->
         val safeArc = arc ?: WinterArcStateEntity()
-        val remaining = max(0, safeArc.targetDays - safeArc.currentDay)
-        val perc = ((safeArc.currentDay.toFloat() / safeArc.targetDays) * 100).toInt()
+        val dayNum = repository.calculateWinterArcDayNumber(safeArc.startDate, safeArc.targetDays)
+        val remaining = repository.calculateWinterArcDaysRemaining(safeArc.startDate, safeArc.targetDays)
+        val perc = if (safeArc.targetDays > 0) {
+            ((dayNum.toFloat() / safeArc.targetDays) * 100).toInt().coerceIn(0, 100)
+        } else 0
 
         val rank = when {
             safeArc.level >= 25 -> "Apex Ascendant"
@@ -69,7 +72,7 @@ class WinterArcViewModel(private val repository: RebuildRepository) : ViewModel(
         val monthly = allGoals.filter { it.timeHorizon == "MONTHLY" }
 
         WinterArcUiState(
-            state = safeArc,
+            state = safeArc.copy(currentDay = dayNum),
             daysRemaining = remaining,
             progressPercentage = perc,
             rankTitle = rank,
@@ -88,6 +91,7 @@ class WinterArcViewModel(private val repository: RebuildRepository) : ViewModel(
 
     init {
         viewModelScope.launch {
+            repository.syncWinterArcCalculations()
             val profile = repository.getUserProfileDirect() ?: UserProfileEntity()
             repository.initializeWinterArcObjectivesIfEmpty(profile)
         }
@@ -145,11 +149,11 @@ class WinterArcViewModel(private val repository: RebuildRepository) : ViewModel(
 
 data class BoardExamUiState(
     val config: BoardExamConfigEntity = BoardExamConfigEntity(),
-    val remainingDays: Long = 148,
-    val remainingChapters: Int = 32,
-    val completionPercentage: Int = 54,
-    val requiredDailyChaptersRate: Float = 0.22f,
-    val isAheadOfSchedule: Boolean = true,
+    val remainingDays: Long = 0,
+    val remainingChapters: Int = 0,
+    val completionPercentage: Int = 0,
+    val requiredDailyChaptersRate: Float = 0f,
+    val isAheadOfSchedule: Boolean = false,
     val holidays: List<HolidayEntity> = emptyList()
 )
 
@@ -157,25 +161,34 @@ class BoardExamViewModel(private val repository: RebuildRepository) : ViewModel(
 
     val uiState: StateFlow<BoardExamUiState> = combine(
         repository.getBoardExamConfig(),
-        repository.getAllHolidays()
-    ) { config, holidays ->
+        repository.getAllHolidays(),
+        repository.getTotalCompletedChapters(),
+        repository.getTotalChaptersCount()
+    ) { config, holidays, dbCompletedChapters, dbTotalChapters ->
         val safeConfig = config ?: BoardExamConfigEntity()
+        val effectiveTotalChapters = if (dbTotalChapters > 0) dbTotalChapters else safeConfig.totalSyllabusChapters
+        val effectiveCompletedChapters = if (dbTotalChapters > 0) dbCompletedChapters else safeConfig.completedChapters
+
         val daysLeft = repository.calculateDaysUntilBoardExam(safeConfig.examDate)
-        val remainingChaps = max(0, safeConfig.totalSyllabusChapters - safeConfig.completedChapters)
-        val perc = if (safeConfig.totalSyllabusChapters > 0) {
-            ((safeConfig.completedChapters.toFloat() / safeConfig.totalSyllabusChapters) * 100).toInt()
+        val remainingChaps = max(0, effectiveTotalChapters - effectiveCompletedChapters)
+        val perc = if (effectiveTotalChapters > 0) {
+            ((effectiveCompletedChapters.toFloat() / effectiveTotalChapters) * 100).toInt()
         } else 0
 
-        val requiredDailyRate = if (daysLeft > 0) (remainingChaps.toFloat() / daysLeft) else 1.0f
-        // If current completion is higher than expected time elapsed ratio, Ahead Of Schedule
-        val isAhead = perc >= 45
+        val requiredDailyRate = if (daysLeft > 0) (remainingChaps.toFloat() / daysLeft) else 0.0f
+        val isAhead = perc >= 50 && remainingChaps > 0
+
+        val synchronizedConfig = safeConfig.copy(
+            totalSyllabusChapters = effectiveTotalChapters,
+            completedChapters = effectiveCompletedChapters
+        )
 
         BoardExamUiState(
-            config = safeConfig,
+            config = synchronizedConfig,
             remainingDays = daysLeft,
             remainingChapters = remainingChaps,
             completionPercentage = perc,
-            requiredDailyChaptersRate = requiredDailyRate,
+            requiredDailyChaptersRate = (requiredDailyRate * 100).toInt() / 100f,
             isAheadOfSchedule = isAhead,
             holidays = holidays
         )

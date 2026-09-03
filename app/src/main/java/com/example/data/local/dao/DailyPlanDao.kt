@@ -17,6 +17,24 @@ interface DailyPlanDao {
     @Query("SELECT * FROM daily_plan_tasks WHERE date = :date ORDER BY orderIndex ASC, id ASC")
     suspend fun getTasksForDateDirect(date: String): List<DailyPlanTaskEntity>
 
+    @Query("SELECT * FROM daily_plan_tasks ORDER BY date DESC, orderIndex ASC")
+    fun getAllTasks(): Flow<List<DailyPlanTaskEntity>>
+
+    @Query("SELECT * FROM daily_plan_tasks ORDER BY date DESC, orderIndex ASC")
+    suspend fun getAllTasksDirect(): List<DailyPlanTaskEntity>
+
+    @Query("SELECT * FROM daily_plan_tasks WHERE date >= :startDate AND date <= :endDate ORDER BY date ASC, orderIndex ASC")
+    fun getTasksBetween(startDate: String, endDate: String): Flow<List<DailyPlanTaskEntity>>
+
+    @Query("SELECT * FROM daily_plan_tasks WHERE date >= :startDate AND date <= :endDate ORDER BY date ASC, orderIndex ASC")
+    suspend fun getTasksBetweenDirect(startDate: String, endDate: String): List<DailyPlanTaskEntity>
+
+    @Query("SELECT COUNT(*) FROM daily_plan_tasks WHERE isCompleted = 1")
+    fun getTotalCompletedTasksCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM daily_plan_tasks")
+    fun getTotalTasksCountAll(): Flow<Int>
+
     @Query("SELECT * FROM daily_plan_tasks WHERE date < :todayDate AND isCompleted = 0")
     suspend fun getIncompleteTasksBefore(todayDate: String): List<DailyPlanTaskEntity>
 
