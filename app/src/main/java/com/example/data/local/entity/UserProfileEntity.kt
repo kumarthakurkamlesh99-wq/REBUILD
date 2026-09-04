@@ -10,13 +10,16 @@ data class UserProfileEntity(
     val isCompleted: Boolean = false,
 
     // 1. Personal Details
-    val name: String = "Student",
+    val name: String = "Kamlesh Kumar Thakur",
     val studentClass: String = "Class 12", // "Class 10", "Class 11", "Class 12", "Dropper / JEE / NEET", "College"
-    val board: String = "CBSE", // "CBSE", "ICSE", "State Board", "Other"
+    val board: String = "Bihar Board", // "Bihar Board", "CBSE", "ICSE", "State Board", "Other"
     val stream: String = "Science (PCM)", // "Science (PCM)", "Science (PCB)", "Science (PCMB)", "Commerce", "Arts / Humanities", "General"
     val targetPercentage: Int = 95,
     val targetExamName: String = "Class 12 Board Exam 2027",
     val targetExamDate: String = "2027-02-15", // "yyyy-MM-dd"
+    val avatarUri: String = "",
+    val winterArcStartDate: String = "2026-08-01", // "yyyy-MM-dd"
+    val goal: String = "Crack Bihar Board Class 12 with 95%+ and build elite discipline",
 
     // 2. Academic Details
     val selectedSubjectsJson: String = "[\"Physics\", \"Chemistry\", \"Mathematics\", \"English\"]",

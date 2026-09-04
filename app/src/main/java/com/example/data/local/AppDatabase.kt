@@ -16,6 +16,7 @@ import com.example.data.local.dao.DisciplineDao
 import com.example.data.local.dao.GoalDao
 import com.example.data.local.dao.HabitDao
 import com.example.data.local.dao.HolidayDao
+import com.example.data.local.dao.LevelPurchaseDao
 import com.example.data.local.dao.NoteDao
 import com.example.data.local.dao.ReflectionDao
 import com.example.data.local.dao.SchoolStatusDao
@@ -25,6 +26,7 @@ import com.example.data.local.dao.UserProfileDao
 import com.example.data.local.dao.WinterArcDao
 import com.example.data.local.dao.WinterArcObjectivesDao
 import com.example.data.local.dao.WorkoutDao
+import com.example.data.local.dao.XpTransactionDao
 import com.example.data.local.entity.AiPlanCacheEntity
 import com.example.data.local.entity.AlarmEntity
 import com.example.data.local.entity.AlarmLogEntity
@@ -40,6 +42,7 @@ import com.example.data.local.entity.HabitEntity
 import com.example.data.local.entity.HabitLogEntity
 import com.example.data.local.entity.HabitType
 import com.example.data.local.entity.HolidayEntity
+import com.example.data.local.entity.LevelPurchaseEntity
 import com.example.data.local.entity.NoteEntity
 import com.example.data.local.entity.SchoolStatusEntity
 import com.example.data.local.entity.StudySessionEntity
@@ -51,6 +54,7 @@ import com.example.data.local.entity.UserProfileEntity
 import com.example.data.local.entity.WinterArcObjectiveEntity
 import com.example.data.local.entity.WinterArcStateEntity
 import com.example.data.local.entity.WorkoutLogEntity
+import com.example.data.local.entity.XpTransactionEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -84,9 +88,11 @@ import java.util.Locale
         AlarmLogEntity::class,
         WinterArcObjectiveEntity::class,
         ArcGoalPlanItemEntity::class,
-        ChatMessageEntity::class
+        ChatMessageEntity::class,
+        XpTransactionEntity::class,
+        LevelPurchaseEntity::class
     ],
-    version = 6,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -108,6 +114,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun alarmDao(): AlarmDao
     abstract fun winterArcObjectivesDao(): WinterArcObjectivesDao
     abstract fun chatDao(): ChatDao
+    abstract fun xpTransactionDao(): XpTransactionDao
+    abstract fun levelPurchaseDao(): LevelPurchaseDao
 
     companion object {
         @Volatile

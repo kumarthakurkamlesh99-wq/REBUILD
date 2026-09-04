@@ -68,6 +68,29 @@ class RebuildRepository(
 
     suspend fun saveUserProfile(profile: UserProfileEntity) {
         db.userProfileDao().insertOrUpdate(profile)
+
+        // Also update BoardExamConfig if target exam date / name changed
+        val existingBoardConfig = db.boardExamDao().getBoardExamConfigDirect()
+        if (existingBoardConfig != null) {
+            db.boardExamDao().insertOrUpdate(
+                existingBoardConfig.copy(
+                    examName = profile.targetExamName,
+                    examDate = profile.targetExamDate,
+                    targetPercentage = profile.targetPercentage
+                )
+            )
+        }
+
+        // Also sync Winter Arc start date
+        val existingArc = db.winterArcDao().getWinterArcStateDirect()
+        if (existingArc != null) {
+            db.winterArcDao().insertOrUpdate(
+                existingArc.copy(
+                    startDate = profile.winterArcStartDate
+                )
+            )
+        }
+
         if (context != null && profile.isCompleted) {
             AlarmScheduler.scheduleProfileAlarms(context, profile)
         }
@@ -342,6 +365,7 @@ class RebuildRepository(
             isPresent = true
         )
         db.schoolStatusDao().insertOrUpdate(updated)
+        addXp(20, "School Attendance Checked In", "School")
     }
 
     suspend fun dispatchHome() {
@@ -528,7 +552,15 @@ class RebuildRepository(
         }
 
         if (newCompleted) {
-            addXp(task.xpReward)
+            val (category, xpVal) = when (task.type) {
+                TaskType.LECTURE -> "Study" to 60
+                TaskType.WORKOUT -> "Workout" to 40
+                TaskType.NOTES -> "Revision" to 40
+                TaskType.PYQ -> "Study" to 50
+                TaskType.REVISION -> "Revision" to 35
+                TaskType.CUSTOM -> "Discipline" to (if (task.xpReward > 0) task.xpReward else 30)
+            }
+            addXp(xpVal, task.title, category)
         }
 
         recalculateDisciplineScore(task.date)
@@ -654,7 +686,7 @@ class RebuildRepository(
             lastRevisionDate = getTodayDateString()
         )
         updateChapter(updated)
-        addXp(30)
+        addXp(15, "Flashcard Revision: ${chapter.title}", "Revision")
     }
 
     // ----------------------------------------------------
@@ -674,7 +706,7 @@ class RebuildRepository(
         chapterName: String,
         durationMinutes: Int,
         sessionType: SessionType,
-        xpReward: Int
+        xpReward: Int = 60
     ) {
         val today = getTodayDateString()
         val session = StudySessionEntity(
@@ -683,10 +715,11 @@ class RebuildRepository(
             durationMinutes = durationMinutes,
             sessionType = sessionType,
             date = today,
-            xpEarned = xpReward
+            xpEarned = 60
         )
         db.subjectDao().insertStudySession(session)
-        addXp(xpReward)
+        val chapDesc = if (chapterName.isNotBlank()) " ($chapterName)" else ""
+        addXp(60, "Deep Work: $subjectName$chapDesc", "Study")
         recalculateDisciplineScore(today)
     }
 
@@ -704,7 +737,7 @@ class RebuildRepository(
         val updated = workout.copy(isCompleted = !workout.isCompleted)
         db.workoutDao().updateWorkout(updated)
         if (updated.isCompleted) {
-            addXp(40)
+            addXp(40, "${workout.exerciseName} Workout Completed", "Workout")
         }
         recalculateDisciplineScore(workout.date)
     }
@@ -944,15 +977,231 @@ class RebuildRepository(
         return updated
     }
 
-    suspend fun addXp(amount: Int) {
+    suspend fun addXp(
+        amount: Int,
+        title: String = "Discipline Protocol Execution",
+        category: String = "Discipline"
+    ) {
+        if (amount <= 0) return
+
+        // 1. Insert into xp_transactions table
+        val tx = com.example.data.local.entity.XpTransactionEntity(
+            title = title,
+            category = category,
+            xp = amount,
+            timestamp = System.currentTimeMillis()
+        )
+        db.xpTransactionDao().insert(tx)
+
+        // 2. Sum real total XP directly from the database table
+        val totalXpFromDb = db.xpTransactionDao().getTotalXpDirect() ?: amount
+        val maxUnlocked = db.levelPurchaseDao().getMaxUnlockedLevelDirect() ?: 1
+
+        // 3. Keep WinterArc state in sync
         val current = db.winterArcDao().getWinterArcStateDirect() ?: WinterArcStateEntity(id = 1)
-        val newXp = max(0, current.xp + amount)
-        val newLevel = max(1, newXp / 400 + 1)
         val updated = current.copy(
-            xp = newXp,
-            level = newLevel
+            xp = totalXpFromDb,
+            level = maxUnlocked
         )
         db.winterArcDao().insertOrUpdate(updated)
+    }
+
+    suspend fun getCurrentXpBalance(): Int {
+        return db.xpTransactionDao().getTotalXpDirect() ?: 0
+    }
+
+    suspend fun getMaxPurchasedLevel(): Int {
+        val maxLvl = db.levelPurchaseDao().getMaxUnlockedLevelDirect()
+        if (maxLvl == null || maxLvl < 1) {
+            // Seed Level 1 as initial purchased baseline
+            val seedL1 = com.example.data.local.entity.LevelPurchaseEntity(
+                level = 1,
+                rankTitle = "Absolute Clown",
+                xpCost = 0,
+                transactionId = "TXN-RB-GENESIS-000001",
+                unlockedAt = System.currentTimeMillis(),
+                isCertificateMinted = false
+            )
+            db.levelPurchaseDao().insert(seedL1)
+            return 1
+        }
+        return maxLvl
+    }
+
+    fun getAllLevelPurchases(): Flow<List<com.example.data.local.entity.LevelPurchaseEntity>> =
+        db.levelPurchaseDao().getAllPurchases()
+
+    suspend fun purchaseLevel(targetLevel: Int): Result<com.example.data.local.entity.LevelPurchaseEntity> {
+        val rank = com.example.data.model.RankLevelSystem.getRankForLevel(targetLevel)
+        val cost = rank.unlockXpCost
+        val currentBalance = getCurrentXpBalance()
+
+        if (currentBalance < cost) {
+            return Result.failure(IllegalStateException("Insufficient XP balance: Need $cost XP, have $currentBalance XP"))
+        }
+
+        val existing = db.levelPurchaseDao().getPurchaseForLevelDirect(targetLevel)
+        if (existing != null) {
+            return Result.success(existing)
+        }
+
+        // Generate Transaction ID: TXN-RB-2026-XXXXXX
+        val randSuffix = (100000..999999).random()
+        val txnId = "TXN-RB-2026-$randSuffix"
+
+        // Deduct XP via transaction record with negative XP
+        val deductTx = com.example.data.local.entity.XpTransactionEntity(
+            title = "${rank.title} Unlocked",
+            category = "Level Unlock",
+            xp = -cost,
+            timestamp = System.currentTimeMillis()
+        )
+        db.xpTransactionDao().insert(deductTx)
+
+        val newBalance = db.xpTransactionDao().getTotalXpDirect() ?: 0
+
+        // Store level purchase
+        val purchase = com.example.data.local.entity.LevelPurchaseEntity(
+            level = targetLevel,
+            rankTitle = rank.title,
+            xpCost = cost,
+            transactionId = txnId,
+            unlockedAt = System.currentTimeMillis()
+        )
+        db.levelPurchaseDao().insert(purchase)
+
+        val maxUnlocked = db.levelPurchaseDao().getMaxUnlockedLevelDirect() ?: targetLevel
+        val arc = db.winterArcDao().getWinterArcStateDirect() ?: WinterArcStateEntity(id = 1)
+        db.winterArcDao().insertOrUpdate(arc.copy(xp = newBalance, level = maxUnlocked))
+
+        return Result.success(purchase)
+    }
+
+    suspend fun mintCertificate(level: Int): Result<String> {
+        val rank = com.example.data.model.RankLevelSystem.getRankForLevel(level)
+        val cost = rank.certificateCost
+        val currentBalance = getCurrentXpBalance()
+
+        if (currentBalance < cost) {
+            return Result.failure(IllegalStateException("Insufficient XP balance for certificate minting: Need $cost XP, have $currentBalance XP"))
+        }
+
+        val purchase = db.levelPurchaseDao().getPurchaseForLevelDirect(level)
+            ?: return Result.failure(IllegalStateException("Level $level must be unlocked before minting its certificate."))
+
+        val randSuffix = (100000..999999).random()
+        val certTxnId = "TXN-RB-CERT-$randSuffix"
+
+        // Deduct XP for certificate minting
+        val deductTx = com.example.data.local.entity.XpTransactionEntity(
+            title = "Certificate Minted: ${rank.title} (Level $level)",
+            category = "Certificate",
+            xp = -cost,
+            timestamp = System.currentTimeMillis()
+        )
+        db.xpTransactionDao().insert(deductTx)
+
+        val newBalance = db.xpTransactionDao().getTotalXpDirect() ?: 0
+        db.levelPurchaseDao().markCertificateMinted(level, System.currentTimeMillis(), certTxnId)
+
+        val maxUnlocked = db.levelPurchaseDao().getMaxUnlockedLevelDirect() ?: 1
+        val arc = db.winterArcDao().getWinterArcStateDirect() ?: WinterArcStateEntity(id = 1)
+        db.winterArcDao().insertOrUpdate(arc.copy(xp = newBalance, level = maxUnlocked))
+
+        return Result.success(certTxnId)
+    }
+
+    fun getAllXpTransactions(): Flow<List<com.example.data.local.entity.XpTransactionEntity>> =
+        db.xpTransactionDao().getAllTransactions()
+
+    fun getXpTransactionsByCategory(category: String): Flow<List<com.example.data.local.entity.XpTransactionEntity>> {
+        return if (category.equals("All", ignoreCase = true)) {
+            db.xpTransactionDao().getAllTransactions()
+        } else {
+            db.xpTransactionDao().getTransactionsByCategory(category)
+        }
+    }
+
+    suspend fun recordFlashcardSession(subjectName: String, chapterName: String = "") {
+        val detail = if (chapterName.isNotBlank()) " ($chapterName)" else ""
+        addXp(15, "Flashcard Revision: $subjectName$detail", "Revision")
+    }
+
+    suspend fun getXpSummary(): com.example.data.model.XpSummaryData {
+        val todayCal = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val todayStartMs = todayCal.timeInMillis
+
+        val weekCal = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, -7)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val weekStartMs = weekCal.timeInMillis
+
+        val monthCal = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, -30)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val monthStartMs = monthCal.timeInMillis
+
+        val daily = db.xpTransactionDao().getXpSinceDirect(todayStartMs) ?: 0
+        val weekly = db.xpTransactionDao().getXpSinceDirect(weekStartMs) ?: 0
+        val monthly = db.xpTransactionDao().getXpSinceDirect(monthStartMs) ?: 0
+        val total = db.xpTransactionDao().getTotalXpDirect() ?: 0
+
+        return com.example.data.model.XpSummaryData(
+            dailyXp = daily,
+            weeklyXp = weekly,
+            monthlyXp = monthly,
+            totalXp = total
+        )
+    }
+
+    suspend fun seedInitialXpTransactionsIfEmpty() {
+        if (db.xpTransactionDao().getTransactionCount() == 0) {
+            val now = System.currentTimeMillis()
+            val initial = listOf(
+                com.example.data.local.entity.XpTransactionEntity(
+                    title = "System Calibration & Discipline Protocol",
+                    category = "Discipline",
+                    xp = 50,
+                    timestamp = now - (6 * 3600 * 1000)
+                ),
+                com.example.data.local.entity.XpTransactionEntity(
+                    title = "Deep Work: Physics (Electrostatics)",
+                    category = "Study",
+                    xp = 60,
+                    timestamp = now - (4 * 3600 * 1000)
+                ),
+                com.example.data.local.entity.XpTransactionEntity(
+                    title = "Calisthenics Push & Squat Circuit",
+                    category = "Workout",
+                    xp = 40,
+                    timestamp = now - (2 * 3600 * 1000)
+                ),
+                com.example.data.local.entity.XpTransactionEntity(
+                    title = "Formula Flashcard Sweep",
+                    category = "Revision",
+                    xp = 15,
+                    timestamp = now - (35 * 60 * 1000)
+                )
+            )
+            db.xpTransactionDao().insertAll(initial)
+            val total = db.xpTransactionDao().getTotalXpDirect() ?: 165
+            val current = db.winterArcDao().getWinterArcStateDirect() ?: WinterArcStateEntity(id = 1)
+            val rank = com.example.data.model.RankLevelSystem.getRankForXp(total)
+            db.winterArcDao().insertOrUpdate(current.copy(xp = total, level = rank.level))
+        }
     }
 
     suspend fun updateWinterArcDay(day: Int, streak: Int) {
@@ -1034,7 +1283,7 @@ class RebuildRepository(
 
     suspend fun saveReflection(reflection: com.example.data.local.entity.DailyReflectionEntity) {
         db.reflectionDao().insertOrUpdate(reflection)
-        addXp(25)
+        addXp(25, "Night Reflection & Accountability", "Discipline")
     }
 
     // ----------------------------------------------------

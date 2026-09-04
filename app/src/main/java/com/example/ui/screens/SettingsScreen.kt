@@ -81,7 +81,7 @@ fun SettingsScreen(
     userProfile: UserProfileEntity?,
     onOpenDrawer: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
-    onNavigateToCalibration: () -> Unit = {},
+    onNavigateToProfileSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -113,7 +113,9 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(16.dp),
                     color = LuxuryCard,
                     border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.4f)),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigateToProfileSettings() }
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -121,7 +123,10 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = IceCyanPrimary.copy(alpha = 0.2f),
@@ -153,20 +158,19 @@ fun SettingsScreen(
                                 }
                             }
 
-                            Button(
-                                onClick = onNavigateToCalibration,
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF131D38),
+                                border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.3f))
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Tune,
-                                    contentDescription = null,
-                                    tint = DarkNavy,
-                                    modifier = Modifier.size(16.dp)
+                                Text(
+                                    text = "TAP TO EDIT",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = IceCyanPrimary,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    fontWeight = FontWeight.Bold
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Recalibrate", color = DarkNavy, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             }
                         }
 

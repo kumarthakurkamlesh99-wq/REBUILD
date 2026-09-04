@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -166,6 +167,10 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector,
     object Analytics : Screen("analytics", "Analytics", Icons.Default.Analytics)
     object Notifications : Screen("notifications", "Notification Hub", Icons.Default.NotificationsActive, "9 Alarms")
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
+    object RankReport : Screen("rank_report", "Rank Intelligence Report", Icons.Default.EmojiEvents)
+    object XpLedger : Screen("xp_ledger", "XP Ledger", Icons.Default.Bolt)
+    object ProfileSettings : Screen("profile_settings", "Profile Settings", Icons.Default.Person)
+    object Certificate : Screen("certificate", "Certificate Engine", Icons.Default.WorkspacePremium, "Official")
 }
 
 @Composable
@@ -237,8 +242,9 @@ fun RebuildAppScaffold(
                     level = homeUiState.winterArcState.level,
                     arcDay = homeUiState.winterArcState.currentDay,
                     daysUntilExam = homeUiState.daysUntilExam,
-                    userName = userProfile?.name ?: "Student",
-                    userClass = "${userProfile?.studentClass ?: "Class 12"} • ${userProfile?.stream ?: "PCM"}",
+                    userName = userProfile?.name ?: "Kamlesh Kumar Thakur",
+                    userClass = "${userProfile?.studentClass ?: "Class 12"} • ${userProfile?.stream ?: "Science (PCM)"}",
+                    avatarUri = userProfile?.avatarUri ?: "",
                     onNavigate = closeDrawerAndNavigate
                 )
             }
@@ -502,7 +508,52 @@ fun RebuildAppScaffold(
                         userProfile = homeUiState.userProfile,
                         onOpenDrawer = openDrawer,
                         onNavigateToNotifications = { navController.navigate(Screen.Notifications.route) },
-                        onNavigateToCalibration = { navController.navigate(Screen.Onboarding.route) }
+                        onNavigateToProfileSettings = { navController.navigate(Screen.ProfileSettings.route) }
+                    )
+                }
+
+                // 15. Rank Intelligence Report (Interactive Level System)
+                composable(Screen.RankReport.route) {
+                    val rankVm: com.example.viewmodel.RankReportViewModel = viewModel(
+                        factory = com.example.viewmodel.RankReportViewModelFactory(application.repository)
+                    )
+                    com.example.ui.screens.RankReportScreen(
+                        viewModel = rankVm,
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToCertificate = { navController.navigate(Screen.Certificate.route) }
+                    )
+                }
+
+                // 15B. REBUILD Certificate Engine (Official A4 Achievement Authority)
+                composable(Screen.Certificate.route) {
+                    val certVm: com.example.viewmodel.CertificateViewModel = viewModel(
+                        factory = com.example.viewmodel.CertificateViewModelFactory(application.repository)
+                    )
+                    com.example.ui.screens.CertificateScreen(
+                        viewModel = certVm,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+
+                // 16. XP Ledger (Interactive XP System)
+                composable(Screen.XpLedger.route) {
+                    val xpVm: com.example.viewmodel.XpLedgerViewModel = viewModel(
+                        factory = com.example.viewmodel.XpLedgerViewModelFactory(application.repository)
+                    )
+                    com.example.ui.screens.XpLedgerScreen(
+                        viewModel = xpVm,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+
+                // 17. Profile Settings (Interactive Profile System)
+                composable(Screen.ProfileSettings.route) {
+                    val profileVm: com.example.viewmodel.ProfileSettingsViewModel = viewModel(
+                        factory = com.example.viewmodel.ProfileSettingsViewModelFactory(application.repository)
+                    )
+                    com.example.ui.screens.ProfileSettingsScreen(
+                        viewModel = profileVm,
+                        onNavigateBack = { navController.popBackStack() }
                     )
                 }
             }
@@ -519,6 +570,7 @@ fun RebuildDrawerContent(
     daysUntilExam: Long,
     userName: String,
     userClass: String,
+    avatarUri: String = "",
     onNavigate: (String) -> Unit
 ) {
     LazyColumn(
@@ -528,7 +580,7 @@ fun RebuildDrawerContent(
         contentPadding = PaddingValues(top = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // App Identity Header
+        // App Identity Header & Profile (Clickable to open Profile Settings)
         item {
             Column(
                 modifier = Modifier
@@ -538,37 +590,66 @@ fun RebuildDrawerContent(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onNavigate(Screen.ProfileSettings.route) }
+                        .padding(vertical = 4.dp, horizontal = 2.dp)
                 ) {
                     Surface(
-                        modifier = Modifier.size(38.dp),
-                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.size(42.dp),
+                        shape = CircleShape,
                         color = FrostedNavyCard,
-                        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f))
+                        border = BorderStroke(1.5.dp, IceCyanPrimary)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Image(
-                                painter = painterResource(id = R.drawable.rebuild_logo),
-                                contentDescription = "REBUILD Logo",
-                                modifier = Modifier.size(28.dp)
-                            )
+                            if (avatarUri.isNotBlank()) {
+                                coil.compose.AsyncImage(
+                                    model = avatarUri,
+                                    contentDescription = "Avatar",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape)
+                                )
+                            } else {
+                                Image(
+                                    painter = painterResource(id = R.drawable.rebuild_logo),
+                                    contentDescription = "REBUILD Logo",
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = userName.ifBlank { "REBUILD" },
+                            text = userName.ifBlank { "Kamlesh Kumar Thakur" },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp,
                             color = GlassWhite,
-                            fontSize = 16.sp
+                            fontSize = 15.sp,
+                            maxLines = 1
                         )
                         Text(
                             text = userClass,
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 11.sp,
                             color = IceCyanPrimary
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF131D38),
+                        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.3f))
+                    ) {
+                        Text(
+                            text = "EDIT",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = IceCyanPrimary,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                 }
@@ -584,22 +665,38 @@ fun RebuildDrawerContent(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        // Level Card (Clickable to open Rank Intelligence Report)
                         Surface(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onNavigate(Screen.RankReport.route) },
                             shape = RoundedCornerShape(10.dp),
                             color = LuxuryCard,
-                            border = BorderStroke(0.5.dp, Color(0x337C8CFF))
+                            border = BorderStroke(1.dp, PurpleArc.copy(alpha = 0.6f))
                         ) {
                             Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "LEVEL $level",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = PurpleArc,
+                                        fontSize = 12.sp
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.Bolt,
+                                        contentDescription = null,
+                                        tint = PurpleArc,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
                                 Text(
-                                    text = "LEVEL $level",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PurpleArc,
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    text = "Rank Tier",
+                                    text = "Rank Tier • Tap",
                                     style = MaterialTheme.typography.bodySmall,
                                     fontSize = 10.sp,
                                     color = GlassWhiteMuted
@@ -607,22 +704,38 @@ fun RebuildDrawerContent(
                             }
                         }
 
+                        // XP Card (Clickable to open XP Ledger)
                         Surface(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onNavigate(Screen.XpLedger.route) },
                             shape = RoundedCornerShape(10.dp),
                             color = LuxuryCard,
-                            border = BorderStroke(0.5.dp, Color(0x337C8CFF))
+                            border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.6f))
                         ) {
                             Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${String.format("%,d", xp)} XP",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = IceCyanPrimary,
+                                        fontSize = 12.sp
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.Bolt,
+                                        contentDescription = null,
+                                        tint = IceCyanPrimary,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
                                 Text(
-                                    text = "${String.format("%,d", xp)} XP",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = IceCyanPrimary,
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    text = "Accumulated",
+                                    text = "Ledger • Tap",
                                     style = MaterialTheme.typography.bodySmall,
                                     fontSize = 10.sp,
                                     color = GlassWhiteMuted
@@ -766,6 +879,15 @@ fun RebuildDrawerContent(
                 isSelected = currentRoute == Screen.WinterArc.route,
                 highlightColor = PurpleArc,
                 onClick = { onNavigate(Screen.WinterArc.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Certificate,
+                isSelected = currentRoute == Screen.Certificate.route,
+                highlightColor = LuxuryAccent,
+                onClick = { onNavigate(Screen.Certificate.route) }
             )
         }
 
