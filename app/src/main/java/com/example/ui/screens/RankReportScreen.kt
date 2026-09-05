@@ -96,7 +96,8 @@ import com.example.viewmodel.RankReportViewModel
 fun RankReportScreen(
     viewModel: RankReportViewModel,
     onNavigateBack: () -> Unit,
-    onNavigateToCertificate: () -> Unit = {}
+    onNavigateToCertificate: () -> Unit = {},
+    onNavigateToCertificateWithLevel: (Int) -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
@@ -304,6 +305,9 @@ fun RankReportScreen(
                     daysUntilExam = state.daysUntilExam,
                     onLockedLevelClick = {
                         viewModel.openPurchaseModal(rankItem)
+                    },
+                    onOpenCertificate = {
+                        onNavigateToCertificateWithLevel(rankItem.level)
                     }
                 )
             }
@@ -330,7 +334,10 @@ fun RankReportScreen(
         LevelUnlockCelebrationModal(
             purchase = purchase,
             rank = rank,
-            onViewDetails = { viewModel.dismissCelebration() },
+            onViewDetails = {
+                viewModel.dismissCelebration()
+                onNavigateToCertificateWithLevel(rank.level)
+            },
             onDismiss = { viewModel.dismissCelebration() }
         )
     }
@@ -577,7 +584,8 @@ fun RankListItemCard(
     isUnlocked: Boolean,
     currentXp: Int,
     daysUntilExam: Long,
-    onLockedLevelClick: () -> Unit = {}
+    onLockedLevelClick: () -> Unit = {},
+    onOpenCertificate: () -> Unit = {}
 ) {
     var expanded by remember(isCurrent) { mutableStateOf(isCurrent) }
 
@@ -839,6 +847,34 @@ fun RankListItemCard(
                                     fontWeight = FontWeight.SemiBold,
                                     color = LuxuryAccent
                                 )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Button(
+                                    onClick = onOpenCertificate,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.WorkspacePremium,
+                                            contentDescription = null,
+                                            tint = DarkLuxuryBackground,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "View & Mint Level ${rank.level} Certificate",
+                                            color = DarkLuxuryBackground,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

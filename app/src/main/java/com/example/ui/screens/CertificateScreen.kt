@@ -87,11 +87,15 @@ import com.example.R
 import com.example.data.model.CertificateData
 import com.example.ui.theme.DarkNavy
 import com.example.ui.theme.DeepNavySurface
+import com.example.ui.theme.DangerRed
+import com.example.ui.theme.GlassBorder
+import com.example.ui.theme.GlassWhite
 import com.example.ui.theme.GlassWhiteMuted
 import com.example.ui.theme.IceCyanPrimary
 import com.example.ui.theme.LuxuryAccent
 import com.example.ui.theme.LuxuryCard
 import com.example.ui.theme.PurpleArc
+import com.example.ui.theme.SuccessGreen
 import com.example.viewmodel.CertificateUiState
 import com.example.viewmodel.CertificateViewModel
 import com.example.viewmodel.ExportStatus
@@ -100,12 +104,19 @@ import com.example.viewmodel.ExportStatus
 @Composable
 fun CertificateScreen(
     viewModel: CertificateViewModel,
+    initialLevel: Int? = null,
     onNavigateBack: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = context as? Activity
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(initialLevel) {
+        if (initialLevel != null && initialLevel in 1..25) {
+            viewModel.selectLevel(initialLevel)
+        }
+    }
 
     LaunchedEffect(state.exportStatus) {
         when (val status = state.exportStatus) {
@@ -320,7 +331,10 @@ fun CertificateScreen(
             // 3. Official Master Certificate Preview (Exact Template)
             item {
                 CertificateMasterPreview(
-                    data = state.certificateData
+                    data = state.certificateData,
+                    isUnlocked = isLevelUnlocked,
+                    isMinted = isCertificateMinted,
+                    onMintClick = { viewModel.openMintModal(currentRank) }
                 )
             }
 
@@ -659,7 +673,10 @@ private fun CertificateFieldsEditorCard(
  */
 @Composable
 private fun CertificateMasterPreview(
-    data: CertificateData
+    data: CertificateData,
+    isUnlocked: Boolean = true,
+    isMinted: Boolean = true,
+    onMintClick: () -> Unit = {}
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
@@ -858,12 +875,46 @@ private fun CertificateMasterPreview(
 
                     // 9. Footer ID & Hash
                     Text(
-                        text = "ID: ${data.certificateId}   •   HASH: ${data.verificationHash.take(16)}...",
+                        text = if (isMinted) "ID: ${data.certificateId}   •   HASH: ${data.verificationHash.take(16)}..." else "ID: UNISSUED (MINT REQUIRED)   •   PREVIEW MODE",
                         color = Color(0xFF4A5568),
                         fontSize = (boxWidth.value * 0.017f).sp,
                         fontFamily = FontFamily.Monospace,
                         textAlign = TextAlign.Center
                     )
+                }
+
+                // Watermark overlay if not minted
+                if (!isMinted) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0x66070E1A)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xDD000000),
+                            border = BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.6f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "OFFICIAL PREVIEW WATERMARK",
+                                    color = Color(0xFFFFD700),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                )
+                                Text(
+                                    text = if (isUnlocked) "Tap Mint to certify and unlock export" else "Unlock level to access certificate",
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -32,16 +32,19 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelfImprovement
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.ViewWeek
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -110,6 +113,8 @@ fun XpLedgerScreen(
 
     val categories = listOf(
         "All",
+        "Level Unlock",
+        "Certificate Mint",
         "Study",
         "Workout",
         "Discipline",
@@ -175,13 +180,14 @@ fun XpLedgerScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 1. XP Telemetry Summary Grid (Daily, Weekly, Monthly, Total)
+            // 1. XP Telemetry Summary Grid (Daily, Weekly, Monthly, Total, Available Balance)
             item {
                 XpMetricsGrid(
                     dailyXp = state.summary.dailyXp,
                     weeklyXp = state.summary.weeklyXp,
                     monthlyXp = state.summary.monthlyXp,
-                    totalXp = state.summary.totalXp
+                    totalXp = state.summary.totalXp,
+                    currentBalance = state.currentXpBalance
                 )
             }
 
@@ -352,7 +358,8 @@ fun XpMetricsGrid(
     dailyXp: Int,
     weeklyXp: Int,
     monthlyXp: Int,
-    totalXp: Int
+    totalXp: Int,
+    currentBalance: Int = totalXp
 ) {
     Card(
         modifier = Modifier
@@ -367,13 +374,26 @@ fun XpMetricsGrid(
                 .background(HeroCardGradient)
                 .padding(18.dp)
         ) {
-            Text(
-                text = "XP SUMMARY TELEMETRY",
-                style = MaterialTheme.typography.labelSmall,
-                color = IceCyanPrimary,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.2.sp
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "XP SUMMARY TELEMETRY",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = IceCyanPrimary,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp
+                )
+                Text(
+                    text = "BALANCE: ${String.format("%,d", currentBalance)} XP",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = LuxuryAccent,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -406,20 +426,20 @@ fun XpMetricsGrid(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Monthly XP
+                // Available Spendable XP
                 MetricCard(
                     modifier = Modifier.weight(1f),
-                    title = "MONTHLY XP",
-                    value = "+$monthlyXp",
-                    icon = Icons.Default.DateRange,
-                    color = PurpleArc
+                    title = "SPENDABLE XP",
+                    value = String.format("%,d", currentBalance),
+                    icon = Icons.Default.Bolt,
+                    color = LuxuryAccent
                 )
 
-                // Total XP
+                // Lifetime Total XP
                 MetricCard(
                     modifier = Modifier.weight(1f),
-                    title = "TOTAL XP",
-                    value = "$totalXp",
+                    title = "LIFETIME XP",
+                    value = String.format("%,d", totalXp),
                     icon = Icons.Default.Star,
                     color = SuccessGreen
                 )
@@ -547,20 +567,24 @@ fun XpTransactionItemCard(tx: XpTransactionEntity) {
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Glowing XP Badge
+            // Glowing XP Badge (Deductions vs Earnings)
+            val isDeduction = tx.xp < 0
+            val badgeColor = if (isDeduction) DangerRed else categoryColor
+            val badgeText = if (tx.xp > 0) "+${tx.xp} XP" else "${tx.xp} XP"
+
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(categoryColor.copy(alpha = 0.15f))
-                    .border(1.dp, categoryColor, RoundedCornerShape(8.dp))
+                    .background(badgeColor.copy(alpha = 0.15f))
+                    .border(1.dp, badgeColor, RoundedCornerShape(8.dp))
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "+${tx.xp} XP",
+                    text = badgeText,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.ExtraBold,
-                    color = categoryColor,
+                    color = badgeColor,
                     fontFamily = FontFamily.Monospace
                 )
             }
@@ -700,6 +724,9 @@ fun getCategoryColor(category: String): Color {
         "habit" -> SuccessGreen
         "school" -> ElectricBlue
         "revision" -> WarningAmber
+        "level unlock" -> IceCyanPrimary
+        "certificate mint" -> PurpleArc
+        "store" -> LuxuryAccent
         else -> LuxuryAccent
     }
 }
@@ -712,6 +739,9 @@ fun getCategoryIcon(category: String): ImageVector {
         "habit" -> Icons.Default.SelfImprovement
         "school" -> Icons.Default.School
         "revision" -> Icons.Default.Style
+        "level unlock" -> Icons.Default.LockOpen
+        "certificate mint" -> Icons.Default.WorkspacePremium
+        "store" -> Icons.Default.ShoppingBag
         else -> Icons.Default.Bolt
     }
 }

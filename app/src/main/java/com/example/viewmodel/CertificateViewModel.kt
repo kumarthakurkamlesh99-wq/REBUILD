@@ -61,7 +61,7 @@ class CertificateViewModel(
             repository.getAllLevelPurchases().collectLatest { purchases ->
                 val purchasesMap = purchases.associateBy { it.level }
                 val unlocked = if (purchases.isEmpty()) setOf(1) else (purchases.map { it.level }.toSet() + 1)
-                val minted = purchases.filter { it.certificateMinted }.map { it.level }.toSet()
+                val minted = purchases.filter { it.isCertificateMinted }.map { it.level }.toSet()
                 val xpBalance = repository.getCurrentXpBalance()
 
                 _uiState.update { current ->

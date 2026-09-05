@@ -520,17 +520,31 @@ fun RebuildAppScaffold(
                     com.example.ui.screens.RankReportScreen(
                         viewModel = rankVm,
                         onNavigateBack = { navController.popBackStack() },
-                        onNavigateToCertificate = { navController.navigate(Screen.Certificate.route) }
+                        onNavigateToCertificate = { navController.navigate(Screen.Certificate.route) },
+                        onNavigateToCertificateWithLevel = { lvl ->
+                            navController.navigate("${Screen.Certificate.route}?level=$lvl")
+                        }
                     )
                 }
 
                 // 15B. REBUILD Certificate Engine (Official A4 Achievement Authority)
-                composable(Screen.Certificate.route) {
+                composable(
+                    route = "${Screen.Certificate.route}?level={level}",
+                    arguments = listOf(
+                        androidx.navigation.navArgument("level") {
+                            type = androidx.navigation.NavType.IntType
+                            defaultValue = -1
+                        }
+                    )
+                ) { backStackEntry ->
+                    val initialLevelArg = backStackEntry.arguments?.getInt("level")
+                    val selectedLevel = if (initialLevelArg != null && initialLevelArg in 1..25) initialLevelArg else null
                     val certVm: com.example.viewmodel.CertificateViewModel = viewModel(
                         factory = com.example.viewmodel.CertificateViewModelFactory(application.repository)
                     )
                     com.example.ui.screens.CertificateScreen(
                         viewModel = certVm,
+                        initialLevel = selectedLevel,
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }

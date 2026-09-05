@@ -17,6 +17,7 @@ data class XpLedgerUiState(
     val transactions: List<XpTransactionEntity> = emptyList(),
     val filteredTransactions: List<XpTransactionEntity> = emptyList(),
     val summary: XpSummaryData = XpSummaryData(),
+    val currentXpBalance: Int = 0,
     val selectedCategory: String = "All",
     val searchQuery: String = "",
     val isLoading: Boolean = true
@@ -79,7 +80,8 @@ class XpLedgerViewModel(
 
     private suspend fun refreshSummary() {
         val summary = repository.getXpSummary()
-        _uiState.update { it.copy(summary = summary) }
+        val balance = repository.getCurrentXpBalance()
+        _uiState.update { it.copy(summary = summary, currentXpBalance = balance) }
     }
 
     private fun applyFilterAndSearch(
