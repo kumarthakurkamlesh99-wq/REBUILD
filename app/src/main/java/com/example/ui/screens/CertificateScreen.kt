@@ -75,10 +75,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import com.example.certificate.CertificateGeneratorEngine
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -753,6 +755,7 @@ private fun CertificateMasterPreview(
     isMinted: Boolean = true,
     onMintClick: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = Color(0xFF070E1A),
@@ -765,16 +768,13 @@ private fun CertificateMasterPreview(
             modifier = Modifier.padding(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            BoxWithConstraints(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(896f / 1200f) // Exact Master Template Aspect Ratio
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
             ) {
-                val boxWidth = maxWidth
-                val boxHeight = maxHeight
-                val maxSafeWidth = boxWidth * 0.74f
-
                 if (!isUnlocked) {
                     // LOCKED CERTIFICATE: Heavy dark blur & overlay. No readable content visible!
                     Image(
@@ -828,169 +828,20 @@ private fun CertificateMasterPreview(
                         }
                     }
                 } else {
-                    // 1. Master Template Base Image (exact, un-modified background)
+                    // LIVE MASTER CERTIFICATE:
+                    // Rendered by CertificateDynamicLayoutEngine via CertificateGeneratorEngine.
+                    // Guarantees zero overlap, dynamic spacing, and 100% pixel-perfect consistency
+                    // between In-App Preview, PNG, JPG, and PDF exports.
+                    val previewBitmap = remember(data) {
+                        CertificateGeneratorEngine.generateCertificateBitmap(context, data)
+                    }
+
                     Image(
-                        painter = painterResource(id = R.drawable.rebuild_certificate_template),
-                        contentDescription = "Master Certificate Template",
-                        contentScale = ContentScale.FillBounds,
+                        bitmap = previewBitmap.asImageBitmap(),
+                        contentDescription = "Master Certificate Preview",
+                        contentScale = ContentScale.Fit,
                         modifier = Modifier.fillMaxSize()
                     )
-
-                    // 2. Dynamic Data Overlays strictly positioned within safe area
-                    // 1. Student Name (Large bold serif font, Center aligned, Single line only, Auto shrink)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = boxHeight * (422f / 1200f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = data.studentName,
-                            color = Color(0xFF0A192F),
-                            fontSize = (boxWidth.value * 0.045f).sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Serif,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = maxSafeWidth)
-                        )
-                    }
-
-                    // 2. Class Information (Directly below name, Medium size)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = boxHeight * (468f / 1200f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = data.studentClass,
-                            color = Color(0xFF203A63),
-                            fontSize = (boxWidth.value * 0.024f).sp,
-                            fontFamily = FontFamily.Serif,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            modifier = Modifier.widthIn(max = maxSafeWidth)
-                        )
-                    }
-
-                    // 3. Achievement Statement (Maximum 4 lines, Perfect line spacing, No overlap)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = boxHeight * (522f / 1200f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.widthIn(max = maxSafeWidth)
-                        ) {
-                            data.getAchievementLines().take(4).forEach { line ->
-                                Text(
-                                    text = line,
-                                    color = Color(0xFF1B2A4A),
-                                    fontSize = (boxWidth.value * 0.020f).sp,
-                                    fontFamily = FontFamily.Serif,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1
-                                )
-                                Spacer(modifier = Modifier.height(boxHeight * (4f / 1200f)))
-                            }
-                        }
-                    }
-
-                    // 4. Level Information Bar (Single horizontal line)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = boxHeight * (646f / 1200f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = data.levelInfoLine,
-                            color = Color(0xFF0B2545),
-                            fontSize = (boxWidth.value * 0.018f).sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.SansSerif,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            modifier = Modifier.widthIn(max = maxSafeWidth)
-                        )
-                    }
-
-                    // 5. Quote Section ("The protocol rewards action,\nnot intention.", Center aligned)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = boxHeight * (698f / 1200f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.widthIn(max = maxSafeWidth)
-                        ) {
-                            data.quoteLines.forEach { quoteLine ->
-                                Text(
-                                    text = quoteLine,
-                                    color = Color(0xFF2D3748),
-                                    fontSize = (boxWidth.value * 0.019f).sp,
-                                    fontStyle = FontStyle.Italic,
-                                    fontFamily = FontFamily.Serif,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 1
-                                )
-                                Spacer(modifier = Modifier.height(boxHeight * (2f / 1200f)))
-                            }
-                        }
-                    }
-
-                    // 6. Date Section (Issue Date:\n{issueDate})
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = boxHeight * (972f / 1200f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.widthIn(max = maxSafeWidth)
-                        ) {
-                            Text(
-                                text = "Issue Date:",
-                                color = Color(0xFF1B365D),
-                                fontSize = (boxWidth.value * 0.017f).sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Serif,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(boxHeight * (2f / 1200f)))
-                            Text(
-                                text = data.issueDate,
-                                color = Color(0xFF203A63),
-                                fontSize = (boxWidth.value * 0.018f).sp,
-                                fontFamily = FontFamily.Serif,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-
-                    // 7. Certificate ID (ID: {certificateId}, Small text near bottom)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = boxHeight * (1044f / 1200f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "ID: ${data.certificateId}",
-                            color = Color(0xFF4A5568),
-                            fontSize = (boxWidth.value * 0.015f).sp,
-                            fontFamily = FontFamily.Monospace,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1
-                        )
-                    }
                 }
             }
         }

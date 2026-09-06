@@ -20,7 +20,9 @@ data class CertificateData(
     val dateAchieved: String = issueDate,
     val certificateId: String = generateCertificateId(12),
     val verificationHash: String = generateVerificationHash("Kamlesh Kumar Thakur", 12, 14850),
-    val aiEvaluation: String = "\"The protocol rewards action,\nnot intention.\""
+    val aiEvaluation: String = "\"The protocol rewards action,\nnot intention.\"",
+    val achievementDescription: String = "IN RECOGNITION OF DEDICATED ACHIEVEMENT",
+    val achievementParagraph: String = "For successfully unlocking and mastering $levelName through demonstrated consistency, self-discipline, and daily focus in the REBUILD protocol."
 ) {
     /**
      * Achievement Statement (Strict 4-Line Layout):
