@@ -1168,39 +1168,16 @@ class RebuildRepository(
     }
 
     suspend fun seedInitialXpTransactionsIfEmpty() {
-        if (db.xpTransactionDao().getTransactionCount() == 0) {
-            val now = System.currentTimeMillis()
-            val initial = listOf(
-                com.example.data.local.entity.XpTransactionEntity(
-                    title = "System Calibration & Discipline Protocol",
-                    category = "Discipline",
-                    xp = 50,
-                    timestamp = now - (6 * 3600 * 1000)
-                ),
-                com.example.data.local.entity.XpTransactionEntity(
-                    title = "Deep Work: Physics (Electrostatics)",
-                    category = "Study",
-                    xp = 60,
-                    timestamp = now - (4 * 3600 * 1000)
-                ),
-                com.example.data.local.entity.XpTransactionEntity(
-                    title = "Calisthenics Push & Squat Circuit",
-                    category = "Workout",
-                    xp = 40,
-                    timestamp = now - (2 * 3600 * 1000)
-                ),
-                com.example.data.local.entity.XpTransactionEntity(
-                    title = "Formula Flashcard Sweep",
-                    category = "Revision",
-                    xp = 15,
-                    timestamp = now - (35 * 60 * 1000)
-                )
-            )
-            db.xpTransactionDao().insertAll(initial)
-            val total = db.xpTransactionDao().getTotalXpDirect() ?: 165
+        // XP SYSTEM FIX: XP must NEVER appear automatically.
+        // User starts with:
+        // Spendable XP = 0, Lifetime XP = 0
+        // XP only increases after completing real tasks. No fake transactions or demo data.
+        val deletedCount = db.xpTransactionDao().deleteLegacySeededTransactions()
+        if (deletedCount > 0) {
+            val total = db.xpTransactionDao().getTotalXpDirect() ?: 0
+            val maxUnlocked = db.levelPurchaseDao().getMaxUnlockedLevelDirect() ?: 1
             val current = db.winterArcDao().getWinterArcStateDirect() ?: WinterArcStateEntity(id = 1)
-            val rank = com.example.data.model.RankLevelSystem.getRankForXp(total)
-            db.winterArcDao().insertOrUpdate(current.copy(xp = total, level = rank.level))
+            db.winterArcDao().insertOrUpdate(current.copy(xp = total, level = maxUnlocked))
         }
     }
 

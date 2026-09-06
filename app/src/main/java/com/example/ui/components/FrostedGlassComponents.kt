@@ -8,16 +8,19 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -373,36 +376,65 @@ fun RebuildTopAppBar(
 fun CompactLevelXpBadge(
     level: Int,
     xp: Int,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
-        color = LuxuryCard,
-        border = BorderStroke(1.dp, Color(0x337C8CFF))
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .then(
+                if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+            ),
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xE610192D),
+        border = BorderStroke(1.dp, Brush.horizontalGradient(listOf(PurpleArc.copy(alpha = 0.6f), IceCyanPrimary.copy(alpha = 0.6f)))),
+        shadowElevation = 4.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
         ) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x337C8CFF)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.WorkspacePremium,
+                    contentDescription = "Rank Level $level",
+                    tint = PurpleArc,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "LEVEL $level",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = PurpleArc,
-                fontSize = 11.sp
+                text = "L$level",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = GlassWhite,
+                fontSize = 12.sp,
+                maxLines = 1
             )
-            Text(
-                text = " • ",
-                color = GlassWhiteMuted,
-                fontSize = 11.sp
+            Spacer(modifier = Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .size(4.dp)
+                    .clip(CircleShape)
+                    .background(GlassWhiteMuted.copy(alpha = 0.5f))
             )
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = "${String.format("%,d", xp)} XP",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
                 color = IceCyanPrimary,
-                fontSize = 11.sp
+                fontSize = 12.sp,
+                maxLines = 1
             )
         }
     }

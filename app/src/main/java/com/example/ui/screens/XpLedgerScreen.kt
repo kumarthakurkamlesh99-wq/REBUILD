@@ -694,7 +694,7 @@ fun EmptyTransactionsCard(query: String, category: String, onQuickLog: () -> Uni
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "No Transactions Found",
+                text = if (query.isNotBlank() || category != "All") "No Transactions Found" else "No transactions yet",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = GlassWhite

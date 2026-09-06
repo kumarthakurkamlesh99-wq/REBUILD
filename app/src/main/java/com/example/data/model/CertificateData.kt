@@ -8,19 +8,45 @@ import java.util.Locale
 data class CertificateData(
     val studentName: String = "Kamlesh Kumar Thakur",
     val studentClass: String = "Class 12 • Science (PCM)",
-    val winterArcDay: Int = 1,
     val level: Int = 12,
     val rankTitle: String = "Alpha",
+    val levelName: String = "Level $level - $rankTitle",
     val xp: Int = 14850,
+    val totalXP: String = String.format(Locale.US, "%,d XP", xp),
+    val winterArcDay: Int = 1,
+    val arcDay: String = "Day $winterArcDay",
     val streak: Int = 18,
-    val dateAchieved: String = SimpleDateFormat("MMMM dd, yyyy", Locale.US).format(Date()),
+    val issueDate: String = SimpleDateFormat("MMMM dd, yyyy", Locale.US).format(Date()),
+    val dateAchieved: String = issueDate,
     val certificateId: String = generateCertificateId(12),
     val verificationHash: String = generateVerificationHash("Kamlesh Kumar Thakur", 12, 14850),
-    val aiEvaluation: String = "Exemplary adherence to the REBUILD Protocol. Subject exhibits relentless cognitive endurance, unwavering discipline, and structured academic dominance under intense timeline pressure."
+    val aiEvaluation: String = "\"The protocol rewards action,\nnot intention.\""
 ) {
-    fun getAchievementText(): String {
-        return "This certificate is proudly awarded to $studentName for successfully achieving Level $level – $rankTitle through demonstrated discipline, consistency, commitment, and continuous self-improvement within the REBUILD protocol."
-    }
+    /**
+     * Achievement Statement (Strict 4-Line Layout):
+     * "This certificate is awarded to {studentName}
+     * for successfully unlocking
+     * {levelName}
+     * through demonstrated discipline,
+     * consistency and self-improvement."
+     */
+    fun getAchievementLines(): List<String> = listOf(
+        "This certificate is awarded to $studentName",
+        "for successfully unlocking $levelName",
+        "through demonstrated discipline,",
+        "consistency and self-improvement."
+    )
+
+    fun getAchievementText(): String = getAchievementLines().joinToString("\n")
+
+    val levelInfoLine: String
+        get() = "Level: $levelName   •   XP: $totalXP   •   Arc Day: $arcDay"
+
+    val quoteLines: List<String>
+        get() = listOf(
+            "\"The protocol rewards action,",
+            "not intention.\""
+        )
 
     companion object {
         fun generateCertificateId(level: Int): String {
@@ -35,13 +61,8 @@ data class CertificateData(
         }
 
         fun defaultEvaluationForLevel(level: Int, rankTitle: String): String {
-            return when {
-                level >= 22 -> "Unmatched mental discipline. Subject has transcended civilian habits and operates with peak biological and cognitive dominance within the REBUILD protocol."
-                level >= 16 -> "High-tier execution demonstrated. Relentless consistency in deep work, structured physical conditioning, and rigorous academic mastery."
-                level >= 10 -> "Substantial transformation recorded. Habit loops stabilized, distractions curtailed, and target performance consistently delivered."
-                level >= 6 -> "Active commitment verified. Breaking out of comfort zones and building foundational momentum towards the target examination."
-                else -> "Initial protocol compliance initiated. Urgency must be elevated to maintain required trajectory toward academic victory."
-            }
+            return "\"The protocol rewards action,\nnot intention.\""
         }
     }
 }
+

@@ -1,5 +1,6 @@
 package com.example.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -22,7 +23,18 @@ class AppInitViewModel(
     private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
 
-    private val _startupState = MutableStateFlow<AppStartupState>(AppStartupState.Loading)
+    companion object {
+        private const val TAG = "Splash"
+    }
+
+    // Source of truth: initialize immediately from persistent storage
+    private val _startupState = MutableStateFlow<AppStartupState>(
+        if (userPreferencesRepository.isOnboardingCompletedSync()) {
+            AppStartupState.Ready
+        } else {
+            AppStartupState.NeedsOnboarding
+        }
+    )
     val startupState: StateFlow<AppStartupState> = _startupState.asStateFlow()
 
     init {
@@ -31,38 +43,45 @@ class AppInitViewModel(
 
     fun checkStartupState() {
         viewModelScope.launch {
+            Log.d(TAG, "Splash → Checking onboarding state")
             try {
-                // Check both DataStore and Room DB for rock-solid consistency
-                val dataStoreCompleted = userPreferencesRepository.isOnboardingCompleted.first()
-                val profileDirect = repository.getUserProfileDirect()
-                val dbCompleted = profileDirect != null && profileDirect.isCompleted
+                // Use single persistent onboarding flag as the source of truth.
+                // No hardcoded onboarding bypasses.
+                val isCompleted = userPreferencesRepository.isOnboardingCompleted.first()
+                Log.d(TAG, "Onboarding Completed = $isCompleted")
 
-                val isOnboarded = dataStoreCompleted || dbCompleted
+                val target = if (isCompleted) "Dashboard" else "Onboarding"
+                Log.d(TAG, "Navigation Target = $target")
 
-                // If DB is completed but DataStore was out-of-sync, sync it immediately
-                if (dbCompleted && !dataStoreCompleted) {
-                    userPreferencesRepository.setOnboardingCompleted(true)
-                }
-
-                _startupState.value = if (isOnboarded) {
+                _startupState.value = if (isCompleted) {
                     AppStartupState.Ready
                 } else {
                     AppStartupState.NeedsOnboarding
                 }
             } catch (e: Exception) {
-                // Fallback direct check
-                val profileDirect = repository.getUserProfileDirect()
-                if (profileDirect != null && profileDirect.isCompleted) {
-                    _startupState.value = AppStartupState.Ready
+                // Synchronous fallback to SharedPreferences persistent flag
+                val isCompleted = userPreferencesRepository.isOnboardingCompletedSync()
+                Log.d(TAG, "Onboarding Completed = $isCompleted")
+
+                val target = if (isCompleted) "Dashboard" else "Onboarding"
+                Log.d(TAG, "Navigation Target = $target")
+
+                _startupState.value = if (isCompleted) {
+                    AppStartupState.Ready
                 } else {
-                    _startupState.value = AppStartupState.NeedsOnboarding
+                    AppStartupState.NeedsOnboarding
                 }
             }
         }
     }
 
     fun onOnboardingFinished() {
-        _startupState.value = AppStartupState.Ready
+        Log.d(TAG, "Onboarding Completed = true")
+        Log.d(TAG, "Navigation Target = Dashboard")
+        viewModelScope.launch {
+            userPreferencesRepository.setOnboardingCompleted(true)
+            _startupState.value = AppStartupState.Ready
+        }
     }
 }
 

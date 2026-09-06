@@ -98,6 +98,7 @@ fun HomeScreen(
     onNavigateToPomodoro: () -> Unit,
     onNavigateToWinterArc: () -> Unit,
     onNavigateToBoardExam: () -> Unit,
+    onNavigateToRankReport: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -114,7 +115,8 @@ fun HomeScreen(
             BrandHeader(
                 xp = uiState.winterArcState.xp,
                 level = uiState.winterArcState.level,
-                onOpenDrawer = onOpenDrawer
+                onOpenDrawer = onOpenDrawer,
+                onBadgeClick = onNavigateToRankReport
             )
         }
 
@@ -255,6 +257,7 @@ fun BrandHeader(
     xp: Int,
     level: Int,
     onOpenDrawer: () -> Unit = {},
+    onBadgeClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -264,7 +267,10 @@ fun BrandHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f, fill = false)
+        ) {
             IconButton(
                 onClick = onOpenDrawer,
                 modifier = Modifier
@@ -280,7 +286,7 @@ fun BrandHeader(
                     modifier = Modifier.size(20.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
             Image(
                 painter = painterResource(id = R.drawable.rebuild_logo),
                 contentDescription = "REBUILD Logo",
@@ -289,7 +295,7 @@ fun BrandHeader(
                     .clip(RoundedCornerShape(8.dp))
                     .border(1.dp, IceCyanPrimary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
             )
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Column {
                 Text(
                     text = "REBUILD",
@@ -297,18 +303,27 @@ fun BrandHeader(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
                     color = GlassWhite,
-                    fontSize = 18.sp
+                    fontSize = 17.sp,
+                    maxLines = 1
                 )
                 Text(
                     text = "Dashboard",
                     style = MaterialTheme.typography.labelSmall,
                     fontSize = 11.sp,
-                    color = GlassWhiteMuted
+                    color = GlassWhiteMuted,
+                    maxLines = 1
                 )
             }
         }
 
-        CompactLevelXpBadge(level = level, xp = xp)
+        Spacer(modifier = Modifier.width(8.dp))
+
+        CompactLevelXpBadge(
+            level = level,
+            xp = xp,
+            onClick = onBadgeClick,
+            modifier = Modifier.testTag("dashboard_xp_badge")
+        )
     }
 }
 

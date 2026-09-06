@@ -194,7 +194,11 @@ class OnboardingViewModel(
 
         _uiState.update { it.copy(isSaving = true) }
         viewModelScope.launch {
-            repository.initializeUserSystem(entity)
+            try {
+                repository.initializeUserSystem(entity)
+            } catch (e: Exception) {
+                android.util.Log.e("Onboarding", "Error initializing user system", e)
+            }
             userPreferencesRepository.setOnboardingCompleted(true)
             userPreferencesRepository.setUserName(entity.name)
             userPreferencesRepository.setDailyGoalHours(entity.dailyStudyGoalHours.toInt().toString())

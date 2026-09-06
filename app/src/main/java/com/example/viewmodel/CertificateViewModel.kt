@@ -31,6 +31,12 @@ sealed interface ExportStatus {
     data class Error(val message: String) : ExportStatus
 }
 
+data class MintSuccessData(
+    val level: Int,
+    val rankTitle: String,
+    val xpDeducted: Int
+)
+
 data class CertificateUiState(
     val certificateData: CertificateData = CertificateData(),
     val availableLevels: List<Pair<Int, String>> = emptyList(),
@@ -43,6 +49,11 @@ data class CertificateUiState(
     val liveProfileLoaded: Boolean = false,
     val selectedRankForMint: RankLevel? = null,
     val isMinting: Boolean = false,
+    val selectedRankForUnlock: RankLevel? = null,
+    val isUnlocking: Boolean = false,
+    val mintSuccessData: MintSuccessData? = null,
+    val showExportBottomSheet: Boolean = false,
+    val exportSuccessToast: String? = null,
     val messageSnackbar: String? = null
 )
 
@@ -89,8 +100,60 @@ class CertificateViewModel(
         _uiState.update { it.copy(selectedRankForMint = null, isMinting = false) }
     }
 
+    fun openUnlockModal(rank: RankLevel) {
+        _uiState.update { it.copy(selectedRankForUnlock = rank) }
+    }
+
+    fun dismissUnlockModal() {
+        _uiState.update { it.copy(selectedRankForUnlock = null, isUnlocking = false) }
+    }
+
+    fun confirmUnlockLevel(rank: RankLevel) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isUnlocking = true) }
+            val res = repository.purchaseLevel(rank.level)
+            res.onSuccess {
+                val newBalance = repository.getCurrentXpBalance()
+                _uiState.update { current ->
+                    current.copy(
+                        isUnlocking = false,
+                        selectedRankForUnlock = null,
+                        unlockedLevels = current.unlockedLevels + rank.level,
+                        currentXpBalance = newBalance,
+                        messageSnackbar = "Level ${rank.level} Unlocked!"
+                    )
+                }
+                selectLevel(rank.level)
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(
+                        isUnlocking = false,
+                        selectedRankForUnlock = null,
+                        messageSnackbar = err.message ?: "Failed to unlock level"
+                    )
+                }
+            }
+        }
+    }
+
     fun clearSnackbar() {
         _uiState.update { it.copy(messageSnackbar = null) }
+    }
+
+    fun dismissMintSuccessData() {
+        _uiState.update { it.copy(mintSuccessData = null) }
+    }
+
+    fun openExportSheet() {
+        _uiState.update { it.copy(showExportBottomSheet = true) }
+    }
+
+    fun dismissExportSheet() {
+        _uiState.update { it.copy(showExportBottomSheet = false) }
+    }
+
+    fun clearExportSuccessToast() {
+        _uiState.update { it.copy(exportSuccessToast = null) }
     }
 
     fun confirmMintCertificate(rank: RankLevel) {
@@ -98,18 +161,26 @@ class CertificateViewModel(
             _uiState.update { it.copy(isMinting = true) }
             val res = repository.mintCertificate(rank.level)
             res.onSuccess {
+                val newBalance = repository.getCurrentXpBalance()
                 _uiState.update {
                     it.copy(
                         isMinting = false,
                         selectedRankForMint = null,
-                        messageSnackbar = "Certificate for Level ${rank.level} successfully minted!"
+                        currentXpBalance = newBalance,
+                        mintedCertificates = it.mintedCertificates + rank.level,
+                        mintSuccessData = MintSuccessData(
+                            level = rank.level,
+                            rankTitle = rank.title,
+                            xpDeducted = rank.certificateCost
+                        ),
+                        messageSnackbar = "Certificate for Level ${rank.level} successfully generated!"
                     )
                 }
             }.onFailure { err ->
                 _uiState.update {
                     it.copy(
                         isMinting = false,
-                        messageSnackbar = err.message ?: "Failed to mint certificate"
+                        messageSnackbar = err.message ?: "Failed to generate certificate"
                     )
                 }
             }
@@ -204,7 +275,12 @@ class CertificateViewModel(
 
     fun updateDateAchieved(date: String) {
         _uiState.update { current ->
-            current.copy(certificateData = current.certificateData.copy(dateAchieved = date))
+            current.copy(
+                certificateData = current.certificateData.copy(
+                    dateAchieved = date,
+                    issueDate = date
+                )
+            )
         }
     }
 
@@ -277,6 +353,57 @@ class CertificateViewModel(
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(exportStatus = ExportStatus.Error("Failed to export PDF: ${e.message}"))
+                }
+            }
+        }
+    }
+
+    fun exportFormat(context: Context, format: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(exportStatus = ExportStatus.Exporting) }
+            try {
+                val certData = _uiState.value.certificateData
+                val upperFormat = format.uppercase(Locale.ROOT)
+                val (file, mimeType, ext) = when (upperFormat) {
+                    "PDF" -> Triple(
+                        CertificateGeneratorEngine.exportToPdf(context, certData),
+                        "application/pdf",
+                        "pdf"
+                    )
+                    "PNG" -> Triple(
+                        CertificateGeneratorEngine.exportToPng(context, certData),
+                        "image/png",
+                        "png"
+                    )
+                    else -> Triple(
+                        CertificateGeneratorEngine.exportToJpg(context, certData),
+                        "image/jpeg",
+                        "jpg"
+                    )
+                }
+                val savedFile = CertificateGeneratorEngine.saveFileToDeviceStorage(
+                    context = context,
+                    sourceFile = file,
+                    mimeType = mimeType,
+                    displayName = "REBUILD_Certificate_${certData.certificateId}.$ext"
+                )
+                _uiState.update {
+                    it.copy(
+                        showExportBottomSheet = false,
+                        exportSuccessToast = "Certificate saved as $upperFormat",
+                        exportStatus = ExportStatus.Success(
+                            message = "Certificate saved as $upperFormat",
+                            file = savedFile,
+                            mimeType = mimeType
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        showExportBottomSheet = false,
+                        exportStatus = ExportStatus.Error("Failed to save $format: ${e.message}")
+                    )
                 }
             }
         }

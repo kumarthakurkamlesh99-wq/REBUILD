@@ -38,4 +38,7 @@ interface XpTransactionDao {
 
     @Query("DELETE FROM xp_transactions")
     suspend fun clearAll()
+
+    @Query("DELETE FROM xp_transactions WHERE title IN ('System Calibration & Discipline Protocol', 'Deep Work: Physics (Electrostatics)', 'Calisthenics Push & Squat Circuit', 'Formula Flashcard Sweep')")
+    suspend fun deleteLegacySeededTransactions(): Int
 }

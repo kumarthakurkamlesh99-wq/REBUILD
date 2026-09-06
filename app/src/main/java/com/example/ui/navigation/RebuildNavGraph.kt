@@ -276,10 +276,15 @@ fun RebuildAppScaffold(
                 composable(Screen.Splash.route) {
                     RebuildSplashScreen(
                         onFinished = {
-                            val targetRoute = if (startupState is com.example.viewmodel.AppStartupState.NeedsOnboarding) {
-                                Screen.Onboarding.route
-                            } else {
+                            val isCompleted = application.userPreferencesRepository.isOnboardingCompletedSync()
+                            android.util.Log.d("Splash", "Splash → Checking onboarding state")
+                            android.util.Log.d("Splash", "Onboarding Completed = $isCompleted")
+                            val targetRoute = if (isCompleted) {
+                                android.util.Log.d("Splash", "Navigation Target = Dashboard")
                                 Screen.Home.route
+                            } else {
+                                android.util.Log.d("Splash", "Navigation Target = Onboarding")
+                                Screen.Onboarding.route
                             }
                             navController.navigate(targetRoute) {
                                 popUpTo(Screen.Splash.route) { inclusive = true }
@@ -293,7 +298,10 @@ fun RebuildAppScaffold(
                     OnboardingScreen(
                         viewModel = onboardingViewModel,
                         onComplete = {
+                            application.userPreferencesRepository.setOnboardingCompletedSync(true)
                             onOnboardingComplete()
+                            android.util.Log.d("Splash", "Onboarding Completed = true")
+                            android.util.Log.d("Splash", "Navigation Target = Dashboard")
                             navController.navigate(Screen.Home.route) {
                                 popUpTo(Screen.Onboarding.route) { inclusive = true }
                             }
@@ -310,7 +318,8 @@ fun RebuildAppScaffold(
                         onNavigateToPlanner = { navController.navigate(Screen.Tasks.route) },
                         onNavigateToPomodoro = { navController.navigate(Screen.Focus.route) },
                         onNavigateToWinterArc = { navController.navigate(Screen.WinterArc.route) },
-                        onNavigateToBoardExam = { navController.navigate(Screen.BoardExam.route) }
+                        onNavigateToBoardExam = { navController.navigate(Screen.BoardExam.route) },
+                        onNavigateToRankReport = { navController.navigate(Screen.RankReport.route) }
                     )
                 }
 

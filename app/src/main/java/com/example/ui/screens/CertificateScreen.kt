@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -46,6 +47,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import com.example.ui.components.MintCertificateModal
+import com.example.ui.components.UnlockLevelModal
+import com.example.ui.components.CertificateCelebrationModal
+import com.example.ui.components.SaveCertificateBottomSheet
+import androidx.compose.ui.platform.testTag
 import com.example.data.model.RankLevelSystem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -132,6 +137,13 @@ fun CertificateScreen(
         state.messageSnackbar?.let { msg ->
             snackbarHostState.showSnackbar(msg)
             viewModel.clearSnackbar()
+        }
+    }
+
+    LaunchedEffect(state.exportSuccessToast) {
+        state.exportSuccessToast?.let { toastMsg ->
+            snackbarHostState.showSnackbar(toastMsg)
+            viewModel.clearExportSuccessToast()
         }
     }
 
@@ -222,7 +234,12 @@ fun CertificateScreen(
                     currentLevel = state.certificateData.level,
                     unlockedLevels = state.unlockedLevels,
                     mintedCertificates = state.mintedCertificates,
-                    onSelectLevel = { viewModel.selectLevel(it) }
+                    onSelectLevel = { viewModel.selectLevel(it) },
+                    onLockedLevelClick = { lvl ->
+                        RankLevelSystem.RANKS.find { it.level == lvl }?.let { rank ->
+                            viewModel.openUnlockModal(rank)
+                        }
+                    }
                 )
             }
 
@@ -232,7 +249,7 @@ fun CertificateScreen(
                     Surface(
                         shape = RoundedCornerShape(14.dp),
                         color = Color(0xFF140D1E),
-                        border = BorderStroke(1.dp, Color(0x66FF4444)),
+                        border = BorderStroke(1.dp, PurpleArc.copy(alpha = 0.5f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -242,7 +259,7 @@ fun CertificateScreen(
                             Icon(
                                 imageVector = Icons.Default.Lock,
                                 contentDescription = null,
-                                tint = DangerRed,
+                                tint = PurpleArc,
                                 modifier = Modifier.size(32.dp)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -254,11 +271,30 @@ fun CertificateScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Unlock Level ${currentRank.level} in the Rank Hierarchy before claiming its certificate.",
+                                text = "🔒 Unlock previous levels first or unlock with XP.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = GlassWhiteMuted,
                                 textAlign = TextAlign.Center
                             )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = { viewModel.openUnlockModal(currentRank) },
+                                colors = ButtonDefaults.buttonColors(containerColor = PurpleArc),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = GlassWhite,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Unlock Level ${currentRank.level}",
+                                    color = GlassWhite,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
@@ -343,9 +379,7 @@ fun CertificateScreen(
                 item {
                     ExportActionPanel(
                         exportStatus = state.exportStatus,
-                        onExportPdf = { viewModel.exportPdf(context) },
-                        onExportPng = { viewModel.exportPng(context) },
-                        onExportJpg = { viewModel.exportJpg(context) },
+                        onOpenExportSheet = { viewModel.openExportSheet() },
                         onPrint = { activity?.let { viewModel.printCertificate(it) } }
                     )
                 }
@@ -362,6 +396,17 @@ fun CertificateScreen(
         }
     }
 
+    // Modal: Unlock Level
+    state.selectedRankForUnlock?.let { rank ->
+        UnlockLevelModal(
+            rank = rank,
+            currentXpBalance = state.currentXpBalance,
+            isUnlocking = state.isUnlocking,
+            onConfirmUnlock = { viewModel.confirmUnlockLevel(rank) },
+            onDismiss = { viewModel.dismissUnlockModal() }
+        )
+    }
+
     // Modal: Mint Certificate
     state.selectedRankForMint?.let { rank ->
         MintCertificateModal(
@@ -370,6 +415,32 @@ fun CertificateScreen(
             isMinting = state.isMinting,
             onConfirmMint = { viewModel.confirmMintCertificate(rank) },
             onDismiss = { viewModel.dismissMintModal() }
+        )
+    }
+
+    // Modal: Certificate Mint Celebration
+    state.mintSuccessData?.let { data ->
+        CertificateCelebrationModal(
+            level = data.level,
+            rankTitle = data.rankTitle,
+            xpDeducted = data.xpDeducted,
+            onViewCertificate = { viewModel.dismissMintSuccessData() },
+            onSaveCertificate = {
+                viewModel.dismissMintSuccessData()
+                viewModel.openExportSheet()
+            },
+            onDismiss = { viewModel.dismissMintSuccessData() }
+        )
+    }
+
+    // Bottom Sheet: Save Certificate format chooser
+    if (state.showExportBottomSheet) {
+        SaveCertificateBottomSheet(
+            exportStatus = state.exportStatus,
+            onSelectFormat = { format ->
+                viewModel.exportFormat(context, format)
+            },
+            onDismiss = { viewModel.dismissExportSheet() }
         )
     }
 
@@ -449,7 +520,8 @@ private fun LevelSelectorRow(
     currentLevel: Int,
     unlockedLevels: Set<Int>,
     mintedCertificates: Set<Int>,
-    onSelectLevel: (Int) -> Unit
+    onSelectLevel: (Int) -> Unit,
+    onLockedLevelClick: (Int) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -519,7 +591,12 @@ private fun LevelSelectorRow(
                     shape = RoundedCornerShape(8.dp),
                     color = cardBg,
                     border = borderStroke,
-                    modifier = Modifier.clickable { onSelectLevel(lvl) }
+                    modifier = Modifier.clickable {
+                        onSelectLevel(lvl)
+                        if (!isUnlocked) {
+                            onLockedLevelClick(lvl)
+                        }
+                    }
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -530,32 +607,39 @@ private fun LevelSelectorRow(
                                 imageVector = Icons.Default.Lock,
                                 contentDescription = "Locked",
                                 tint = if (isSelected) DarkNavy else GlassWhiteMuted,
-                                modifier = Modifier.size(12.dp)
+                                modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                        } else if (isMinted) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = "Minted",
-                                tint = if (isSelected) DarkNavy else SuccessGreen,
-                                modifier = Modifier.size(12.dp)
+                            Text(
+                                text = "Level $lvl",
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isSelected) DarkNavy else GlassWhiteMuted,
+                                fontSize = 12.sp
+                            )
+                        } else {
+                            if (isMinted) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Minted",
+                                    tint = if (isSelected) DarkNavy else SuccessGreen,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+                            Text(
+                                text = "L$lvl",
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (isSelected) DarkNavy else if (isMinted) SuccessGreen else IceCyanPrimary,
+                                fontSize = 12.sp
                             )
                             Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = title,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) DarkNavy else Color.White,
+                                fontSize = 11.sp
+                            )
                         }
-
-                        Text(
-                            text = "L$lvl",
-                            fontWeight = FontWeight.ExtraBold,
-                            color = if (isSelected) DarkNavy else if (isMinted) SuccessGreen else if (isUnlocked) IceCyanPrimary else GlassWhiteMuted,
-                            fontSize = 12.sp
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = title,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) DarkNavy else if (isUnlocked) Color.White else GlassWhiteMuted,
-                            fontSize = 11.sp
-                        )
                     }
                 }
             }
@@ -572,7 +656,7 @@ private fun CertificateFieldsEditorCard(
     onNameChange: (String) -> Unit,
     onClassChange: (String) -> Unit,
     onDateChange: (String) -> Unit,
-    onEvaluationChange: (String) -> Unit,
+    onEvaluationChange: (String) -> Unit = {},
     onResetToLive: () -> Unit
 ) {
     Surface(
@@ -634,27 +718,11 @@ private fun CertificateFieldsEditorCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             OutlinedTextField(
-                value = data.dateAchieved,
+                value = data.issueDate,
                 onValueChange = onDateChange,
-                label = { Text("Date Achieved") },
+                label = { Text("Issue Date") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = IceCyanPrimary,
-                    unfocusedBorderColor = Color(0x337C8CFF),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
-                )
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            OutlinedTextField(
-                value = data.aiEvaluation,
-                onValueChange = onEvaluationChange,
-                label = { Text("AI Protocol Evaluation") },
-                modifier = Modifier.fillMaxWidth(),
-                maxLines = 3,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = IceCyanPrimary,
                     unfocusedBorderColor = Color(0x337C8CFF),
@@ -668,8 +736,15 @@ private fun CertificateFieldsEditorCard(
 
 /**
  * The Master Certificate Layout Preview
- * Strictly uses R.drawable.rebuild_certificate_template as the base background
- * with precise typography matching official government-style certificates.
+ * Strictly uses R.drawable.rebuild_certificate_template as the base background.
+ * Overlays dynamic data strictly in designated safe areas matching the 7 mandated sections:
+ * 1. Student Name
+ * 2. Class Information
+ * 3. Achievement Statement
+ * 4. Level Information Bar
+ * 5. Quote Section
+ * 6. Date Section
+ * 7. Certificate ID
  */
 @Composable
 private fun CertificateMasterPreview(
@@ -698,222 +773,223 @@ private fun CertificateMasterPreview(
             ) {
                 val boxWidth = maxWidth
                 val boxHeight = maxHeight
+                val maxSafeWidth = boxWidth * 0.74f
 
-                // Master Template Base Image (Guilloche border, Laurel wreath, CERTIFICATE header, Seal, Signatures)
-                Image(
-                    painter = painterResource(id = R.drawable.rebuild_certificate_template),
-                    contentDescription = "Master Certificate Template",
-                    contentScale = ContentScale.FillBounds,
-                    modifier = Modifier.fillMaxSize()
-                )
-
-                // Dynamic Overlaid Data Elements in exact coordinates
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = boxWidth * 0.12f),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Spacing to clear top laurel wreath and CERTIFICATE banner (approx 39% height)
-                    Spacer(modifier = Modifier.height(boxHeight * 0.38f))
-
-                    // 1. Subtitle Header
-                    Text(
-                        text = "THIS CERTIFICATE IS PROUDLY PRESENTED TO",
-                        color = Color(0xFF1B365D),
-                        fontSize = (boxWidth.value * 0.024f).sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Serif,
-                        letterSpacing = 1.2.sp,
-                        textAlign = TextAlign.Center
+                if (!isUnlocked) {
+                    // LOCKED CERTIFICATE: Heavy dark blur & overlay. No readable content visible!
+                    Image(
+                        painter = painterResource(id = R.drawable.rebuild_certificate_template),
+                        contentDescription = "Locked Certificate Template",
+                        contentScale = ContentScale.FillBounds,
+                        modifier = Modifier.fillMaxSize()
                     )
 
-                    Spacer(modifier = Modifier.height(boxHeight * 0.008f))
-
-                    // 2. Student Name
-                    Text(
-                        text = data.studentName,
-                        color = Color(0xFF0A192F),
-                        fontSize = (boxWidth.value * 0.052f).sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Serif,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    // Gold divider line
-                    Box(
-                        modifier = Modifier
-                            .width(boxWidth * 0.62f)
-                            .height(1.5.dp)
-                            .background(Color(0xFFC69214))
-                    )
-
-                    Spacer(modifier = Modifier.height(boxHeight * 0.006f))
-
-                    // 3. Class and Cohort
-                    Text(
-                        text = data.studentClass,
-                        color = Color(0xFF203A63),
-                        fontSize = (boxWidth.value * 0.026f).sp,
-                        fontStyle = FontStyle.Italic,
-                        fontFamily = FontFamily.Serif,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(boxHeight * 0.012f))
-
-                    // 4. Achievement Text
-                    Text(
-                        text = data.getAchievementText(),
-                        color = Color(0xFF1B2A4A),
-                        fontSize = (boxWidth.value * 0.023f).sp,
-                        fontFamily = FontFamily.Serif,
-                        textAlign = TextAlign.Center,
-                        lineHeight = (boxWidth.value * 0.033f).sp,
-                        modifier = Modifier.fillMaxWidth(0.92f)
-                    )
-
-                    Spacer(modifier = Modifier.height(boxHeight * 0.014f))
-
-                    // 5. Protocol Metrics Badge Row
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = Color(0x0CF0F4F8),
-                        border = BorderStroke(0.8.dp, Color(0x40C69214))
-                    ) {
-                        Text(
-                            text = "Level ${data.level} (${data.rankTitle})  •  ${String.format("%,d", data.xp)} XP  •  ${data.streak}D Streak  •  Arc Day ${data.winterArcDay}",
-                            color = Color(0xFF0B2545),
-                            fontSize = (boxWidth.value * 0.022f).sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(boxHeight * 0.012f))
-
-                    // 6. AI Evaluation
-                    Text(
-                        text = "AI PROTOCOL EVALUATION",
-                        color = Color(0xFFC69214),
-                        fontSize = (boxWidth.value * 0.018f).sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.8.sp
-                    )
-                    Text(
-                        text = "\"${data.aiEvaluation}\"",
-                        color = Color(0xFF2D3748),
-                        fontSize = (boxWidth.value * 0.021f).sp,
-                        fontStyle = FontStyle.Italic,
-                        fontFamily = FontFamily.Serif,
-                        textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        lineHeight = (boxWidth.value * 0.028f).sp,
-                        modifier = Modifier.fillMaxWidth(0.88f)
-                    )
-
-                    Spacer(modifier = Modifier.height(boxHeight * 0.012f))
-
-                    // 7. Date Achieved
-                    Text(
-                        text = "DATE OF ISSUANCE: ${data.dateAchieved.uppercase()}",
-                        color = Color(0xFF1B365D),
-                        fontSize = (boxWidth.value * 0.020f).sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Serif,
-                        letterSpacing = 0.5.sp
-                    )
-
-                    // Spacing down to signature lines above the bottom seal
-                    Spacer(modifier = Modifier.height(boxHeight * 0.065f))
-
-                    // 8. Signatures: REBUILD Neural Engine (Left) & REBUILD Achievement Authority (Right)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "REBUILD Neural Engine",
-                                color = Color(0xFF0A192F),
-                                fontSize = (boxWidth.value * 0.022f).sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Serif
-                            )
-                            Text(
-                                text = "[DIGITALLY SIGNED]",
-                                color = Color(0xFF718096),
-                                fontSize = (boxWidth.value * 0.016f).sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "REBUILD Achievement Authority",
-                                color = Color(0xFF0A192F),
-                                fontSize = (boxWidth.value * 0.022f).sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Serif
-                            )
-                            Text(
-                                text = "[VERIFIED AUTHORITY]",
-                                color = Color(0xFF718096),
-                                fontSize = (boxWidth.value * 0.016f).sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(boxHeight * 0.028f))
-
-                    // 9. Footer ID & Hash
-                    Text(
-                        text = if (isMinted) "ID: ${data.certificateId}   •   HASH: ${data.verificationHash.take(16)}..." else "ID: UNISSUED (MINT REQUIRED)   •   PREVIEW MODE",
-                        color = Color(0xFF4A5568),
-                        fontSize = (boxWidth.value * 0.017f).sp,
-                        fontFamily = FontFamily.Monospace,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                // Watermark overlay if not minted
-                if (!isMinted) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color(0x66070E1A)),
+                            .background(Color(0xF8060B16)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xDD000000),
-                            border = BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.6f))
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(24.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.padding(14.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                            Box(
+                                modifier = Modifier
+                                    .size(68.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF140D26))
+                                    .border(1.5.dp, PurpleArc, CircleShape),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "OFFICIAL PREVIEW WATERMARK",
-                                    color = Color(0xFFFFD700),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp
-                                )
-                                Text(
-                                    text = if (isUnlocked) "Tap Mint to certify and unlock export" else "Unlock level to access certificate",
-                                    color = Color.White.copy(alpha = 0.8f),
-                                    fontSize = 10.sp
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = PurpleArc,
+                                    modifier = Modifier.size(34.dp)
                                 )
                             }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "LOCKED CERTIFICATE",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = GlassWhite,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "🔒 Unlock previous levels first.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = GlassWhiteMuted,
+                                textAlign = TextAlign.Center
+                            )
                         }
+                    }
+                } else {
+                    // 1. Master Template Base Image (exact, un-modified background)
+                    Image(
+                        painter = painterResource(id = R.drawable.rebuild_certificate_template),
+                        contentDescription = "Master Certificate Template",
+                        contentScale = ContentScale.FillBounds,
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    // 2. Dynamic Data Overlays strictly positioned within safe area
+                    // 1. Student Name (Large bold serif font, Center aligned, Single line only, Auto shrink)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = boxHeight * (422f / 1200f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = data.studentName,
+                            color = Color(0xFF0A192F),
+                            fontSize = (boxWidth.value * 0.045f).sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Serif,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = maxSafeWidth)
+                        )
+                    }
+
+                    // 2. Class Information (Directly below name, Medium size)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = boxHeight * (468f / 1200f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = data.studentClass,
+                            color = Color(0xFF203A63),
+                            fontSize = (boxWidth.value * 0.024f).sp,
+                            fontFamily = FontFamily.Serif,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            modifier = Modifier.widthIn(max = maxSafeWidth)
+                        )
+                    }
+
+                    // 3. Achievement Statement (Maximum 4 lines, Perfect line spacing, No overlap)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = boxHeight * (522f / 1200f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.widthIn(max = maxSafeWidth)
+                        ) {
+                            data.getAchievementLines().take(4).forEach { line ->
+                                Text(
+                                    text = line,
+                                    color = Color(0xFF1B2A4A),
+                                    fontSize = (boxWidth.value * 0.020f).sp,
+                                    fontFamily = FontFamily.Serif,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+                                Spacer(modifier = Modifier.height(boxHeight * (4f / 1200f)))
+                            }
+                        }
+                    }
+
+                    // 4. Level Information Bar (Single horizontal line)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = boxHeight * (646f / 1200f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = data.levelInfoLine,
+                            color = Color(0xFF0B2545),
+                            fontSize = (boxWidth.value * 0.018f).sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.SansSerif,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            modifier = Modifier.widthIn(max = maxSafeWidth)
+                        )
+                    }
+
+                    // 5. Quote Section ("The protocol rewards action,\nnot intention.", Center aligned)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = boxHeight * (698f / 1200f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.widthIn(max = maxSafeWidth)
+                        ) {
+                            data.quoteLines.forEach { quoteLine ->
+                                Text(
+                                    text = quoteLine,
+                                    color = Color(0xFF2D3748),
+                                    fontSize = (boxWidth.value * 0.019f).sp,
+                                    fontStyle = FontStyle.Italic,
+                                    fontFamily = FontFamily.Serif,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+                                Spacer(modifier = Modifier.height(boxHeight * (2f / 1200f)))
+                            }
+                        }
+                    }
+
+                    // 6. Date Section (Issue Date:\n{issueDate})
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = boxHeight * (972f / 1200f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.widthIn(max = maxSafeWidth)
+                        ) {
+                            Text(
+                                text = "Issue Date:",
+                                color = Color(0xFF1B365D),
+                                fontSize = (boxWidth.value * 0.017f).sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Serif,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(boxHeight * (2f / 1200f)))
+                            Text(
+                                text = data.issueDate,
+                                color = Color(0xFF203A63),
+                                fontSize = (boxWidth.value * 0.018f).sp,
+                                fontFamily = FontFamily.Serif,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+
+                    // 7. Certificate ID (ID: {certificateId}, Small text near bottom)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = boxHeight * (1044f / 1200f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "ID: ${data.certificateId}",
+                            color = Color(0xFF4A5568),
+                            fontSize = (boxWidth.value * 0.015f).sp,
+                            fontFamily = FontFamily.Monospace,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1
+                        )
                     }
                 }
             }
@@ -922,14 +998,12 @@ private fun CertificateMasterPreview(
 }
 
 /**
- * Export Toolbar: High-Resolution A4 PDF, PNG, JPG, Print, Share
+ * Export Toolbar: SAVE CERTIFICATE (Triggers Format Bottom Sheet) & Print
  */
 @Composable
 private fun ExportActionPanel(
     exportStatus: ExportStatus,
-    onExportPdf: () -> Unit,
-    onExportPng: () -> Unit,
-    onExportJpg: () -> Unit,
+    onOpenExportSheet: () -> Unit,
     onPrint: () -> Unit
 ) {
     Surface(
@@ -938,7 +1012,7 @@ private fun ExportActionPanel(
         border = BorderStroke(1.dp, Color(0x337C8CFF)),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -951,7 +1025,7 @@ private fun ExportActionPanel(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "HIGH-RESOLUTION EXPORT ENGINE",
+                    text = "CERTIFICATE EXPORT ENGINE",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -976,87 +1050,55 @@ private fun ExportActionPanel(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Rendering High-Resolution Master Certificate...",
+                        text = "Saving certificate to device storage...",
                         color = Color.White,
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             } else {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // PDF Button (Primary A4)
                     Button(
-                        onClick = onExportPdf,
-                        shape = RoundedCornerShape(10.dp),
+                        onClick = onOpenExportSheet,
+                        shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp)
+                            .testTag("save_certificate_button")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PictureAsPdf,
+                            imageVector = Icons.Default.Download,
                             contentDescription = null,
                             tint = DarkNavy,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "PDF (A4)",
+                            text = "SAVE CERTIFICATE",
                             color = DarkNavy,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.sp,
+                            letterSpacing = 0.5.sp
                         )
                     }
 
-                    // PNG Button
-                    Button(
-                        onClick = onExportPng,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E3A8A)),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = "PNG",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    // JPG Button
-                    Button(
-                        onClick = onExportJpg,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E3A8A)),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = "JPG",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    // Print Button
-                    Button(
+                    OutlinedButton(
                         onClick = onPrint,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = LuxuryAccent),
-                        modifier = Modifier.weight(1f)
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0x447C8CFF)),
+                        modifier = Modifier
+                            .height(50.dp)
+                            .testTag("print_certificate_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Print,
-                            contentDescription = null,
+                            contentDescription = "Print",
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Print",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -1065,7 +1107,7 @@ private fun ExportActionPanel(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = "✓ Print-Ready (300 DPI A4 Portrait)   ✓ Gallery-Ready (Lossless PNG)   ✓ Share-Ready",
+                text = "✓ Save as PDF, PNG, or JPG • Automatically stored on device • Print-ready A4",
                 style = MaterialTheme.typography.bodySmall,
                 color = GlassWhiteMuted,
                 fontSize = 10.sp,
