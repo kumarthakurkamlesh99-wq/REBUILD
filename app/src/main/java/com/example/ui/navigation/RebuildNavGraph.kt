@@ -171,6 +171,9 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector,
     object XpLedger : Screen("xp_ledger", "XP Ledger", Icons.Default.Bolt)
     object ProfileSettings : Screen("profile_settings", "Profile Settings", Icons.Default.Person)
     object Certificate : Screen("certificate", "Certificate Engine", Icons.Default.WorkspacePremium, "Official")
+    object Flashcards : Screen("flashcards", "AI Flashcards", Icons.Default.MenuBook, "SM-2")
+    object MistakeNotebook : Screen("mistake_notebook", "Mistake Notebook", Icons.Default.Notes, "Audit")
+    object WeeklyRealityReport : Screen("weekly_reality_report", "Weekly Reality Report", Icons.Default.Analytics, "Sunday")
 }
 
 @Composable
@@ -579,6 +582,46 @@ fun RebuildAppScaffold(
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
+
+                // 18. AI Flashcards & Spaced Recall
+                composable(Screen.Flashcards.route) {
+                    val flashcardsVm: com.example.viewmodel.FlashcardsViewModel = viewModel(
+                        factory = com.example.viewmodel.FlashcardsViewModelFactory(
+                            application.visionTwoRepository,
+                            application.geminiCoachRepository
+                        )
+                    )
+                    com.example.ui.screens.FlashcardsScreen(
+                        viewModel = flashcardsVm,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+
+                // 19. Mistake Notebook
+                composable(Screen.MistakeNotebook.route) {
+                    val mistakeVm: com.example.viewmodel.MistakeNotebookViewModel = viewModel(
+                        factory = com.example.viewmodel.MistakeNotebookViewModelFactory(
+                            application.visionTwoRepository
+                        )
+                    )
+                    com.example.ui.screens.MistakeNotebookScreen(
+                        viewModel = mistakeVm,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+
+                // 20. Weekly Reality Report
+                composable(Screen.WeeklyRealityReport.route) {
+                    val realityVm: com.example.viewmodel.WeeklyRealityReportViewModel = viewModel(
+                        factory = com.example.viewmodel.WeeklyRealityReportViewModelFactory(
+                            application.repository
+                        )
+                    )
+                    com.example.ui.screens.WeeklyRealityReportScreen(
+                        viewModel = realityVm,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
             }
         }
     }
@@ -920,6 +963,33 @@ fun RebuildDrawerContent(
                 isSelected = currentRoute == Screen.Syllabus.route,
                 highlightColor = IceCyanPrimary,
                 onClick = { onNavigate(Screen.Syllabus.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Flashcards,
+                isSelected = currentRoute == Screen.Flashcards.route,
+                highlightColor = IceCyanPrimary,
+                onClick = { onNavigate(Screen.Flashcards.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.MistakeNotebook,
+                isSelected = currentRoute == Screen.MistakeNotebook.route,
+                highlightColor = WarningAmber,
+                onClick = { onNavigate(Screen.MistakeNotebook.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.WeeklyRealityReport,
+                isSelected = currentRoute == Screen.WeeklyRealityReport.route,
+                highlightColor = PurpleArc,
+                onClick = { onNavigate(Screen.WeeklyRealityReport.route) }
             )
         }
 

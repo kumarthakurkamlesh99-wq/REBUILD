@@ -13,15 +13,19 @@ import com.example.data.local.dao.BoardExamDao
 import com.example.data.local.dao.ChatDao
 import com.example.data.local.dao.DailyPlanDao
 import com.example.data.local.dao.DisciplineDao
+import com.example.data.local.dao.DistractionDao
+import com.example.data.local.dao.FlashcardDao
 import com.example.data.local.dao.GoalDao
 import com.example.data.local.dao.HabitDao
 import com.example.data.local.dao.HolidayDao
 import com.example.data.local.dao.LevelPurchaseDao
+import com.example.data.local.dao.MistakeDao
 import com.example.data.local.dao.NoteDao
 import com.example.data.local.dao.ReflectionDao
 import com.example.data.local.dao.SchoolStatusDao
 import com.example.data.local.dao.SubjectDao
 import com.example.data.local.dao.SyllabusDao
+import com.example.data.local.dao.SyllabusSubtopicDao
 import com.example.data.local.dao.UserProfileDao
 import com.example.data.local.dao.WinterArcDao
 import com.example.data.local.dao.WinterArcObjectivesDao
@@ -37,17 +41,22 @@ import com.example.data.local.entity.ChatMessageEntity
 import com.example.data.local.entity.DailyDisciplineEntity
 import com.example.data.local.entity.DailyPlanTaskEntity
 import com.example.data.local.entity.DailyReflectionEntity
+import com.example.data.local.entity.DistractionLogEntity
+import com.example.data.local.entity.FlashcardDeckEntity
+import com.example.data.local.entity.FlashcardEntity
 import com.example.data.local.entity.GoalEntity
 import com.example.data.local.entity.HabitEntity
 import com.example.data.local.entity.HabitLogEntity
 import com.example.data.local.entity.HabitType
 import com.example.data.local.entity.HolidayEntity
 import com.example.data.local.entity.LevelPurchaseEntity
+import com.example.data.local.entity.MistakeEntity
 import com.example.data.local.entity.NoteEntity
 import com.example.data.local.entity.SchoolStatusEntity
 import com.example.data.local.entity.StudySessionEntity
 import com.example.data.local.entity.SubjectEntity
 import com.example.data.local.entity.SyllabusChapterEntity
+import com.example.data.local.entity.SyllabusSubtopicEntity
 import com.example.data.local.entity.SyllabusTopicEntity
 import com.example.data.local.entity.SyllabusUnitEntity
 import com.example.data.local.entity.UserProfileEntity
@@ -84,15 +93,20 @@ import java.util.Locale
         SyllabusUnitEntity::class,
         SyllabusChapterEntity::class,
         SyllabusTopicEntity::class,
+        SyllabusSubtopicEntity::class,
         AlarmEntity::class,
         AlarmLogEntity::class,
         WinterArcObjectiveEntity::class,
         ArcGoalPlanItemEntity::class,
         ChatMessageEntity::class,
         XpTransactionEntity::class,
-        LevelPurchaseEntity::class
+        LevelPurchaseEntity::class,
+        FlashcardDeckEntity::class,
+        FlashcardEntity::class,
+        MistakeEntity::class,
+        DistractionLogEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -111,11 +125,15 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun aiPlanDao(): AiPlanDao
     abstract fun goalDao(): GoalDao
     abstract fun syllabusDao(): SyllabusDao
+    abstract fun syllabusSubtopicDao(): SyllabusSubtopicDao
     abstract fun alarmDao(): AlarmDao
     abstract fun winterArcObjectivesDao(): WinterArcObjectivesDao
     abstract fun chatDao(): ChatDao
     abstract fun xpTransactionDao(): XpTransactionDao
     abstract fun levelPurchaseDao(): LevelPurchaseDao
+    abstract fun flashcardDao(): FlashcardDao
+    abstract fun mistakeDao(): MistakeDao
+    abstract fun distractionDao(): DistractionDao
 
     companion object {
         @Volatile

@@ -1,6 +1,6 @@
 {
   "name": "REBUILD",
-  "description": "Personal Life Operating System combining study planning, fitness tracking, habit matrix, discipline monitoring, school attendance, Winter Arc, and Pomodoro focus engine.",
+  "description": "World-class student performance system combining AI Coach, hierarchical syllabus mastery, active recall flashcards, mistake audit notebook, executive weekly reality reports, Winter Arc discipline, and smart challenge alarms.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

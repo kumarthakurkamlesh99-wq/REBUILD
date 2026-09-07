@@ -24,6 +24,7 @@ class RebuildApplication : Application() {
     val repository by lazy { RebuildRepository(database, this) }
     val userPreferencesRepository by lazy { UserPreferencesRepository(this) }
     val geminiCoachRepository by lazy { GeminiCoachRepository(database, userPreferencesRepository) }
+    val visionTwoRepository by lazy { com.example.data.repository.VisionTwoRepository(database) }
 
     override fun onCreate() {
         super.onCreate()
