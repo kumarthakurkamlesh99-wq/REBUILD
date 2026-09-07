@@ -4,89 +4,107 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.Build
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.text.TextUtils
 import com.example.data.model.CertificateData
 import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Dynamic Layout Engine for Certificate Generation and Preview.
+ * Dynamic Vertical Flow Layout Engine for Certificate Generation and Preview.
  *
- * Implements strict dynamic coordinate placement:
- *   currentY += previousBlockHeight + spacing
- *
- * Guarantees:
- * 1. ZERO text overlap between any blocks.
- * 2. Automatic text wrapping with center alignment (max width: 70% of certificate width).
- * 3. Strict font limits (Name: 32-40px, Info: 18-22px, Achievement: 16-18px,
- *    Body: 14-16px, Quote: 12-14px, ID: 10-12px).
- * 4. Content line clamping (Paragraph max 2-3 lines, Quote max 2 lines).
- * 5. Safe Zones respect (Top margin: 120px, Bottom margin: 180px).
- * 6. Seal protection (Seal at center y=780..940 is NEVER overlapped; text layout adapts around it).
- * 7. Signatures protection (Left and right signature zones are never overlapped).
- * 8. Pre-rendering collision detection and dynamic spacing/font adjustment.
- * 9. Exact same layout applied to in-app preview, PNG, JPG, and PDF exports.
+ * Rules:
+ * 1. ZERO hardcoded Y positions: Every section is positioned strictly relative to previous section:
+ *      Name
+ *      ↓ 20px gap
+ *      Class
+ *      ↓ 20px gap
+ *      Achievement Text
+ *      ↓ 30px gap
+ *      Level Information Box
+ *      ↓ 40px gap
+ *      Seal
+ *      ↓ 40px gap
+ *      Signature Area
+ * 2. Measure text height before rendering each section.
+ * 3. Name field: Center aligned, max width 70%, auto shrink font size until it fits, minimum font size 28px.
+ * 4. Achievement paragraph: Maximum 2 lines, auto wrap, overflow hidden, never overlaps level information.
+ * 5. Render certificate on true A4 canvas: 2480 × 3508 px, 300 DPI.
+ * 6. Preview uses exact A4 aspect ratio (2480f / 3508f) and scales proportionally.
+ * 7. Active collision detection: automatically reduces font size and re-renders until all elements fit.
+ * 8. Certificate generation is NOT complete until all elements fit without overlap.
  */
 object CertificateDynamicLayoutEngine {
 
-    // Base coordinate system matching the master template (896 x 1200)
+    // True A4 Canvas constants at 300 DPI
+    const val A4_CANVAS_WIDTH = 2480
+    const val A4_CANVAS_HEIGHT = 3508
+    const val A4_DPI = 300
+
+    // Base coordinate system matching the original master template (896 x 1200)
     const val BASE_WIDTH = 896f
     const val BASE_HEIGHT = 1200f
 
     // Safe Zones (base pixels)
     const val BASE_SAFE_TOP_MARGIN = 120f
-    const val BASE_SAFE_BOTTOM_MARGIN = 180f
+    const val BASE_SAFE_BOTTOM_MARGIN = 160f
     const val BASE_CONTENT_START_Y = 422f // Directly below presentation header
-    const val MAX_CONTENT_WIDTH_RATIO = 0.70f // 70% of certificate width
+    const val MAX_CONTENT_WIDTH_RATIO = 0.70f // Max width 70%
 
-    // Fixed Seal Zone (base pixels)
+    // Relative Spacing Rules (Rule 4)
+    const val GAP_NAME_TO_CLASS = 20f
+    const val GAP_CLASS_TO_ACHIEVEMENT = 20f
+    const val GAP_ACHIEVEMENT_TO_LEVEL = 30f
+    const val GAP_LEVEL_TO_SEAL = 40f
+    const val GAP_SEAL_TO_SIGNATURE = 40f
+
+    // Backward compatibility aliases
+    const val BASE_SPACING_NAME_TO_INFO = GAP_NAME_TO_CLASS
+    const val BASE_SPACING_INFO_TO_TITLE = GAP_CLASS_TO_ACHIEVEMENT
+    const val BASE_SPACING_TITLE_TO_PARA = 10f
+    const val BASE_SPACING_PARA_TO_CARD = GAP_ACHIEVEMENT_TO_LEVEL
+    const val BASE_SPACING_CARD_TO_QUOTE = 15f
+    const val BASE_SPACING_QUOTE_TO_DATE = 15f
+
+    // Fixed seal reference for backward compatibility
     const val BASE_SEAL_TOP_Y = 780f
     const val BASE_SEAL_BOTTOM_Y = 940f
-    const val BASE_SEAL_SAFETY_CLEARANCE = 22f
+    const val BASE_SEAL_SAFETY_CLEARANCE = 20f
 
-    // Signature Zones (base pixels)
+    // Signature reference for backward compatibility
     const val BASE_SIG_LEFT_X = 220f
     const val BASE_SIG_RIGHT_X = 676f
     const val BASE_SIG_TOP_Y = 960f
     const val BASE_SIG_BOTTOM_Y = 1040f
-
-    // Certificate ID Y (base pixels)
     const val BASE_ID_Y = 1058f
-
-    // Dynamic Spacing Rules (base pixels)
-    const val BASE_SPACING_NAME_TO_INFO = 40f
-    const val BASE_SPACING_INFO_TO_TITLE = 30f
-    const val BASE_SPACING_TITLE_TO_PARA = 35f
-    const val BASE_SPACING_PARA_TO_CARD = 45f
-    const val BASE_SPACING_CARD_TO_QUOTE = 40f
-    const val BASE_SPACING_QUOTE_TO_DATE = 35f
 
     // Font Limits (base pixels)
     const val FONT_NAME_MAX = 40f
-    const val FONT_NAME_MIN = 32f
+    const val FONT_NAME_MIN = 28f // Rule 2: Minimum font size 28px
 
     const val FONT_INFO_MAX = 22f
-    const val FONT_INFO_MIN = 18f
+    const val FONT_INFO_MIN = 16f
 
-    const val FONT_ACHIEVEMENT_TITLE_MAX = 18f
-    const val FONT_ACHIEVEMENT_TITLE_MIN = 16f
+    const val FONT_ACHIEVEMENT_TITLE_MAX = 17f
+    const val FONT_ACHIEVEMENT_TITLE_MIN = 14f
 
     const val FONT_PARAGRAPH_MAX = 16f
-    const val FONT_PARAGRAPH_MIN = 14f
+    const val FONT_PARAGRAPH_MIN = 13f
 
     const val FONT_CARD_MAX = 14f
-    const val FONT_CARD_MIN = 12f
+    const val FONT_CARD_MIN = 11f
 
     const val FONT_QUOTE_MAX = 14f
-    const val FONT_QUOTE_MIN = 12f
+    const val FONT_QUOTE_MIN = 11f
 
-    const val FONT_DATE_MAX = 14f
-    const val FONT_DATE_MIN = 12f
+    const val FONT_DATE_MAX = 13f
+    const val FONT_DATE_MIN = 11f
 
     const val FONT_ID_MAX = 12f
     const val FONT_ID_MIN = 10f
@@ -141,7 +159,7 @@ object CertificateDynamicLayoutEngine {
 
     /**
      * Dedicated Validation Layer that checks for collisions between text blocks
-     * and fixed elements (Seal, Left Signature, Right Signature, Safe Zones).
+     * and safe zones.
      */
     object ValidationLayer {
         fun getFixedElements(scale: Float): List<FixedElement> {
@@ -176,9 +194,10 @@ object CertificateDynamicLayoutEngine {
             val collisions = mutableListOf<CollisionEvent>()
 
             // 1. Text block vs. Text block overlap check
-            for (i in 0 until blocks.size - 2) {
+            for (i in 0 until blocks.size - 1) {
                 val current = blocks[i]
                 val next = blocks[i + 1]
+                if (next.id == "id") continue // Footer block placed independently
                 if (next.topY < current.bottomY) {
                     val overlap = current.bottomY - next.topY
                     collisions.add(
@@ -187,7 +206,7 @@ object CertificateDynamicLayoutEngine {
                             textBlockId = current.id,
                             collidingWith = next.id,
                             overlapDepth = overlap,
-                            description = "Text overlap detected: '${current.id}' bottom (${current.bottomY}) overlaps '${next.id}' top (${next.topY}) by ${overlap}px"
+                            description = "Overlap: '${current.id}' bottom (${current.bottomY}) overlaps '${next.id}' top (${next.topY}) by ${overlap}px"
                         )
                     )
                 }
@@ -204,49 +223,43 @@ object CertificateDynamicLayoutEngine {
                         textBlockId = firstBlock.id,
                         collidingWith = "Top Safe Margin",
                         overlapDepth = topSafe - firstBlock.topY,
-                        description = "Top margin safe zone violation: '${firstBlock.id}' top (${firstBlock.topY}) < safe margin ($topSafe)"
+                        description = "Top safe zone violation: '${firstBlock.id}' top (${firstBlock.topY}) < safe margin ($topSafe)"
                     )
                 )
             }
 
-            // 3. Collision with Fixed Elements (Seal, Signatures)
-            val seal = fixedElements.find { it.name == "Seal" }
-            if (seal != null) {
-                // Content blocks above the seal must not intersect seal top
-                for (i in 0..min(6, blocks.size - 1)) {
-                    val block = blocks[i]
-                    if (block.bounds.bottom > seal.bounds.top && block.bounds.top < seal.bounds.bottom) {
-                        val yOverlap = block.bounds.bottom - seal.bounds.top
-                        if (yOverlap > 0f) {
-                            collisions.add(
-                                CollisionEvent(
-                                    type = CollisionType.SEAL_COLLISION,
-                                    textBlockId = block.id,
-                                    collidingWith = "Seal",
-                                    overlapDepth = yOverlap,
-                                    description = "Seal collision detected: '${block.id}' bottom (${block.bounds.bottom}) encroaches into Seal top (${seal.bounds.top}) by ${yOverlap}px"
-                                )
-                            )
-                        }
-                    }
-                }
+            val sigBlock = blocks.find { it.id == "signatures" }
+            if (sigBlock != null && sigBlock.bottomY > bottomSafe) {
+                collisions.add(
+                    CollisionEvent(
+                        type = CollisionType.SAFE_ZONE_VIOLATION,
+                        textBlockId = sigBlock.id,
+                        collidingWith = "Bottom Safe Margin",
+                        overlapDepth = sigBlock.bottomY - bottomSafe,
+                        description = "Bottom safe zone violation: Signature bottom (${sigBlock.bottomY}) > safe margin ($bottomSafe)"
+                    )
+                )
             }
 
-            val sigs = fixedElements.filter { it.name.contains("Signature") }
-            for (sig in sigs) {
-                for (i in 0..min(6, blocks.size - 1)) {
-                    val block = blocks[i]
-                    if (RectF.intersects(block.bounds, sig.bounds)) {
-                        val yOverlap = block.bounds.bottom - sig.bounds.top
-                        collisions.add(
-                            CollisionEvent(
-                                type = CollisionType.SIGNATURE_COLLISION,
-                                textBlockId = block.id,
-                                collidingWith = sig.name,
-                                overlapDepth = yOverlap,
-                                description = "Signature collision detected: '${block.id}' intersects with ${sig.name} by ${yOverlap}px"
-                            )
-                        )
+            // 3. Collision with Fixed Elements (if text encroaches into seal region)
+            val seal = fixedElements.find { it.name == "Seal" }
+            if (seal != null) {
+                for (block in blocks) {
+                    if (block.id != "seal" && block.id != "signatures" && block.id != "id") {
+                        if (block.bounds.bottom > seal.bounds.top && block.bounds.top < seal.bounds.bottom) {
+                            val yOverlap = block.bounds.bottom - seal.bounds.top
+                            if (yOverlap > 0f) {
+                                collisions.add(
+                                    CollisionEvent(
+                                        type = CollisionType.SEAL_COLLISION,
+                                        textBlockId = block.id,
+                                        collidingWith = "Seal",
+                                        overlapDepth = yOverlap,
+                                        description = "Seal collision: '${block.id}' encroaches into Seal top by ${yOverlap}px"
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -271,12 +284,28 @@ object CertificateDynamicLayoutEngine {
         val idLayout: StaticLayout,
         val blocks: List<BlockLayout>,
         val isValid: Boolean,
-        val validationReport: ValidationReport = ValidationReport(true, emptyList(), 0, 1.0f, emptyList())
+        val validationReport: ValidationReport = ValidationReport(true, emptyList(), 0, 1.0f, emptyList()),
+        val sealRect: RectF = RectF(),
+        val signatureRect: RectF = RectF(),
+        val issueDate: String = "",
+        val certificateId: String = ""
     )
 
     /**
-     * Calculates the dynamic layout for all text blocks, performing pre-render collision checks
-     * via the ValidationLayer and automatically reducing font sizes if an overlap is detected.
+     * Calculates the dynamic vertical flow layout for all certificate sections:
+     *   Name
+     *   ↓ 20px gap
+     *   Class
+     *   ↓ 20px gap
+     *   Achievement Text (max 2 lines, auto wrap, overflow hidden)
+     *   ↓ 30px gap
+     *   Level Information Box
+     *   ↓ 40px gap
+     *   Seal
+     *   ↓ 40px gap
+     *   Signature Area
+     *
+     * Performs pre-render collision checks and auto-shrinks font sizes until all elements fit.
      */
     fun computeLayout(
         width: Int,
@@ -287,167 +316,161 @@ object CertificateDynamicLayoutEngine {
         val centerX = width / 2f
         val maxSafeWidth = width * MAX_CONTENT_WIDTH_RATIO
 
-        // Sanitize content limits
+        // 1. Sanitize content
         val cleanName = data.studentName.trim().ifEmpty { "Protocol Candidate" }
         val cleanClass = data.studentClass.trim().ifEmpty { "REBUILD PROTOCOL" }
-        val achievementTitle = data.achievementDescription.trim().ifEmpty {
-            "IN RECOGNITION OF DEDICATED ACHIEVEMENT"
-        }
-        val achievementParagraph = sanitizeParagraph(
-            data.achievementParagraph.ifEmpty {
-                "For successfully unlocking and mastering ${data.levelName} through demonstrated consistency, self-discipline, and daily focus in the REBUILD protocol."
-            }
+        val achievementParagraph = sanitizeAchievement(
+            if (data.achievementParagraph.isNotEmpty()) data.achievementParagraph
+            else "For successfully unlocking and mastering ${data.levelName} through demonstrated consistency, self-discipline, and daily focus in the REBUILD protocol."
         )
         val cleanQuote = sanitizeQuote(
             data.aiEvaluation.ifEmpty {
-                "\"The protocol rewards action,\nnot intention.\""
+                "\"The protocol rewards action, not intention.\""
             }
         )
-        val dateText = "Date of Issuance: ${data.issueDate}"
         val cardText = "LEVEL ${data.level} • ${data.rankTitle.uppercase()}   |   ${data.totalXP}   |   ${data.arcDay.uppercase()}"
         val idText = "VERIFICATION ID: ${data.certificateId}"
 
-        // Initial candidate font sizes (in base pixels, scaled)
-        var nameFontSize = 38f
+        // Initial candidate font sizes
+        var nameFontSize = FONT_NAME_MAX // Starts at 40px base, auto-shrinks down to 28px
         var infoFontSize = 20f
-        var titleFontSize = 17f
-        var paraFontSize = 15f
+        var paraFontSize = 15.5f
         var cardFontSize = 13.5f
-        var quoteFontSize = 13f
-        var dateFontSize = 13f
         val idFontSize = 10.5f
 
-        val sealTopLimit = (BASE_SEAL_TOP_Y - BASE_SEAL_SAFETY_CLEARANCE) * scale
         val startY = BASE_CONTENT_START_Y * scale
-        val maxAvailableHeight = sealTopLimit - startY
-
         val fixedElements = ValidationLayer.getFixedElements(scale)
         var autoReductionsCount = 0
         var latestValidationReport: ValidationReport? = null
 
-        // Multi-pass collision detection & font auto-reduction convergence loop
+        // Convergence loop: Multi-pass collision detection & font auto-reduction
         for (attempt in 0..6) {
-            // Create text paints with current font sizes
-            val namePaint = createTextPaint("#0A192F", nameFontSize * scale, Typeface.SERIF, Typeface.BOLD, 0.02f)
+            // Rule 2: Name field auto shrink until it fits within 70% width, min 28px
+            val (nameLayout, fittedNameSize) = layoutNameField(
+                cleanName = cleanName,
+                scale = scale,
+                maxWidth = maxSafeWidth,
+                baseMaxFontSize = nameFontSize,
+                baseMinFontSize = FONT_NAME_MIN
+            )
+            nameFontSize = fittedNameSize
+
+            // Text paints
             val infoPaint = createTextPaint("#203A63", infoFontSize * scale, Typeface.SERIF, Typeface.NORMAL, 0.03f)
-            val titlePaint = createTextPaint("#8A6D3B", titleFontSize * scale, Typeface.SERIF, Typeface.BOLD, 0.04f)
             val paraPaint = createTextPaint("#1B2A4A", paraFontSize * scale, Typeface.SERIF, Typeface.NORMAL, 0.01f)
             val cardPaint = createTextPaint("#0B2545", cardFontSize * scale, Typeface.SANS_SERIF, Typeface.BOLD, 0.04f)
-            val quotePaint = createTextPaint("#2D3748", quoteFontSize * scale, Typeface.SERIF, Typeface.ITALIC, 0.01f)
-            val datePaint = createTextPaint("#1B365D", dateFontSize * scale, Typeface.SERIF, Typeface.BOLD, 0.03f)
             val idPaint = createTextPaint("#4A5568", idFontSize * scale, Typeface.MONOSPACE, Typeface.NORMAL, 0.05f)
 
-            // Measure blocks using StaticLayout
-            val nameLayout = createCenteredStaticLayout(cleanName, namePaint, maxSafeWidth.toInt())
+            // Rule 1: Measure text heights before positioning
             val infoLayout = createCenteredStaticLayout(cleanClass, infoPaint, maxSafeWidth.toInt())
-            val titleLayout = createCenteredStaticLayout(achievementTitle, titlePaint, maxSafeWidth.toInt())
-            val paraLayout = createCenteredStaticLayout(achievementParagraph, paraPaint, maxSafeWidth.toInt())
-            val quoteLayout = createCenteredStaticLayout(cleanQuote, quotePaint, maxSafeWidth.toInt())
-            val dateLayout = createCenteredStaticLayout(dateText, datePaint, maxSafeWidth.toInt())
-            val idLayout = createCenteredStaticLayout(idText, idPaint, maxSafeWidth.toInt())
 
-            // Measure Level Card
+            // Rule 3: Achievement paragraph maximum 2 lines, auto wrap, overflow hidden
+            val paraLayout = createCenteredStaticLayout(
+                text = achievementParagraph,
+                paint = paraPaint,
+                maxWidth = maxSafeWidth.toInt(),
+                maxLines = 2,
+                ellipsize = true
+            )
+
+            // Measure Level Information Box
             val cardTextWidth = cardPaint.measureText(cardText)
             val cardPadH = 18f * scale
             val cardPadV = 7f * scale
             val cardWidth = min(cardTextWidth + (cardPadH * 2f), maxSafeWidth)
             val cardHeight = (cardPaint.fontSpacing) + (cardPadV * 2f)
 
-            val totalBlockHeights = nameLayout.height + infoLayout.height + titleLayout.height +
-                    paraLayout.height + cardHeight + quoteLayout.height + dateLayout.height
+            // Measure Certificate ID
+            val idLayout = createCenteredStaticLayout(idText, idPaint, maxSafeWidth.toInt())
 
-            val baseTotalSpacing = (BASE_SPACING_NAME_TO_INFO + BASE_SPACING_INFO_TO_TITLE +
-                    BASE_SPACING_TITLE_TO_PARA + BASE_SPACING_PARA_TO_CARD +
-                    BASE_SPACING_CARD_TO_QUOTE + BASE_SPACING_QUOTE_TO_DATE) * scale
-
-            val availableSpacing = maxAvailableHeight - totalBlockHeights
-            val spacingScale = if (baseTotalSpacing > 0) {
-                min(1.0f, max(0.40f, availableSpacing / baseTotalSpacing))
-            } else 1.0f
-
-            val spName = BASE_SPACING_NAME_TO_INFO * scale * spacingScale
-            val spInfo = BASE_SPACING_INFO_TO_TITLE * scale * spacingScale
-            val spTitle = BASE_SPACING_TITLE_TO_PARA * scale * spacingScale
-            val spPara = BASE_SPACING_PARA_TO_CARD * scale * spacingScale
-            val spCard = BASE_SPACING_CARD_TO_QUOTE * scale * spacingScale
-            val spQuote = BASE_SPACING_QUOTE_TO_DATE * scale * spacingScale
-
-            // Dynamic Layout Engine: currentY += previousBlockHeight + spacing
+            // Rule 4: Dynamic vertical flow layout with strict relative positioning:
+            // Name -> 20px -> Class -> 20px -> Achievement -> 30px -> Level Box -> 40px -> Seal -> 40px -> Signatures
             var currentY = startY
 
-            // 1. Recipient Name
+            // Section 1: Recipient Name
             val nameBlock = BlockLayout("name", currentY, nameLayout.height.toFloat(), nameLayout.width.toFloat(), centerX)
-            currentY += nameBlock.height + spName
+            currentY += nameBlock.height + (GAP_NAME_TO_CLASS * scale) // ↓ 20px gap
 
-            // 2. Student Info
-            val infoBlock = BlockLayout("info", currentY, infoLayout.height.toFloat(), infoLayout.width.toFloat(), centerX)
-            currentY += infoBlock.height + spInfo
+            // Section 2: Class
+            val classBlock = BlockLayout("class", currentY, infoLayout.height.toFloat(), infoLayout.width.toFloat(), centerX)
+            currentY += classBlock.height + (GAP_CLASS_TO_ACHIEVEMENT * scale) // ↓ 20px gap
 
-            // 3. Achievement Title / Description
-            val titleBlock = BlockLayout("title", currentY, titleLayout.height.toFloat(), titleLayout.width.toFloat(), centerX)
-            currentY += titleBlock.height + spTitle
+            // Section 3: Achievement Text (max 2 lines)
+            val paraBlock = BlockLayout("achievement", currentY, paraLayout.height.toFloat(), paraLayout.width.toFloat(), centerX)
+            currentY += paraBlock.height + (GAP_ACHIEVEMENT_TO_LEVEL * scale) // ↓ 30px gap
 
-            // 4. Achievement Paragraph
-            val paraBlock = BlockLayout("paragraph", currentY, paraLayout.height.toFloat(), paraLayout.width.toFloat(), centerX)
-            currentY += paraBlock.height + spPara
-
-            // 5. Level Card
+            // Section 4: Level Information Box (guaranteed never to overlap achievement)
             val cardRect = RectF(
                 centerX - (cardWidth / 2f),
                 currentY,
                 centerX + (cardWidth / 2f),
                 currentY + cardHeight
             )
-            val cardBlock = BlockLayout("card", currentY, cardHeight, cardWidth, centerX)
-            currentY += cardBlock.height + spCard
+            val cardBlock = BlockLayout("level_card", currentY, cardHeight, cardWidth, centerX)
+            currentY += cardBlock.height + (GAP_LEVEL_TO_SEAL * scale) // ↓ 40px gap
 
-            // 6. Evaluation Quote
-            val quoteBlock = BlockLayout("quote", currentY, quoteLayout.height.toFloat(), quoteLayout.width.toFloat(), centerX)
-            currentY += quoteBlock.height + spQuote
+            // Section 5: Seal (relative to level info box)
+            val sealSize = 92f * scale
+            val sealRect = RectF(
+                centerX - (sealSize / 2f),
+                currentY,
+                centerX + (sealSize / 2f),
+                currentY + sealSize
+            )
+            val sealBlock = BlockLayout("seal", currentY, sealSize, sealSize, centerX)
+            currentY += sealBlock.height + (GAP_SEAL_TO_SIGNATURE * scale) // ↓ 40px gap
 
-            // 7. Issue Date
-            val dateBlock = BlockLayout("date", currentY, dateLayout.height.toFloat(), dateLayout.width.toFloat(), centerX)
-            currentY += dateBlock.height
+            // Section 6: Signature Area (relative to seal)
+            val sigHeight = 64f * scale
+            val sigWidth = maxSafeWidth
+            val sigRect = RectF(
+                centerX - (sigWidth / 2f),
+                currentY,
+                centerX + (sigWidth / 2f),
+                currentY + sigHeight
+            )
+            val sigBlock = BlockLayout("signatures", currentY, sigHeight, sigWidth, centerX)
 
-            // 8. Certificate ID (safe bottom footer)
-            val idY = BASE_ID_Y * scale
+            // Section 7: Verification ID (placed in bottom safe footer)
+            val idY = height - (BASE_SAFE_BOTTOM_MARGIN * 0.45f * scale)
             val idBlock = BlockLayout("id", idY, idLayout.height.toFloat(), idLayout.width.toFloat(), centerX)
 
-            val blocks = listOf(nameBlock, infoBlock, titleBlock, paraBlock, cardBlock, quoteBlock, dateBlock, idBlock)
+            val blocks = listOf(nameBlock, classBlock, paraBlock, cardBlock, sealBlock, sigBlock, idBlock)
 
-            // VALIDATION LAYER CHECK:
-            // Check for collisions between text blocks and fixed elements (Seal, Signatures) or text overlap
+            // Rule 7 & 8: Active collision detection
             val detectedCollisions = ValidationLayer.checkCollisions(blocks, fixedElements, scale, height.toFloat())
 
             if (detectedCollisions.isNotEmpty() && attempt < 6) {
-                // Collision detected! Automatically reduce font sizes to resolve overlap
+                // Reduce font sizes and re-render until all elements fit without overlap
                 autoReductionsCount++
-                nameFontSize = max(FONT_NAME_MIN, nameFontSize - 1.2f)
-                infoFontSize = max(FONT_INFO_MIN, infoFontSize - 0.6f)
-                titleFontSize = max(FONT_ACHIEVEMENT_TITLE_MIN, titleFontSize - 0.4f)
+                nameFontSize = max(FONT_NAME_MIN, nameFontSize - 1.0f)
+                infoFontSize = max(FONT_INFO_MIN, infoFontSize - 0.5f)
                 paraFontSize = max(FONT_PARAGRAPH_MIN, paraFontSize - 0.4f)
                 cardFontSize = max(FONT_CARD_MIN, cardFontSize - 0.3f)
-                quoteFontSize = max(FONT_QUOTE_MIN, quoteFontSize - 0.3f)
-                dateFontSize = max(FONT_DATE_MIN, dateFontSize - 0.3f)
 
                 latestValidationReport = ValidationReport(
                     passed = false,
                     collisions = detectedCollisions,
                     autoReductionsApplied = autoReductionsCount,
-                    finalFontScale = nameFontSize / 38f,
+                    finalFontScale = nameFontSize / FONT_NAME_MAX,
                     fixedElementsChecked = fixedElements
                 )
-                continue // Re-evaluate layout with reduced font sizes
+                continue
             }
 
-            // All checks passed!
+            // All elements fit within their assigned regions without overlap
             val validationReport = ValidationReport(
                 passed = detectedCollisions.isEmpty(),
                 collisions = detectedCollisions,
                 autoReductionsApplied = autoReductionsCount,
-                finalFontScale = nameFontSize / 38f,
+                finalFontScale = nameFontSize / FONT_NAME_MAX,
                 fixedElementsChecked = fixedElements
             )
+
+            // Supporting layouts for backward compatibility
+            val dummyTitleLayout = createCenteredStaticLayout("", paraPaint, maxSafeWidth.toInt())
+            val dummyQuoteLayout = createCenteredStaticLayout(cleanQuote, paraPaint, maxSafeWidth.toInt())
+            val dummyDateLayout = createCenteredStaticLayout("Date of Issuance: ${data.issueDate}", infoPaint, maxSafeWidth.toInt())
 
             return LayoutResult(
                 scale = scale,
@@ -455,21 +478,25 @@ object CertificateDynamicLayoutEngine {
                 centerX = centerX,
                 nameLayout = nameLayout,
                 classLayout = infoLayout,
-                titleLayout = titleLayout,
+                titleLayout = dummyTitleLayout,
                 paragraphLayout = paraLayout,
                 levelCardRect = cardRect,
                 levelCardText = cardText,
                 levelCardPaint = cardPaint,
-                quoteLayout = quoteLayout,
-                dateLayout = dateLayout,
+                quoteLayout = dummyQuoteLayout,
+                dateLayout = dummyDateLayout,
                 idLayout = idLayout,
                 blocks = blocks,
                 isValid = validationReport.passed,
-                validationReport = validationReport
+                validationReport = validationReport,
+                sealRect = sealRect,
+                signatureRect = sigRect,
+                issueDate = data.issueDate,
+                certificateId = data.certificateId
             )
         }
 
-        // Fallback safe layout with minimum font sizes
+        // Fallback safe layout
         val fallbackPaint = createTextPaint("#0A192F", FONT_NAME_MIN * scale, Typeface.SERIF, Typeface.BOLD, 0.02f)
         val fallbackLayout = createCenteredStaticLayout(cleanName, fallbackPaint, maxSafeWidth.toInt())
         val dummyBlock = BlockLayout("name", startY, fallbackLayout.height.toFloat(), fallbackLayout.width.toFloat(), centerX)
@@ -495,11 +522,43 @@ object CertificateDynamicLayoutEngine {
     }
 
     /**
-     * Pre-render verification:
-     * - No text overlap
-     * - Within Safe Zones (Top: 120px, Bottom: 180px)
-     * - Seal collision protection
-     * - Signature collision protection
+     * Rule 2: Name field helper:
+     * - Center aligned
+     * - Max width 70%
+     * - Auto shrink font size until it fits
+     * - Minimum font size 28px
+     */
+    private fun layoutNameField(
+        cleanName: String,
+        scale: Float,
+        maxWidth: Float,
+        baseMaxFontSize: Float,
+        baseMinFontSize: Float
+    ): Pair<StaticLayout, Float> {
+        var fontSize = baseMaxFontSize
+        val minSize = baseMinFontSize
+        val paint = createTextPaint("#0A192F", fontSize * scale, Typeface.SERIF, Typeface.BOLD, 0.02f)
+
+        // Shrink font size if single-line text exceeds 70% width
+        while (paint.measureText(cleanName) > maxWidth && fontSize > minSize) {
+            fontSize = max(minSize, fontSize - 0.5f)
+            paint.textSize = fontSize * scale
+        }
+
+        var layout = createCenteredStaticLayout(cleanName, paint, maxWidth.toInt())
+
+        // If it wrapped onto multiple lines, continue auto-shrinking down to minSize
+        while (layout.lineCount > 1 && fontSize > minSize) {
+            fontSize = max(minSize, fontSize - 0.5f)
+            paint.textSize = fontSize * scale
+            layout = createCenteredStaticLayout(cleanName, paint, maxWidth.toInt())
+        }
+
+        return Pair(layout, fontSize)
+    }
+
+    /**
+     * Pre-render verification check.
      */
     fun validateLayout(blocks: List<BlockLayout>, scale: Float, totalHeight: Int): Boolean {
         val fixedElements = ValidationLayer.getFixedElements(scale)
@@ -508,7 +567,7 @@ object CertificateDynamicLayoutEngine {
     }
 
     /**
-     * Draws the calculated layout onto any Canvas (Bitmap or PDF page).
+     * Draws the dynamic vertical flow layout onto any Canvas (Bitmap or PDF page).
      */
     fun renderToCanvas(canvas: Canvas, layout: LayoutResult) {
         val centerX = layout.centerX
@@ -517,32 +576,28 @@ object CertificateDynamicLayoutEngine {
         val nameBlock = layout.blocks[0]
         drawStaticLayout(canvas, layout.nameLayout, centerX, nameBlock.topY)
 
-        // 2. Student Info
-        val infoBlock = layout.blocks[1]
-        drawStaticLayout(canvas, layout.classLayout, centerX, infoBlock.topY)
+        // 2. Class
+        val classBlock = layout.blocks[1]
+        drawStaticLayout(canvas, layout.classLayout, centerX, classBlock.topY)
 
-        // 3. Achievement Title
-        val titleBlock = layout.blocks[2]
-        drawStaticLayout(canvas, layout.titleLayout, centerX, titleBlock.topY)
-
-        // 4. Achievement Paragraph
-        val paraBlock = layout.blocks[3]
+        // 3. Achievement Text (max 2 lines, overflow hidden)
+        val paraBlock = layout.blocks[2]
         drawStaticLayout(canvas, layout.paragraphLayout, centerX, paraBlock.topY)
 
-        // 5. Level Information Card
+        // 4. Level Information Box
         drawLevelCard(canvas, layout.levelCardRect, layout.levelCardText, layout.levelCardPaint, layout.scale)
 
-        // 6. Evaluation Quote
-        val quoteBlock = layout.blocks[5]
-        drawStaticLayout(canvas, layout.quoteLayout, centerX, quoteBlock.topY)
+        // 5. Official Seal (dynamically positioned relative to Level Information Box)
+        drawOfficialSeal(canvas, layout.sealRect, layout.scale)
 
-        // 7. Issue Date
-        val dateBlock = layout.blocks[6]
-        drawStaticLayout(canvas, layout.dateLayout, centerX, dateBlock.topY)
+        // 6. Signature Area (dynamically positioned relative to Seal)
+        drawSignatureArea(canvas, layout.signatureRect, layout.issueDate, layout.scale)
 
-        // 8. Certificate ID
-        val idBlock = layout.blocks[7]
-        drawStaticLayout(canvas, layout.idLayout, centerX, idBlock.topY)
+        // 7. Verification ID / Footer
+        val idBlock = layout.blocks.find { it.id == "id" }
+        if (idBlock != null) {
+            drawStaticLayout(canvas, layout.idLayout, centerX, idBlock.topY)
+        }
     }
 
     private fun drawStaticLayout(canvas: Canvas, staticLayout: StaticLayout, centerX: Float, topY: Float) {
@@ -568,7 +623,7 @@ object CertificateDynamicLayoutEngine {
         // Distinct gold border
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#C69214")
-            strokeWidth = 1f * scale
+            strokeWidth = 1.2f * scale
             style = Paint.Style.STROKE
         }
 
@@ -580,6 +635,141 @@ object CertificateDynamicLayoutEngine {
         val fontMetrics = paint.fontMetrics
         val textY = rect.centerY() - ((fontMetrics.descent + fontMetrics.ascent) / 2f)
         canvas.drawText(text, rect.centerX(), textY, paint.apply { textAlign = Paint.Align.CENTER })
+    }
+
+    /**
+     * Draws the official REBUILD crest seal at its dynamic vertical position.
+     */
+    private fun drawOfficialSeal(canvas: Canvas, rect: RectF, scale: Float) {
+        val cx = rect.centerX()
+        val cy = rect.centerY()
+        val radius = (rect.width() / 2f) * 0.85f
+
+        // 1. Ribbons draped at bottom
+        val ribbonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#C69214")
+            style = Paint.Style.FILL
+        }
+        val ribbonPath = Path().apply {
+            // Left ribbon tail
+            moveTo(cx - (14f * scale), cy + (radius * 0.7f))
+            lineTo(cx - (22f * scale), cy + radius + (18f * scale))
+            lineTo(cx - (14f * scale), cy + radius + (12f * scale))
+            lineTo(cx - (6f * scale), cy + radius + (18f * scale))
+            lineTo(cx - (4f * scale), cy + (radius * 0.7f))
+            close()
+            // Right ribbon tail
+            moveTo(cx + (4f * scale), cy + (radius * 0.7f))
+            lineTo(cx + (6f * scale), cy + radius + (18f * scale))
+            lineTo(cx + (14f * scale), cy + radius + (12f * scale))
+            lineTo(cx + (22f * scale), cy + radius + (18f * scale))
+            lineTo(cx + (14f * scale), cy + (radius * 0.7f))
+            close()
+        }
+        canvas.drawPath(ribbonPath, ribbonPaint)
+
+        // 2. Outer golden circle
+        val outerGoldPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#D4AF37")
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(cx, cy, radius, outerGoldPaint)
+
+        // 3. Beaded accent ring
+        val ringStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#8A6D3B")
+            strokeWidth = 1.5f * scale
+            style = Paint.Style.STROKE
+        }
+        canvas.drawCircle(cx, cy, radius - (3.5f * scale), ringStrokePaint)
+
+        // 4. Inner navy/gold medallion
+        val innerMedallionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#0A192F")
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(cx, cy, radius - (7f * scale), innerMedallionPaint)
+
+        // 5. Star emblem & text in center
+        val starPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#DFC15D")
+            textSize = 12f * scale
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+        }
+        val fm = starPaint.fontMetrics
+        val textY = cy - ((fm.descent + fm.ascent) / 2f)
+        canvas.drawText("★ ★ ★", cx, textY - (5f * scale), starPaint)
+
+        val sealLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#F5F7FA")
+            textSize = 6f * scale
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            letterSpacing = 0.06f
+            textAlign = Paint.Align.CENTER
+        }
+        canvas.drawText("REBUILD PROTOCOL", cx, textY + (7f * scale), sealLabelPaint)
+        canvas.drawText("VERIFIED DISCIPLINE", cx, textY + (14f * scale), sealLabelPaint.apply { textSize = 5f * scale })
+    }
+
+    /**
+     * Draws the signature and date area at its dynamic vertical position.
+     */
+    private fun drawSignatureArea(canvas: Canvas, rect: RectF, issueDate: String, scale: Float) {
+        val lineWidth = 190f * scale
+        val leftX = rect.left + (30f * scale)
+        val rightX = rect.right - (30f * scale)
+        val lineY = rect.top + (30f * scale)
+
+        val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#8A6D3B")
+            strokeWidth = 1.2f * scale
+            style = Paint.Style.STROKE
+        }
+
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#203A63")
+            textSize = 9.5f * scale
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+            letterSpacing = 0.04f
+            textAlign = Paint.Align.CENTER
+        }
+
+        val subLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#5A6B82")
+            textSize = 8f * scale
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+            letterSpacing = 0.03f
+            textAlign = Paint.Align.CENTER
+        }
+
+        // Left Column: Issue Date
+        val leftCenter = leftX + (lineWidth / 2f)
+        val dateText = if (issueDate.isNotEmpty()) issueDate else "March 2026"
+        val dateValuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#0A192F")
+            textSize = 11f * scale
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+        }
+        canvas.drawText(dateText, leftCenter, lineY - (6f * scale), dateValuePaint)
+        canvas.drawLine(leftX, lineY, leftX + lineWidth, lineY, linePaint)
+        canvas.drawText("DATE OF ISSUANCE", leftCenter, lineY + (13f * scale), labelPaint)
+        canvas.drawText("AUTHENTICATED RECORD", leftCenter, lineY + (23f * scale), subLabelPaint)
+
+        // Right Column: Protocol Signature
+        val rightLeft = rightX - lineWidth
+        val rightCenter = rightLeft + (lineWidth / 2f)
+        val sigFont = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#0A192F")
+            textSize = 14f * scale
+            typeface = Typeface.create(Typeface.SERIF, Typeface.ITALIC)
+            textAlign = Paint.Align.CENTER
+        }
+        canvas.drawText("Marcus Vance, Ph.D.", rightCenter, lineY - (6f * scale), sigFont)
+        canvas.drawLine(rightLeft, lineY, rightX, lineY, linePaint)
+        canvas.drawText("PROTOCOL CHAIR", rightCenter, lineY + (13f * scale), labelPaint)
+        canvas.drawText("AUTHORIZED ISSUANCE", rightCenter, lineY + (23f * scale), subLabelPaint)
     }
 
     private fun createTextPaint(
@@ -600,15 +790,23 @@ object CertificateDynamicLayoutEngine {
     private fun createCenteredStaticLayout(
         text: String,
         paint: TextPaint,
-        maxWidth: Int
+        maxWidth: Int,
+        maxLines: Int = Int.MAX_VALUE,
+        ellipsize: Boolean = false
     ): StaticLayout {
         val safeWidth = max(10, maxWidth)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            StaticLayout.Builder.obtain(text, 0, text.length, paint, safeWidth)
+            val builder = StaticLayout.Builder.obtain(text, 0, text.length, paint, safeWidth)
                 .setAlignment(Layout.Alignment.ALIGN_CENTER)
-                .setLineSpacing(0f, 1.18f)
+                .setLineSpacing(0f, 1.15f)
                 .setIncludePad(false)
-                .build()
+            if (maxLines != Int.MAX_VALUE) {
+                builder.setMaxLines(maxLines)
+            }
+            if (ellipsize) {
+                builder.setEllipsize(TextUtils.TruncateAt.END)
+            }
+            builder.build()
         } else {
             @Suppress("DEPRECATION")
             StaticLayout(
@@ -616,30 +814,30 @@ object CertificateDynamicLayoutEngine {
                 paint,
                 safeWidth,
                 Layout.Alignment.ALIGN_CENTER,
-                1.18f,
+                1.15f,
                 0f,
                 false
             )
         }
     }
 
-    private fun sanitizeParagraph(text: String): String {
-        // Enforce maximum 2-3 lines
-        val lines = text.lines()
-        return if (lines.size > 3) {
-            lines.take(3).joinToString(" ")
+    private fun sanitizeAchievement(text: String): String {
+        // Enforce maximum 2 lines
+        val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        return if (lines.size > 2) {
+            lines.take(2).joinToString(" ")
         } else {
-            text
+            text.replace("\n", " ").trim()
         }
     }
 
     private fun sanitizeQuote(quote: String): String {
-        // Enforce maximum 2 lines
-        val lines = quote.lines()
+        val lines = quote.lines().map { it.trim() }.filter { it.isNotEmpty() }
         return if (lines.size > 2) {
             lines.take(2).joinToString(" ")
         } else {
-            quote
+            quote.trim()
         }
     }
 }
+

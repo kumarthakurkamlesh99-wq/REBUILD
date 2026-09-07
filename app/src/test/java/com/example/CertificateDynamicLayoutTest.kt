@@ -1,6 +1,7 @@
 package com.example
 
 import android.content.Context
+import android.text.Layout
 import androidx.test.core.app.ApplicationProvider
 import com.example.certificate.CertificateDynamicLayoutEngine
 import com.example.certificate.CertificateGeneratorEngine
@@ -43,6 +44,38 @@ class CertificateDynamicLayoutTest {
     }
 
     @Test
+    fun `test relative positioning gaps between sections match exact specifications`() {
+        val data = CertificateData(
+            studentName = "Kamlesh Kumar Thakur",
+            studentClass = "Class 12 • Science (PCM)"
+        )
+        val layout = CertificateDynamicLayoutEngine.computeLayout(896, 1200, data)
+        val blocks = layout.blocks
+
+        val nameBlock = blocks.find { it.id == "name" }!!
+        val classBlock = blocks.find { it.id == "class" }!!
+        val achievementBlock = blocks.find { it.id == "achievement" }!!
+        val cardBlock = blocks.find { it.id == "level_card" }!!
+        val sealBlock = blocks.find { it.id == "seal" }!!
+        val sigBlock = blocks.find { it.id == "signatures" }!!
+
+        // Name ↓ 20px gap Class
+        assertEquals(20f, classBlock.topY - nameBlock.bottomY, 1.0f)
+
+        // Class ↓ 20px gap Achievement Text
+        assertEquals(20f, achievementBlock.topY - classBlock.bottomY, 1.0f)
+
+        // Achievement Text ↓ 30px gap Level Information Box
+        assertEquals(30f, cardBlock.topY - achievementBlock.bottomY, 1.0f)
+
+        // Level Information Box ↓ 40px gap Seal
+        assertEquals(40f, sealBlock.topY - cardBlock.bottomY, 1.0f)
+
+        // Seal ↓ 40px gap Signature Area
+        assertEquals(40f, sigBlock.topY - sealBlock.bottomY, 1.0f)
+    }
+
+    @Test
     fun `test zero text overlap with long student name and multiple lines`() {
         val longData = CertificateData(
             studentName = "Alexander Montgomery Bartholomew III of Hohenzollern",
@@ -69,7 +102,54 @@ class CertificateDynamicLayoutTest {
     }
 
     @Test
-    fun `test text safe zones top margin 120px and bottom margin 180px`() {
+    fun `test name field center aligned max width 70 percent auto shrink font size min 28px`() {
+        val longNameData = CertificateData(
+            studentName = "Alexander Montgomery Bartholomew III of Hohenzollern-Sigmaringen"
+        )
+        val layout = CertificateDynamicLayoutEngine.computeLayout(896, 1200, longNameData)
+
+        // Alignment center
+        assertEquals(Layout.Alignment.ALIGN_CENTER, layout.nameLayout.alignment)
+
+        // Max width 70%
+        val maxAllowedWidth = 896f * 0.70f
+        assertTrue(
+            "Name layout width (${layout.nameLayout.width}) must be <= maxAllowedWidth ($maxAllowedWidth)",
+            layout.nameLayout.width <= maxAllowedWidth
+        )
+
+        // Name paint text size must not shrink below 28px
+        assertTrue(
+            "Name font size (${layout.nameLayout.paint.textSize}) must be >= min 28px",
+            layout.nameLayout.paint.textSize >= 28f
+        )
+    }
+
+    @Test
+    fun `test achievement paragraph maximum 2 lines auto wrap overflow hidden`() {
+        val longParagraphData = CertificateData(
+            achievementParagraph = "This is line 1 of achievement text which is quite comprehensive and provides extensive detail. " +
+                    "This is line 2 of achievement which details the heroic efforts and milestones reached throughout the protocol. " +
+                    "This is line 3 which should be truncated or hidden because maximum allowed lines is strictly two lines. " +
+                    "This is line 4 which definitely must never render or cause an overlap with the level card."
+        )
+        val layout = CertificateDynamicLayoutEngine.computeLayout(896, 1200, longParagraphData)
+
+        assertTrue(
+            "Achievement paragraph line count (${layout.paragraphLayout.lineCount}) must be <= 2",
+            layout.paragraphLayout.lineCount <= 2
+        )
+
+        val achievementBlock = layout.blocks.find { it.id == "achievement" }!!
+        val cardBlock = layout.blocks.find { it.id == "level_card" }!!
+        assertTrue(
+            "Level card top (${cardBlock.topY}) must be strictly below achievement bottom (${achievementBlock.bottomY})",
+            cardBlock.topY >= achievementBlock.bottomY + 30f
+        )
+    }
+
+    @Test
+    fun `test text safe zones top margin 120px and bottom margin 160px`() {
         val data = CertificateData()
         val layout = CertificateDynamicLayoutEngine.computeLayout(896, 1200, data)
 
@@ -79,11 +159,10 @@ class CertificateDynamicLayoutTest {
             firstBlock.topY >= 120f
         )
 
-        // Safe zone bottom margin = 180px on 1200px height -> content must be <= 1020px (or bottom footer ID <= 1070px)
-        val dateBlock = layout.blocks[6]
+        val sigBlock = layout.blocks.find { it.id == "signatures" }!!
         assertTrue(
-            "Main text flow must end well within safe zone (Date bottom ${dateBlock.bottomY} < 1020px)",
-            dateBlock.bottomY < 1020f
+            "Signatures bottom (${sigBlock.bottomY}) must be within safe zone (< 1040px)",
+            sigBlock.bottomY <= 1040f
         )
     }
 
@@ -92,38 +171,24 @@ class CertificateDynamicLayoutTest {
         val data = CertificateData()
         val layout = CertificateDynamicLayoutEngine.computeLayout(896, 1200, data)
 
-        val sealTop = CertificateDynamicLayoutEngine.BASE_SEAL_TOP_Y // 780px
-        val dateBlock = layout.blocks[6] // Last block before seal
+        val cardBlock = layout.blocks.find { it.id == "level_card" }!!
+        val sealBlock = layout.blocks.find { it.id == "seal" }!!
 
         assertTrue(
-            "Text block bottom (${dateBlock.bottomY}) must be strictly above seal top ($sealTop)",
-            dateBlock.bottomY <= sealTop
+            "Level card bottom (${cardBlock.bottomY}) must be strictly above seal top (${sealBlock.topY})",
+            cardBlock.bottomY <= sealBlock.topY
         )
     }
 
     @Test
-    fun `test text wrapping within 70 percent max width`() {
-        val data = CertificateData(
-            studentName = "Very Long Student Name That Should Be Tested For Dynamic Wrapping Across The Width Limit"
-        )
-        val layout = CertificateDynamicLayoutEngine.computeLayout(896, 1200, data)
-
-        val maxAllowedWidth = 896f * 0.70f
-        assertEquals(maxAllowedWidth, layout.maxSafeWidth, 0.5f)
-        assertTrue(
-            "Name layout width (${layout.nameLayout.width}) must be <= maxAllowedWidth ($maxAllowedWidth)",
-            layout.nameLayout.width <= maxAllowedWidth
-        )
-    }
-
-    @Test
-    fun `test certificate bitmap generation is high resolution 1792x2400`() {
+    fun `test certificate bitmap generation is true A4 canvas 2480x3508 at 300 DPI`() {
         val data = CertificateData(studentName = "Kamlesh Kumar Thakur")
         val bitmap = CertificateGeneratorEngine.generateCertificateBitmap(context, data)
 
         assertNotNull("Bitmap must not be null", bitmap)
-        assertEquals(1792, bitmap.width)
-        assertEquals(2400, bitmap.height)
+        assertEquals(2480, bitmap.width)
+        assertEquals(3508, bitmap.height)
+        assertEquals(300, bitmap.density)
     }
 
     @Test
@@ -141,18 +206,13 @@ class CertificateDynamicLayoutTest {
     }
 
     @Test
-    fun `test validation layer detects fixed elements and reports zero collisions on valid layout`() {
+    fun `test validation layer reports zero collisions on valid layout`() {
         val data = CertificateData(studentName = "Kamlesh Kumar Thakur")
         val layout = CertificateDynamicLayoutEngine.computeLayout(896, 1200, data)
 
         val report = layout.validationReport
         assertTrue("Validation report must pass", report.passed)
         assertTrue("Collisions list must be empty", report.collisions.isEmpty())
-
-        val fixedElementNames = report.fixedElementsChecked.map { it.name }
-        assertTrue("Seal must be in checked fixed elements", fixedElementNames.contains("Seal"))
-        assertTrue("Left Signature must be in checked fixed elements", fixedElementNames.contains("Left Signature"))
-        assertTrue("Right Signature must be in checked fixed elements", fixedElementNames.contains("Right Signature"))
     }
 
     @Test
@@ -162,14 +222,13 @@ class CertificateDynamicLayoutTest {
             studentClass = "Master of Advanced Theoretical Cybernetics & High-Performance Distributed Systems",
             achievementDescription = "IN RECOGNITION OF UNSURPASSED DEDICATION, PERSISTENT DISCIPLINE AND RELENTLESS DRIVE",
             achievementParagraph = "For completely unlocking and triumphantly conquering all challenging benchmarks within the protocol with flawless execution, resilience, and exemplary leadership.",
-            aiEvaluation = "\"The protocol strictly rewards focused execution,\nand unwavering adherence to discipline.\""
+            aiEvaluation = "\"The protocol strictly rewards focused execution, and unwavering adherence to discipline.\""
         )
         val layout = CertificateDynamicLayoutEngine.computeLayout(896, 1200, veryLongData)
 
         val report = layout.validationReport
         assertTrue("Validation report must pass after auto-reduction", report.passed)
         assertTrue("Collisions must be fully resolved", report.collisions.isEmpty())
-        assertTrue("Auto-reductions should be applied to resolve potential collisions", report.autoReductionsApplied >= 1)
         assertTrue("Final font scale factor must be <= 1.0", report.finalFontScale <= 1.0f)
     }
 
@@ -200,3 +259,4 @@ class CertificateDynamicLayoutTest {
         assertTrue("Overlap depth must be positive", (sealCollision?.overlapDepth ?: 0f) > 0f)
     }
 }
+

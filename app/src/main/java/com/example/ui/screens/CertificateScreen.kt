@@ -771,7 +771,7 @@ private fun CertificateMasterPreview(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(896f / 1200f) // Exact Master Template Aspect Ratio
+                    .aspectRatio(2480f / 3508f) // Exact A4 Aspect Ratio (300 DPI)
                     .clip(RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
