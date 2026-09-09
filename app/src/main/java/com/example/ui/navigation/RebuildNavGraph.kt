@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tune
@@ -154,7 +155,9 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector,
     object AiCoach : Screen("ai_coach", "AI Plans Generator", Icons.Default.AutoAwesome, "Gemini")
     object Goals : Screen("goals", "Apex Goals", Icons.Default.EmojiEvents, "Targets")
     object Schedule : Screen("schedule", "Schedule", Icons.Default.CalendarMonth)
-    object WinterArc : Screen("winter_arc", "Winter Arc Mission Control", Icons.Default.TrendingUp, "90D Arc")
+    object WinterArc : Screen("winter_arc", "Arc Protocol Mission Control", Icons.Default.TrendingUp, "90D Arc")
+    object SkillTree : Screen("skill_tree", "Skill Progression Trees", Icons.Default.Bolt, "Skills")
+    object Roadmap : Screen("roadmap", "AI Roadmaps & Trackers", Icons.Default.Timeline, "Roadmap")
     object Syllabus : Screen("syllabus", "Class 12 Syllabus", Icons.Default.MenuBook, "70 Chaps")
     object Subjects : Screen("subjects", "Study Tracker", Icons.Default.School)
     object Tasks : Screen("tasks", "Tasks", Icons.Default.TaskAlt)
@@ -622,6 +625,33 @@ fun RebuildAppScaffold(
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
+
+                // 21. Skill Progression Trees
+                composable(Screen.SkillTree.route) {
+                    val skillTreeVm: com.example.viewmodel.SkillTreeViewModel = viewModel(
+                        factory = com.example.viewmodel.SkillTreeViewModelFactory(
+                            application.universalGoalRepository
+                        )
+                    )
+                    com.example.ui.screens.SkillTreeScreen(
+                        viewModel = skillTreeVm,
+                        onOpenDrawer = openDrawer
+                    )
+                }
+
+                // 22. AI Roadmaps & Custom Metric Trackers
+                composable(Screen.Roadmap.route) {
+                    val roadmapVm: com.example.viewmodel.RoadmapViewModel = viewModel(
+                        factory = com.example.viewmodel.RoadmapViewModelFactory(
+                            application.universalGoalRepository,
+                            application.geminiCoachRepository
+                        )
+                    )
+                    com.example.ui.screens.RoadmapScreen(
+                        viewModel = roadmapVm,
+                        onOpenDrawer = openDrawer
+                    )
+                }
             }
         }
     }
@@ -931,12 +961,12 @@ fun RebuildDrawerContent(
             )
         }
 
-        // Section 2: ACADEMICS & TRANSFORMATION
+        // Section 2: GOALS & MASTERY PROTOCOLS
         item {
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = Color(0x11FFFFFF), thickness = 0.5.dp)
             Spacer(modifier = Modifier.height(4.dp))
-            DrawerSectionHeader(title = "TRANSFORMATION & ACADEMICS")
+            DrawerSectionHeader(title = "GOALS & MASTERY PROTOCOLS")
         }
 
         item {
@@ -945,6 +975,24 @@ fun RebuildDrawerContent(
                 isSelected = currentRoute == Screen.WinterArc.route,
                 highlightColor = PurpleArc,
                 onClick = { onNavigate(Screen.WinterArc.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.SkillTree,
+                isSelected = currentRoute == Screen.SkillTree.route,
+                highlightColor = IceCyanPrimary,
+                onClick = { onNavigate(Screen.SkillTree.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Roadmap,
+                isSelected = currentRoute == Screen.Roadmap.route,
+                highlightColor = PurpleArc,
+                onClick = { onNavigate(Screen.Roadmap.route) }
             )
         }
 

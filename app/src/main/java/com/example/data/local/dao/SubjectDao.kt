@@ -85,11 +85,20 @@ interface SubjectDao {
     @Query("SELECT * FROM study_sessions WHERE date = :date ORDER BY timestamp DESC")
     fun getStudySessionsForDate(date: String): Flow<List<StudySessionEntity>>
 
+    @Query("SELECT * FROM study_sessions WHERE subjectName = :subjectName ORDER BY timestamp DESC")
+    fun getStudySessionsForSubject(subjectName: String): Flow<List<StudySessionEntity>>
+
     @Query("SELECT COALESCE(SUM(durationMinutes), 0) FROM study_sessions WHERE date = :date")
     fun getDailyStudyMinutes(date: String): Flow<Int>
 
     @Query("SELECT COALESCE(SUM(durationMinutes), 0) FROM study_sessions WHERE date >= :startDate AND date <= :endDate")
     fun getStudyMinutesBetween(startDate: String, endDate: String): Flow<Int>
+
+    @Query("SELECT COALESCE(SUM(durationMinutes), 0) FROM study_sessions WHERE completedSuccessfully = 1")
+    fun getTotalStudyMinutes(): Flow<Int>
+
+    @Query("SELECT COALESCE(SUM(xpEarned), 0) FROM study_sessions WHERE completedSuccessfully = 1")
+    fun getTotalStudyXp(): Flow<Int>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStudySession(session: StudySessionEntity): Long

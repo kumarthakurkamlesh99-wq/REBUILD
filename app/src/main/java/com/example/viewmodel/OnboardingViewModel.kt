@@ -16,6 +16,9 @@ data class OnboardingUiState(
     val currentStep: Int = 1,
     val totalSteps: Int = 5,
     val name: String = "",
+    val selectedUniversalGoals: Set<String> = setOf("Board Exams", "Coding", "Fitness"),
+    val personaType: String = "Student",
+    val customGoalInput: String = "",
     val studentClass: String = "Class 12",
     val board: String = "CBSE",
     val stream: String = "Science (PCM)",
@@ -144,6 +147,18 @@ class OnboardingViewModel(
     fun updateCoachingStyle(style: String) = _uiState.update { it.copy(coachingStyle = style) }
     fun updateGeminiApiKey(key: String) = _uiState.update { it.copy(geminiApiKey = key) }
 
+    fun updatePersonaType(persona: String) = _uiState.update { it.copy(personaType = persona) }
+    fun updateCustomGoalInput(input: String) = _uiState.update { it.copy(customGoalInput = input) }
+    fun toggleUniversalGoal(goal: String) = _uiState.update {
+        val current = it.selectedUniversalGoals.toMutableSet()
+        if (current.contains(goal)) {
+            if (current.size > 1) current.remove(goal)
+        } else {
+            current.add(goal)
+        }
+        it.copy(selectedUniversalGoals = current)
+    }
+
     fun toggleNotifyWakeUp() = _uiState.update { it.copy(notifyWakeUp = !it.notifyWakeUp) }
     fun toggleNotifySchoolDeparture() = _uiState.update { it.copy(notifySchoolDeparture = !it.notifySchoolDeparture) }
     fun toggleNotifySchoolArrival() = _uiState.update { it.copy(notifySchoolArrival = !it.notifySchoolArrival) }
@@ -156,8 +171,12 @@ class OnboardingViewModel(
 
     fun completeOnboarding(onSuccess: () -> Unit) {
         val s = _uiState.value
+        val goalsJson = s.selectedUniversalGoals.joinToString(prefix = "[\"", separator = "\", \"", postfix = "\"]")
         val entity = UserProfileEntity(
-            name = if (s.name.isBlank()) "Student" else s.name.trim(),
+            name = if (s.name.isBlank()) "Hero" else s.name.trim(),
+            primaryGoalsJson = goalsJson,
+            personaType = s.personaType,
+            customGoalStatement = s.customGoalInput.trim(),
             studentClass = s.studentClass,
             board = s.board,
             stream = s.stream,

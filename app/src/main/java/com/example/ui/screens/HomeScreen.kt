@@ -353,7 +353,7 @@ fun HeroArcCard(
             ) {
                 Column {
                     Text(
-                        text = "WINTER ARC",
+                        text = "ARC PROTOCOL",
                         style = MaterialTheme.typography.labelSmall,
                         color = FrostBlueAccent,
                         fontWeight = FontWeight.ExtraBold,

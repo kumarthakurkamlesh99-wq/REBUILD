@@ -117,8 +117,8 @@ fun WinterArcScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             RebuildTopAppBar(
-                title = "Winter Arc Mission Control",
-                subtitle = "90-Day Relentless Metamorphosis Protocol",
+                title = "Arc Protocol Mission Control",
+                subtitle = "Monk Mode • Winter Arc • 90-Day Relentless Metamorphosis",
                 onMenuClick = onOpenDrawer
             )
 

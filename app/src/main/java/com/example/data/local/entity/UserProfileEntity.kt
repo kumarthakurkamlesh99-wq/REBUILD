@@ -20,6 +20,9 @@ data class UserProfileEntity(
     val avatarUri: String = "",
     val winterArcStartDate: String = "2026-08-01", // "yyyy-MM-dd"
     val goal: String = "Crack Bihar Board Class 12 with 95%+ and build elite discipline",
+    val primaryGoalsJson: String = "[\"Board Exams\"]", // Universal goals e.g. ["Coding", "Fitness", "NEET", "UPSC"]
+    val personaType: String = "Student", // "Student", "College", "Aspirant", "Coder", "Fitness", "Professional", "Entrepreneur"
+    val customGoalStatement: String = "",
 
     // 2. Academic Details
     val selectedSubjectsJson: String = "[\"Physics\", \"Chemistry\", \"Mathematics\", \"English\"]",

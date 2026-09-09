@@ -99,10 +99,13 @@ class GeminiCoachRepository(
         val profile = db.userProfileDao().getUserProfileDirect()
 
         // 1. Profile Info
-        val studentName = profile?.name ?: "Student"
-        val studentClass = profile?.studentClass ?: "Class 12"
-        val studentStream = profile?.stream ?: "Science (PCM)"
-        val board = profile?.board ?: "CBSE"
+        val studentName = profile?.name ?: "Hero"
+        val personaType = profile?.personaType ?: "Achiever"
+        val primaryGoals = profile?.primaryGoalsJson ?: "[\"Personal Growth\"]"
+        val customGoalStatement = profile?.customGoalStatement ?: ""
+        val studentClass = profile?.studentClass ?: "Self-Improvement"
+        val studentStream = profile?.stream ?: "General"
+        val board = profile?.board ?: "Self-Paced"
         val targetPercentage = profile?.targetPercentage ?: 95
         val coachingStyle = profile?.coachingStyle ?: "Monk Mode (Strict Discipline)"
         val wakeUp = profile?.wakeUpTime ?: "06:00"
@@ -110,9 +113,9 @@ class GeminiCoachRepository(
         val studyGoal = profile?.dailyStudyGoalHours ?: 6.0f
         val workoutGoal = "${profile?.workoutType ?: "Calisthenics"} (${profile?.workoutDurationMinutes ?: 30} mins at ${profile?.workoutTime ?: "17:00"})"
 
-        // 2. Board Exam
+        // 2. Board / Primary Milestone Exam
         val examConfig = db.boardExamDao().getBoardExamConfigDirect()
-        val examName = examConfig?.examName ?: profile?.targetExamName ?: "Board Exam"
+        val examName = examConfig?.examName ?: profile?.targetExamName ?: "Apex Milestone"
         val daysLeft = if (examConfig != null) {
             try {
                 val examDate = dateFormat.parse(examConfig.examDate) ?: Date()
@@ -121,20 +124,30 @@ class GeminiCoachRepository(
             } catch (e: Exception) { 120L }
         } else 120L
 
-        // 3. Winter Arc
+        // 3. Arc Protocol & XP
         val winterArc = db.winterArcDao().getWinterArcStateDirect()
         val winterDay = winterArc?.currentDay ?: 1
         val winterLevel = winterArc?.level ?: 1
         val winterStreak = winterArc?.streak ?: 0
         val xp = winterArc?.xp ?: 0
 
-        // 4. School status & timings
+        // 4. Custom Trackers Telemetry
+        val customTrackers: List<com.example.data.local.entity.CustomTrackerEntity> = try {
+            db.universalGoalDao().getAllTrackersDirect()
+        } catch (e: Exception) {
+            emptyList()
+        }
+        val trackerSummaries: List<String> = customTrackers.map { t ->
+            "${t.title}: ${t.currentCount}/${t.targetCount} ${t.unit} (${t.category})"
+        }
+
+        // 5. School/Work routine timings
         val school = db.schoolStatusDao().getStatusForDateDirect(today)
         val schoolState = school?.currentState?.name ?: "HOME"
         val hasSchool = profile?.hasSchool ?: true
-        val schoolHours = if (hasSchool) "${profile?.schoolStartTime ?: "09:45"} Departure - ${profile?.schoolEndTime ?: "13:00"} Return" else "No Regular School (Full Day Self Study)"
+        val schoolHours = if (hasSchool) "${profile?.schoolStartTime ?: "09:45"} Departure - ${profile?.schoolEndTime ?: "13:00"} Return" else "Full Day Uninterrupted Deep Work"
 
-        // 5. Subjects & Chapter Progress
+        // 6. Subjects & Chapter Progress
         val subjects = db.subjectDao().getAllSubjectsDirect()
         val subjectSummaries = mutableListOf<String>()
         var totalChaptersCount = 0
@@ -151,7 +164,7 @@ class GeminiCoachRepository(
             )
         }
 
-        // 6. Habits & Streaks
+        // 7. Habits & Streaks
         val habits = db.habitDao().getAllHabitsDirect()
         val habitLogs = db.habitDao().getLogsForDateDirect(today)
         val habitLogsMap = habitLogs.associateBy { it.habitId }
@@ -160,37 +173,43 @@ class GeminiCoachRepository(
             "${h.name} (Streak: ${h.streak}d, Done Today: $doneToday)"
         }
 
-        // 7. Discipline Score
+        // 8. Discipline Score
         val discipline = db.disciplineDao().getDisciplineForDateDirect(today)
         val discScore = discipline?.totalScore ?: 0
 
-        // 8. Workouts
+        // 9. Workouts
         val workouts = db.workoutDao().getWorkoutsForDateDirect(today)
         val workoutSummaries = workouts.map { "${it.exerciseName} (${if (it.isCompleted) "Done" else "Pending"})" }
 
-        // 9. Holidays & Indian Festivals
+        // 10. Holidays
         val monthDay = SimpleDateFormat("MM-dd", Locale.getDefault()).format(Date())
         val holiday = db.holidayDao().getHolidayForDate(today, monthDay)
-        val holidayNote = if (holiday != null) "TODAY IS A HOLIDAY/FESTIVAL: ${holiday.name} (Workload adjustment: -${holiday.workloadReductionPercent}%)" else "Regular Day ($schoolHours)"
+        val holidayNote = if (holiday != null) "TODAY IS A RECOVERY/FESTIVAL DAY: ${holiday.name} (Workload adjustment: -${holiday.workloadReductionPercent}%)" else "Regular Day ($schoolHours)"
 
-        // 10. Daily Reflection
+        // 11. Daily Reflection
         val reflection = db.reflectionDao().getReflectionForDateDirect(today)
         val reflectionSummary = if (reflection != null) {
             "Recent Reflection: Score ${reflection.dailyScore}/10. Wins: ${reflection.whatWentWell}. Hurdles: ${reflection.whatHeldMeBack}. Tomorrow: ${reflection.tomorrowGoal}"
         } else "No reflection logged yet."
 
         buildString {
-            appendLine("=== REBUILD PERSONAL TELEMETRY ===")
-            appendLine("Student: $studentName | $studentClass ($board) | Stream: $studentStream | Target: $targetPercentage%")
+            appendLine("=== REBUILD UNIVERSAL TELEMETRY ===")
+            appendLine("User: $studentName | Persona: $personaType | Primary Goals: $primaryGoals")
+            if (customGoalStatement.isNotBlank()) appendLine("Custom North Star: $customGoalStatement")
             appendLine("Coaching Persona: $coachingStyle")
             appendLine("Date: $today ($dayOfWeek) | Status: $holidayNote")
-            appendLine("Exam Target: $examName in $daysLeft days. Target: $targetPercentage%")
-            appendLine("Syllabus Mastery: $totalCompletedChaptersCount/$totalChaptersCount total chapters completed.")
-            appendLine("Winter Arc: Day $winterDay of 90, Level $winterLevel, Streak: $winterStreak days, XP: $xp, Discipline: $discScore/100")
-            appendLine("Daily Routine: Wake $wakeUp | Sleep $sleepTime | Daily Study Target: ${studyGoal}h | Workout: $workoutGoal")
-            appendLine("School Flow: $schoolHours (Current Live State: $schoolState)")
-            appendLine("Active Academic Subjects:")
-            if (subjectSummaries.isEmpty()) appendLine("- Initializing subjects") else subjectSummaries.forEach { appendLine(it) }
+            appendLine("Primary Milestone: $examName in $daysLeft days. Target: $targetPercentage%")
+            if (trackerSummaries.isNotEmpty()) {
+                appendLine("Active Custom Trackers:")
+                trackerSummaries.forEach { appendLine("- $it") }
+            }
+            appendLine("Arc Protocol: Day $winterDay of 90, Level $winterLevel, Streak: $winterStreak days, XP: $xp, Discipline: $discScore/100")
+            appendLine("Daily Routine: Wake $wakeUp | Sleep $sleepTime | Daily Focus Target: ${studyGoal}h | Workout: $workoutGoal")
+            appendLine("Routine Flow: $schoolHours (Current Live State: $schoolState)")
+            if (subjectSummaries.isNotEmpty()) {
+                appendLine("Curriculum / Academic Tracks ($totalCompletedChaptersCount/$totalChaptersCount completed):")
+                subjectSummaries.forEach { appendLine(it) }
+            }
             appendLine("Habits Matrix:")
             if (habitSummaries.isEmpty()) appendLine("- Initializing habits") else habitSummaries.forEach { appendLine("- $it") }
             appendLine("Workouts Logged Today:")

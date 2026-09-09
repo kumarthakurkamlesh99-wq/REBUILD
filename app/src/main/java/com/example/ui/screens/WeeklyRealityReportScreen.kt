@@ -126,7 +126,7 @@ fun WeeklyRealityReportScreen(
                                 border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f))
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
-                                    Text("REAL STUDY HOURS", color = IceCyanPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Text("REAL DEEP WORK & FOCUS", color = IceCyanPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text("${report.studyHours}h", color = GlassWhite, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
                                 }

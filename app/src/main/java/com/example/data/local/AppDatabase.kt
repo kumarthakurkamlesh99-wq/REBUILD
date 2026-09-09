@@ -58,6 +58,11 @@ import com.example.data.local.entity.SubjectEntity
 import com.example.data.local.entity.SyllabusChapterEntity
 import com.example.data.local.entity.SyllabusSubtopicEntity
 import com.example.data.local.entity.SyllabusTopicEntity
+import com.example.data.local.dao.UniversalGoalDao
+import com.example.data.local.entity.CustomTrackerEntity
+import com.example.data.local.entity.RoadmapEntity
+import com.example.data.local.entity.RoadmapMilestoneEntity
+import com.example.data.local.entity.SkillNodeEntity
 import com.example.data.local.entity.SyllabusUnitEntity
 import com.example.data.local.entity.UserProfileEntity
 import com.example.data.local.entity.WinterArcObjectiveEntity
@@ -104,9 +109,13 @@ import java.util.Locale
         FlashcardDeckEntity::class,
         FlashcardEntity::class,
         MistakeEntity::class,
-        DistractionLogEntity::class
+        DistractionLogEntity::class,
+        SkillNodeEntity::class,
+        RoadmapEntity::class,
+        RoadmapMilestoneEntity::class,
+        CustomTrackerEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -134,6 +143,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun flashcardDao(): FlashcardDao
     abstract fun mistakeDao(): MistakeDao
     abstract fun distractionDao(): DistractionDao
+    abstract fun universalGoalDao(): UniversalGoalDao
 
     companion object {
         @Volatile

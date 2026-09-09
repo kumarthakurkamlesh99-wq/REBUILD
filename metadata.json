@@ -1,6 +1,6 @@
 {
   "name": "REBUILD",
-  "description": "World-class student performance system combining AI Coach, hierarchical syllabus mastery, active recall flashcards, mistake audit notebook, executive weekly reality reports, Winter Arc discipline, and smart challenge alarms.",
+  "description": "Universal personal growth and performance operating system combining AI Coach, skill progression trees, multi-horizon roadmaps, custom metric trackers, Arc protocols, and deep work telemetry.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

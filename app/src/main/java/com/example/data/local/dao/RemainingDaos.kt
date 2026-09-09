@@ -24,8 +24,20 @@ interface WorkoutDao {
     @Query("SELECT * FROM workout_logs ORDER BY date DESC, id DESC")
     fun getAllWorkouts(): Flow<List<WorkoutLogEntity>>
 
+    @Query("SELECT * FROM workout_logs WHERE date >= :startDate AND date <= :endDate ORDER BY date ASC")
+    fun getWorkoutsBetweenDates(startDate: String, endDate: String): Flow<List<WorkoutLogEntity>>
+
     @Query("SELECT COUNT(*) FROM workout_logs WHERE isCompleted = 1")
     fun getTotalCompletedWorkouts(): Flow<Int>
+
+    @Query("SELECT COALESCE(SUM(caloriesBurned), 0) FROM workout_logs WHERE isCompleted = 1")
+    fun getTotalCaloriesBurned(): Flow<Int>
+
+    @Query("SELECT COALESCE(SUM(durationMinutes), 0) FROM workout_logs WHERE isCompleted = 1")
+    fun getTotalWorkoutMinutes(): Flow<Int>
+
+    @Query("SELECT COALESCE(SUM(durationMinutes), 0) FROM workout_logs WHERE date = :date AND isCompleted = 1")
+    fun getDailyWorkoutMinutes(date: String): Flow<Int>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWorkout(workout: WorkoutLogEntity): Long

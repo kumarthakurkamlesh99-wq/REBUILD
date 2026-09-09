@@ -298,20 +298,20 @@ private fun StepPersonalAndTarget(
     ) {
         item {
             StepHeaderCard(
-                title = "Who are you?",
-                subtitle = "Set up your academic profile and exam target to calibrate syllabus & schedules.",
+                title = "Calibrate Your Vision",
+                subtitle = "Choose what you are working towards. REBUILD works for any ambition: Exams, Coding, Fitness, UPSC, or Career.",
                 icon = Icons.Default.Person,
                 accentColor = IceCyanPrimary
             )
         }
 
-        // Student Name
+        // Student / User Name
         item {
             SectionContainer(title = "YOUR NAME") {
                 OutlinedTextField(
                     value = state.name,
                     onValueChange = { viewModel.updateName(it) },
-                    placeholder = { Text("e.g. Kamlesh Kumar", color = GlassWhiteMuted) },
+                    placeholder = { Text("e.g. Kamlesh, Alex, Priya", color = GlassWhiteMuted) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = GlassWhite,
@@ -329,124 +329,69 @@ private fun StepPersonalAndTarget(
             }
         }
 
-        // Class Selection
+        // Persona Selection
         item {
-            SectionContainer(title = "CLASS / LEVEL") {
-                val classes = listOf("Class 10", "Class 11", "Class 12", "Dropper", "College")
+            SectionContainer(title = "I AM A...") {
+                val personas = listOf(
+                    "School Student",
+                    "College Student",
+                    "NEET / JEE Aspirant",
+                    "UPSC / Govt Aspirant",
+                    "Coder / Developer",
+                    "Fitness Enthusiast",
+                    "Professional / Founder"
+                )
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    classes.forEach { cls ->
+                    personas.forEach { p ->
                         ChoiceChip(
-                            text = cls,
-                            isSelected = state.studentClass == cls,
-                            onClick = { viewModel.updateStudentClass(cls) }
+                            text = p,
+                            isSelected = state.personaType == p,
+                            onClick = { viewModel.updatePersonaType(p) }
                         )
                     }
                 }
             }
         }
 
-        // Board Selection
+        // Universal Goals Multi-Select
         item {
-            SectionContainer(title = "EXAM BOARD") {
-                val boards = listOf("CBSE", "ICSE / ISC", "State Board", "JEE / NEET Target", "Other")
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    boards.forEach { board ->
-                        ChoiceChip(
-                            text = board,
-                            isSelected = state.board == board,
-                            onClick = { viewModel.updateBoard(board) }
-                        )
-                    }
-                }
-            }
-        }
-
-        // Stream Selection
-        item {
-            SectionContainer(title = "ACADEMIC STREAM") {
-                val streams = listOf(
-                    "Science (PCM)",
-                    "Science (PCB)",
-                    "Science (PCMB)",
-                    "Commerce",
-                    "Arts / Humanities",
-                    "General"
+            SectionContainer(title = "WHAT ARE YOU WORKING TOWARDS? (Select all that apply)") {
+                val allGoals = listOf(
+                    "Board Exams",
+                    "NEET / Medical",
+                    "JEE / Engineering",
+                    "UPSC / Civil Services",
+                    "CA / Finance",
+                    "Coding & Tech",
+                    "Fitness & Strength",
+                    "Weight Loss",
+                    "Reading & Knowledge",
+                    "Career Growth"
                 )
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    streams.forEach { stream ->
+                    allGoals.forEach { g ->
+                        val isSelected = state.selectedUniversalGoals.contains(g)
                         ChoiceChip(
-                            text = stream,
-                            isSelected = state.stream == stream,
-                            onClick = { viewModel.updateStream(stream) }
+                            text = if (isSelected) "✓ $g" else "+ $g",
+                            isSelected = isSelected,
+                            onClick = { viewModel.toggleUniversalGoal(g) }
                         )
                     }
                 }
-            }
-        }
-
-        // Target Percentage Slider
-        item {
-            SectionContainer(title = "TARGET PERCENTAGE: ${state.targetPercentage}%") {
-                Slider(
-                    value = state.targetPercentage.toFloat(),
-                    onValueChange = { viewModel.updateTargetPercentage(it.toInt()) },
-                    valueRange = 75f..100f,
-                    steps = 24,
-                    colors = SliderDefaults.colors(
-                        thumbColor = IceCyanPrimary,
-                        activeTrackColor = IceCyanPrimary,
-                        inactiveTrackColor = Color(0x33284B75)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("75%", style = MaterialTheme.typography.bodySmall, color = GlassWhiteMuted)
-                    Text("90% (Distinction)", style = MaterialTheme.typography.bodySmall, color = FrostBlueAccent)
-                    Text("95%+ (Apex Rank)", style = MaterialTheme.typography.bodySmall, color = IceCyanPrimary, fontWeight = FontWeight.Bold)
-                    Text("100%", style = MaterialTheme.typography.bodySmall, color = GlassWhiteMuted)
-                }
-            }
-        }
-
-        // Target Exam Name & Date
-        item {
-            SectionContainer(title = "TARGET EXAM & DATE") {
-                OutlinedTextField(
-                    value = state.targetExamName,
-                    onValueChange = { viewModel.updateTargetExamName(it) },
-                    label = { Text("Exam Name", color = GlassWhiteMuted) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedContainerColor = FrostedNavyCard,
-                        unfocusedContainerColor = FrostedNavyCard
-                    ),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                )
 
                 Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
-                    value = state.targetExamDate,
-                    onValueChange = { viewModel.updateTargetExamDate(it) },
-                    label = { Text("Target Exam Date (YYYY-MM-DD)", color = GlassWhiteMuted) },
-                    placeholder = { Text("2027-02-15", color = GlassWhiteMuted) },
+                    value = state.customGoalInput,
+                    onValueChange = { viewModel.updateCustomGoalInput(it) },
+                    label = { Text("Custom Goal or Dream Milestone (Optional)", color = GlassWhiteMuted) },
+                    placeholder = { Text("e.g. Build an AI app, Run a 10k, Read 24 books", color = GlassWhiteMuted) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = GlassWhite,
@@ -459,6 +404,71 @@ private fun StepPersonalAndTarget(
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
+        }
+
+        // Conditional Academic Details (if student or exam target selected)
+        val hasAcademicGoal = state.selectedUniversalGoals.any { it.contains("Exam") || it.contains("JEE") || it.contains("NEET") || it.contains("UPSC") || it.contains("CA") } || state.personaType.contains("Student") || state.personaType.contains("Aspirant")
+        if (hasAcademicGoal) {
+            // Class Selection
+            item {
+                SectionContainer(title = "CURRENT CLASS / LEVEL") {
+                    val classes = listOf("Class 10", "Class 11", "Class 12", "Dropper", "College", "Graduate / Working")
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        classes.forEach { cls ->
+                            ChoiceChip(
+                                text = cls,
+                                isSelected = state.studentClass == cls,
+                                onClick = { viewModel.updateStudentClass(cls) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Target Exam Name & Date
+            item {
+                SectionContainer(title = "EXAM / TARGET DEADLINE") {
+                    OutlinedTextField(
+                        value = state.targetExamName,
+                        onValueChange = { viewModel.updateTargetExamName(it) },
+                        label = { Text("Primary Exam or Milestone Title", color = GlassWhiteMuted) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = GlassWhite,
+                            unfocusedTextColor = GlassWhite,
+                            focusedBorderColor = IceCyanPrimary,
+                            unfocusedBorderColor = GlassBorder,
+                            focusedContainerColor = FrostedNavyCard,
+                            unfocusedContainerColor = FrostedNavyCard
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = state.targetExamDate,
+                        onValueChange = { viewModel.updateTargetExamDate(it) },
+                        label = { Text("Target Deadline (YYYY-MM-DD)", color = GlassWhiteMuted) },
+                        placeholder = { Text("2027-02-15", color = GlassWhiteMuted) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = GlassWhite,
+                            unfocusedTextColor = GlassWhite,
+                            focusedBorderColor = IceCyanPrimary,
+                            unfocusedBorderColor = GlassBorder,
+                            focusedContainerColor = FrostedNavyCard,
+                            unfocusedContainerColor = FrostedNavyCard
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
     }
