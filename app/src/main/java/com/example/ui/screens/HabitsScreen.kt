@@ -206,13 +206,26 @@ fun HabitsScreen(
             }
 
             // Section: Habit Items
-            items(uiState.habits, key = { it.id }) { habit ->
-                val isCompleted = uiState.todayLogs.find { it.habitId == habit.id }?.isCompleted == true
-                HabitCardItem(
-                    habit = habit,
-                    isCompleted = isCompleted,
-                    onToggle = { viewModel.toggleHabit(habit) }
-                )
+            if (uiState.habits.isEmpty()) {
+                item {
+                    com.example.ui.components.RebuildEmptyState(
+                        title = "No Habits Tracked",
+                        description = "Build daily discipline and streak multipliers. Tap '+' below to add your first habit.",
+                        icon = Icons.Default.CheckCircle,
+                        iconTint = SuccessGreen,
+                        actionLabel = "Create Habit",
+                        onAction = { showAddHabitDialog = true }
+                    )
+                }
+            } else {
+                items(uiState.habits, key = { it.id }) { habit ->
+                    val isCompleted = uiState.todayLogs.find { it.habitId == habit.id }?.isCompleted == true
+                    HabitCardItem(
+                        habit = habit,
+                        isCompleted = isCompleted,
+                        onToggle = { viewModel.toggleHabit(habit) }
+                    )
+                }
             }
         }
     }

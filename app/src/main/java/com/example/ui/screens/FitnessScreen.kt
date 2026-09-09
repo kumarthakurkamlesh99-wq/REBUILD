@@ -1,8 +1,10 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -251,11 +254,24 @@ fun FitnessScreen(
             }
 
             // Workout Cards
-            items(uiState.todayWorkouts, key = { it.id }) { workout ->
-                WorkoutCardItem(
-                    workout = workout,
-                    onToggle = { viewModel.toggleWorkout(workout) }
-                )
+            if (uiState.todayWorkouts.isEmpty()) {
+                item {
+                    com.example.ui.components.RebuildEmptyState(
+                        title = "No Workouts Logged",
+                        description = "No calisthenics or cardio sessions registered today. Tap '+' below to log your training.",
+                        icon = Icons.Default.FitnessCenter,
+                        iconTint = FireOrange,
+                        actionLabel = "Add Workout",
+                        onAction = { showAddWorkoutDialog = true }
+                    )
+                }
+            } else {
+                items(uiState.todayWorkouts, key = { it.id }) { workout ->
+                    WorkoutCardItem(
+                        workout = workout,
+                        onToggle = { viewModel.toggleWorkout(workout) }
+                    )
+                }
             }
         }
     }
@@ -280,23 +296,30 @@ fun LevelButton(
 ) {
     Surface(
         modifier = modifier
+            .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         color = if (isSelected) FireOrange.copy(alpha = 0.25f) else Color(0x33102447),
-        border = androidx.compose.foundation.BorderStroke(
+        border = BorderStroke(
             1.dp,
             if (isSelected) FireOrange else Color(0x205CE1E6)
         )
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) GlassWhite else GlassWhiteMuted,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.padding(vertical = 10.dp)
-        )
+        Box(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSelected) GlassWhite else GlassWhiteMuted,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

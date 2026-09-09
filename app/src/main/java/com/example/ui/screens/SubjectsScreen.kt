@@ -27,8 +27,10 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -256,16 +258,27 @@ fun SubjectsScreen(
         }
 
         // Chapters List
-        items(uiState.chapters, key = { it.id }) { chapter ->
-            ChapterProgressCard(
-                chapter = chapter,
-                subjectName = uiState.selectedSubject?.name ?: "Physics",
-                onUpdate = { viewModel.updateChapterProgress(it) },
-                onIncrementRevision = { viewModel.incrementRevision(chapter.id) },
-                onFocusChapter = {
-                    onStartFocusSession(uiState.selectedSubject?.name ?: "Physics", chapter.title)
-                }
-            )
+        if (uiState.chapters.isEmpty()) {
+            item {
+                com.example.ui.components.RebuildEmptyState(
+                    title = "No Chapters Loaded",
+                    description = "Chapters for this subject syllabus are synchronizing or empty.",
+                    icon = Icons.Default.School,
+                    iconTint = IceCyanPrimary
+                )
+            }
+        } else {
+            items(uiState.chapters, key = { it.id }) { chapter ->
+                ChapterProgressCard(
+                    chapter = chapter,
+                    subjectName = uiState.selectedSubject?.name ?: "Physics",
+                    onUpdate = { viewModel.updateChapterProgress(it) },
+                    onIncrementRevision = { viewModel.incrementRevision(chapter.id) },
+                    onFocusChapter = {
+                        onStartFocusSession(uiState.selectedSubject?.name ?: "Physics", chapter.title)
+                    }
+                )
+            }
         }
     }
 }

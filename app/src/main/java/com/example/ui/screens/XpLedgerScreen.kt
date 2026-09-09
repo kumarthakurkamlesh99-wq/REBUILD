@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -75,6 +76,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -626,20 +628,20 @@ fun QuickXpLoggingCard(onLog: (String, String, Int) -> Unit) {
             ) {
                 Button(
                     onClick = { onLog("Deep Work Study Session", "Study", 60) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary)
                 ) {
-                    Text("+60 Study", color = Color(0xFF050816), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("+60 Study", color = Color(0xFF050816), fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
 
                 Button(
                     onClick = { onLog("Workout Routine Completed", "Workout", 40) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = FireOrange)
                 ) {
-                    Text("+40 Workout", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("+40 Workout", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
 
@@ -651,20 +653,20 @@ fun QuickXpLoggingCard(onLog: (String, String, Int) -> Unit) {
             ) {
                 Button(
                     onClick = { onLog("Night Reflection & Accountability", "Discipline", 25) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = PurpleArc)
                 ) {
-                    Text("+25 Reflection", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("+25 Reflection", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
 
                 Button(
                     onClick = { onLog("Flashcard Formula Revision", "Revision", 15) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen)
                 ) {
-                    Text("+15 Flashcards", color = Color(0xFF050816), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("+15 Flashcards", color = Color(0xFF050816), fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -673,47 +675,14 @@ fun QuickXpLoggingCard(onLog: (String, String, Int) -> Unit) {
 
 @Composable
 fun EmptyTransactionsCard(query: String, category: String, onQuickLog: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, GlassBorder, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = LuxuryCard)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Default.ReceiptLong,
-                contentDescription = null,
-                tint = IceCyanPrimary.copy(alpha = 0.5f),
-                modifier = Modifier.size(48.dp)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = if (query.isNotBlank() || category != "All") "No Transactions Found" else "No transactions yet",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = GlassWhite
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = if (query.isNotBlank()) "No records matching \"$query\" in $category." else "Execute study blocks, workouts, or reflections to build your ledger.",
-                style = MaterialTheme.typography.bodySmall,
-                color = GlassWhiteMuted
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = onQuickLog,
-                colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary)
-            ) {
-                Text("Log Protocol XP", color = Color(0xFF050816), fontWeight = FontWeight.Bold)
-            }
-        }
-    }
+    com.example.ui.components.RebuildEmptyState(
+        title = if (query.isNotBlank() || category != "All") "No Transactions Found" else "No Transactions Yet",
+        description = if (query.isNotBlank()) "No records matching \"$query\" in $category." else "Execute study blocks, workouts, or habits to build your ledger balance.",
+        icon = Icons.Default.ReceiptLong,
+        iconTint = IceCyanPrimary,
+        actionLabel = "Log Protocol XP",
+        onAction = onQuickLog
+    )
 }
 
 fun getCategoryColor(category: String): Color {

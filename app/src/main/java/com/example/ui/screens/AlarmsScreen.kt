@@ -393,30 +393,43 @@ fun AlarmsScreen(
                 }
 
                 // Alarms List Items
-                items(uiState.alarms, key = { "alarm_${it.id}" }) { alarm ->
-                    AlarmCardItem(
-                        alarm = alarm,
-                        onToggle = {
-                            if (!alarm.isEnabled) {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !AlarmScheduler.hasNotificationPermission(context)) {
-                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                if (uiState.alarms.isEmpty()) {
+                    item {
+                        com.example.ui.components.RebuildEmptyState(
+                            title = "No Custom Alarms Configured",
+                            description = "Never sleep through a study block or workout. Tap '+' below to create your anti-slumber alarm.",
+                            icon = Icons.Default.Alarm,
+                            iconTint = IceCyanPrimary,
+                            actionLabel = "Create Alarm",
+                            onAction = { viewModel.openCreateDialog() }
+                        )
+                    }
+                } else {
+                    items(uiState.alarms, key = { "alarm_${it.id}" }) { alarm ->
+                        AlarmCardItem(
+                            alarm = alarm,
+                            onToggle = {
+                                if (!alarm.isEnabled) {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !AlarmScheduler.hasNotificationPermission(context)) {
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !AlarmScheduler.canScheduleExactAlarms(context)) {
+                                        AlarmScheduler.openExactAlarmSettings(context)
+                                    }
                                 }
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !AlarmScheduler.canScheduleExactAlarms(context)) {
-                                    AlarmScheduler.openExactAlarmSettings(context)
-                                }
+                                viewModel.toggleAlarm(alarm)
+                            },
+                            onEdit = { viewModel.openEditDialog(alarm) },
+                            onDelete = { viewModel.deleteAlarm(alarm) },
+                            onTestTrigger = {
+                                launchTestAlarmChallenge(
+                                    context = context,
+                                    type = alarm.challengeType,
+                                    difficulty = alarm.challengeDifficulty
+                                )
                             }
-                            viewModel.toggleAlarm(alarm)
-                        },
-                        onEdit = { viewModel.openEditDialog(alarm) },
-                        onDelete = { viewModel.deleteAlarm(alarm) },
-                        onTestTrigger = {
-                            launchTestAlarmChallenge(
-                                context = context,
-                                type = alarm.challengeType,
-                                difficulty = alarm.challengeDifficulty
-                            )
-                        }
-                    )
+                        )
+                    }
                 }
 
                 // Dismissal History Logs

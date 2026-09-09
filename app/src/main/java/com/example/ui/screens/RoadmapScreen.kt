@@ -252,28 +252,14 @@ fun RoadmapScreen(
 
 @Composable
 private fun EmptyTrackersCard(onAdd: () -> Unit) {
-    FrostedGlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text("No Custom Trackers Yet", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GlassWhite)
-            Text(
-                "Track anything from DSA LeetCode problems, Running KMs, or Vocab cards.",
-                fontSize = 12.sp,
-                color = GlassWhiteMuted,
-                lineHeight = 16.sp
-            )
-            Button(
-                onClick = onAdd,
-                colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Text("Build Custom Tracker", color = DarkNavy, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            }
-        }
-    }
+    com.example.ui.components.RebuildEmptyState(
+        title = "No Custom Trackers Yet",
+        description = "Track anything from DSA LeetCode problems, Running KMs, or Vocab cards.",
+        icon = Icons.Default.Flag,
+        iconTint = IceCyanPrimary,
+        actionLabel = "Build Custom Tracker",
+        onAction = onAdd
+    )
 }
 
 @Composable
@@ -361,27 +347,14 @@ private fun TrackerItemCard(
 
 @Composable
 private fun EmptyRoadmapsCard(onGenerate: () -> Unit) {
-    FrostedGlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text("No AI Roadmaps Generated", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GlassWhite)
-            Text(
-                "Generate structured 30, 60, or 90-day execution roadmaps for any goal.",
-                fontSize = 12.sp,
-                color = GlassWhiteMuted
-            )
-            Button(
-                onClick = onGenerate,
-                colors = ButtonDefaults.buttonColors(containerColor = PurpleArc),
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Text("Generate AI Roadmap", color = DarkNavy, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            }
-        }
-    }
+    com.example.ui.components.RebuildEmptyState(
+        title = "No AI Roadmaps Generated",
+        description = "Generate structured 30, 60, or 90-day execution roadmaps for any exam, profession, or fitness goal.",
+        icon = Icons.Default.Timeline,
+        iconTint = PurpleArc,
+        actionLabel = "Generate AI Roadmap",
+        onAction = onGenerate
+    )
 }
 
 @Composable

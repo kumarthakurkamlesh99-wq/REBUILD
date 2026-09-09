@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -182,12 +183,23 @@ fun WinterArcScreen(
                     }
                 }
 
-                items(uiState.objectives, key = { "obj_${it.id}" }) { objective ->
-                    ObjectiveCardItem(
-                        objective = objective,
-                        onToggle = { viewModel.toggleObjective(objective) },
-                        onDelete = { viewModel.deleteObjective(objective) }
-                    )
+                if (uiState.objectives.isEmpty()) {
+                    item {
+                        com.example.ui.components.RebuildEmptyState(
+                            title = "No Arc Objectives Defined",
+                            description = "Lock in your core non-negotiable rules for the Winter Arc protocol. Tap '+' to create one.",
+                            icon = Icons.Default.Shield,
+                            iconTint = IceCyanPrimary
+                        )
+                    }
+                } else {
+                    items(uiState.objectives, key = { "obj_${it.id}" }) { objective ->
+                        ObjectiveCardItem(
+                            objective = objective,
+                            onToggle = { viewModel.toggleObjective(objective) },
+                            onDelete = { viewModel.deleteObjective(objective) }
+                        )
+                    }
                 }
 
                 // Tactical & Strategic Goals Horizon Tabs
@@ -229,7 +241,7 @@ fun WinterArcScreen(
                             }
                         }
 
-                        // Horizon Switcher
+                        // Horizon Switcher (Concise labels, responsive touch targets)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -238,23 +250,26 @@ fun WinterArcScreen(
                                 .padding(4.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            val horizons = listOf("DAILY" to "Daily Tasks", "WEEKLY" to "Weekly Sprints", "MONTHLY" to "Monthly Milestones")
+                            val horizons = listOf("DAILY" to "Daily", "WEEKLY" to "Weekly", "MONTHLY" to "Monthly")
                             horizons.forEach { (key, label) ->
                                 val isSel = uiState.selectedTimeHorizon == key
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
+                                        .heightIn(min = 40.dp)
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(if (isSel) ElectricBlue else Color.Transparent)
                                         .clickable { viewModel.selectHorizon(key) }
-                                        .padding(vertical = 8.dp),
+                                        .padding(vertical = 8.dp, horizontal = 4.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = label,
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSel) DarkNavy else GlassWhiteMuted
+                                        color = if (isSel) DarkNavy else GlassWhiteMuted,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -271,20 +286,12 @@ fun WinterArcScreen(
 
                 if (currentGoals.isEmpty()) {
                     item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF0C1628))
-                                .padding(20.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No goals added yet for this time horizon. Tap + to add one.",
-                                fontSize = 12.sp,
-                                color = GlassWhiteMuted
-                            )
-                        }
+                        com.example.ui.components.RebuildEmptyState(
+                            title = "No Tactical Goals",
+                            description = "No goals configured for this horizon yet. Tap '+' above to add your first sprint objective.",
+                            icon = Icons.Default.TrendingUp,
+                            iconTint = PurpleArc
+                        )
                     }
                 } else {
                     items(currentGoals, key = { "goal_${it.id}" }) { goal ->

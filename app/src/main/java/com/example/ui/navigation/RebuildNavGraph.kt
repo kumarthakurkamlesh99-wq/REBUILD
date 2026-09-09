@@ -782,7 +782,9 @@ fun RebuildDrawerContent(
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = PurpleArc,
-                                        fontSize = 12.sp
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                     Icon(
                                         imageVector = Icons.Default.Bolt,
@@ -795,7 +797,9 @@ fun RebuildDrawerContent(
                                     text = "Rank Tier • Tap",
                                     style = MaterialTheme.typography.bodySmall,
                                     fontSize = 10.sp,
-                                    color = GlassWhiteMuted
+                                    color = GlassWhiteMuted,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -821,7 +825,9 @@ fun RebuildDrawerContent(
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = IceCyanPrimary,
-                                        fontSize = 12.sp
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                     )
                                     Icon(
                                         imageVector = Icons.Default.Bolt,
@@ -834,7 +840,9 @@ fun RebuildDrawerContent(
                                     text = "Ledger • Tap",
                                     style = MaterialTheme.typography.bodySmall,
                                     fontSize = 10.sp,
-                                    color = GlassWhiteMuted
+                                    color = GlassWhiteMuted,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -856,13 +864,17 @@ fun RebuildDrawerContent(
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = FrostBlueAccent,
-                                    fontSize = 12.sp
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = "Winter Arc",
                                     style = MaterialTheme.typography.bodySmall,
                                     fontSize = 10.sp,
-                                    color = GlassWhiteMuted
+                                    color = GlassWhiteMuted,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -879,13 +891,17 @@ fun RebuildDrawerContent(
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = WarningAmber,
-                                    fontSize = 12.sp
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = "To Target Exam",
                                     style = MaterialTheme.typography.bodySmall,
                                     fontSize = 10.sp,
-                                    color = GlassWhiteMuted
+                                    color = GlassWhiteMuted,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                             }
                         }

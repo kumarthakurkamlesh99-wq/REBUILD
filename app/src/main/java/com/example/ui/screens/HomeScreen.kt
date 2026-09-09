@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -58,6 +60,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -195,43 +198,13 @@ fun HomeScreen(
         // Tasks items
         if (uiState.todayTasks.isEmpty()) {
             item {
-                FrostedGlassCard(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.School,
-                            contentDescription = null,
-                            tint = FrostBlueAccent,
-                            modifier = Modifier.size(36.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "No Tasks Active Yet",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = GlassWhite
-                        )
-                        Text(
-                            text = "Press 'ARRIVED HOME' above or Generate to start today's plan.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = GlassWhiteMuted
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = { viewModel.generateTodayPlan() },
-                            colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.testTag("generate_plan_btn")
-                        ) {
-                            Text("Generate Protocol", color = DarkNavy, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
+                com.example.ui.components.RebuildEmptyState(
+                    title = "No Tasks Active Yet",
+                    description = "Press 'ARRIVED HOME' above or tap Generate to launch today's timetable protocol.",
+                    icon = Icons.Default.School,
+                    actionLabel = "Generate Protocol",
+                    onAction = { viewModel.generateTodayPlan() }
+                )
             }
         } else {
             items(uiState.todayTasks, key = { it.id }) { task ->
@@ -570,13 +543,13 @@ fun SchoolStatusCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 4 ACTION BUTTONS GRID
+            // 4 ACTION BUTTONS GRID (Single-line clean labels, responsive touch targets)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 SchoolActionButton(
-                    text = "1. Dispatch\nSchool",
+                    text = "Dispatch School",
                     icon = Icons.Default.DirectionsWalk,
                     isActive = currentState == SchoolState.TRAVELLING_TO_SCHOOL,
                     isCompleted = currentState == SchoolState.IN_SCHOOL || currentState == SchoolState.TRAVELLING_HOME || currentState == SchoolState.ARRIVED_HOME,
@@ -585,7 +558,7 @@ fun SchoolStatusCard(
                 )
 
                 SchoolActionButton(
-                    text = "2. Arrived\nSchool",
+                    text = "Arrived School",
                     icon = Icons.Default.School,
                     isActive = currentState == SchoolState.IN_SCHOOL,
                     isCompleted = currentState == SchoolState.TRAVELLING_HOME || currentState == SchoolState.ARRIVED_HOME,
@@ -601,7 +574,7 @@ fun SchoolStatusCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 SchoolActionButton(
-                    text = "3. Dispatch\nHome",
+                    text = "Dispatch Home",
                     icon = Icons.Default.DirectionsBus,
                     isActive = currentState == SchoolState.TRAVELLING_HOME,
                     isCompleted = currentState == SchoolState.ARRIVED_HOME,
@@ -610,7 +583,7 @@ fun SchoolStatusCard(
                 )
 
                 SchoolActionButton(
-                    text = "4. Arrived\nHome",
+                    text = "Arrived Home",
                     icon = Icons.Default.Home,
                     isActive = currentState == SchoolState.ARRIVED_HOME,
                     isCompleted = currentState == SchoolState.ARRIVED_HOME,
@@ -661,15 +634,17 @@ fun SchoolActionButton(
 
     Surface(
         modifier = modifier
+            .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         color = bgColor,
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+        border = BorderStroke(1.dp, borderColor)
     ) {
         Column(
             modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Icon(
                 imageVector = icon,
@@ -684,7 +659,9 @@ fun SchoolActionButton(
                 fontSize = 11.sp,
                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
                 color = if (isActive) GlassWhite else GlassWhiteMuted,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
     }
@@ -823,11 +800,12 @@ fun QuickActionsRow(
         Surface(
             modifier = Modifier
                 .weight(1f)
+                .heightIn(min = 56.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .clickable { onStartPomodoro() },
             shape = RoundedCornerShape(16.dp),
             color = Color(0x33102D5A),
-            border = androidx.compose.foundation.BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f))
+            border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f))
         ) {
             Row(
                 modifier = Modifier.padding(14.dp),
@@ -845,13 +823,17 @@ fun QuickActionsRow(
                         text = "Pomodoro Focus",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = GlassWhite
+                        color = GlassWhite,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "25m / 50m Engine",
                         style = MaterialTheme.typography.bodySmall,
                         fontSize = 11.sp,
-                        color = GlassWhiteMuted
+                        color = GlassWhiteMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -860,11 +842,12 @@ fun QuickActionsRow(
         Surface(
             modifier = Modifier
                 .weight(1f)
+                .heightIn(min = 56.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .clickable { onViewFullPlanner() },
             shape = RoundedCornerShape(16.dp),
             color = Color(0x33102D5A),
-            border = androidx.compose.foundation.BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.5f))
+            border = BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.5f))
         ) {
             Row(
                 modifier = Modifier.padding(14.dp),
@@ -882,13 +865,17 @@ fun QuickActionsRow(
                         text = "Full Timetable",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = GlassWhite
+                        color = GlassWhite,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                     Text(
                         text = "Manage Protocols",
                         style = MaterialTheme.typography.bodySmall,
                         fontSize = 11.sp,
-                        color = GlassWhiteMuted
+                        color = GlassWhiteMuted,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
             }

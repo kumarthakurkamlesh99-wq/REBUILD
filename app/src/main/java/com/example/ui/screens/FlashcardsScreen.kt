@@ -157,14 +157,14 @@ fun FlashcardsScreen(
 
                     if (uiState.decks.isEmpty()) {
                         item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("No flashcard decks yet. Tap '+' or generate one above to begin active recall.", color = GlassWhiteMuted, fontSize = 13.sp)
-                            }
+                            com.example.ui.components.RebuildEmptyState(
+                                title = "No Flashcard Decks Yet",
+                                description = "Active recall & spaced repetition power retention. Tap '+' or generate an AI high-yield deck above.",
+                                icon = Icons.Default.AutoAwesome,
+                                iconTint = PurpleArc,
+                                actionLabel = "Create Deck",
+                                onAction = { showCreateDialog = true }
+                            )
                         }
                     } else {
                         items(uiState.decks, key = { it.id }) { deck ->

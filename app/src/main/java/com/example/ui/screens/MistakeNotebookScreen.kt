@@ -137,14 +137,14 @@ fun MistakeNotebookScreen(
 
                 if (filteredMistakes.isEmpty()) {
                     item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 40.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("No mistakes found. Log errors immediately after test reviews!", color = GlassWhiteMuted, fontSize = 13.sp)
-                        }
+                        com.example.ui.components.RebuildEmptyState(
+                            title = "No Mistakes Recorded",
+                            description = if (uiState.showOnlyUnresolved) "All recorded errors have been resolved & mastered!" else "Your notebook is pristine. Log questions or derivation errors after mock tests.",
+                            icon = Icons.Default.CheckCircle,
+                            iconTint = SuccessGreen,
+                            actionLabel = "Log Mistake",
+                            onAction = { showAddDialog = true }
+                        )
                     }
                 } else {
                     items(filteredMistakes, key = { it.id }) { mistake ->

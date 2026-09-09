@@ -232,12 +232,25 @@ fun PlannerScreen(
             }
 
             // Tasks List
-            items(uiState.todayTasks, key = { it.id }) { task ->
-                TaskItemCardWithDelete(
-                    task = task,
-                    onToggle = { viewModel.toggleTask(task) },
-                    onDelete = { viewModel.deleteTask(task) }
-                )
+            if (uiState.todayTasks.isEmpty()) {
+                item {
+                    com.example.ui.components.RebuildEmptyState(
+                        title = "No Tasks Scheduled",
+                        description = "Your timetable is clean today. Tap '+' below to schedule a subject session or workout block.",
+                        icon = Icons.Default.CalendarMonth,
+                        iconTint = IceCyanPrimary,
+                        actionLabel = "Schedule Task",
+                        onAction = { showAddTaskDialog = true }
+                    )
+                }
+            } else {
+                items(uiState.todayTasks, key = { it.id }) { task ->
+                    TaskItemCardWithDelete(
+                        task = task,
+                        onToggle = { viewModel.toggleTask(task) },
+                        onDelete = { viewModel.deleteTask(task) }
+                    )
+                }
             }
         }
     }

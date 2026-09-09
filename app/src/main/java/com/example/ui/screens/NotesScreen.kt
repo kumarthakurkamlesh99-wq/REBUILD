@@ -573,20 +573,14 @@ fun StudyNotesSection(
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.Notes,
-                        contentDescription = null,
-                        tint = GlassWhiteMuted,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "No notes found in this category.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = GlassWhiteMuted
-                    )
-                }
+                com.example.ui.components.RebuildEmptyState(
+                    title = "No Notes in Category",
+                    description = "Capture high-yield formulas, strategies, or reaction mechanisms for active review.",
+                    icon = Icons.Default.Notes,
+                    iconTint = LuxuryAccent,
+                    actionLabel = "Add New Note",
+                    onAction = onAddNote
+                )
             }
         } else {
             LazyColumn(

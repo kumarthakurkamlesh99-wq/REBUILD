@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -282,7 +283,10 @@ fun CertificateScreen(
                             Button(
                                 onClick = { viewModel.openUnlockModal(currentRank) },
                                 colors = ButtonDefaults.buttonColors(containerColor = PurpleArc),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 48.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Lock,
@@ -294,7 +298,9 @@ fun CertificateScreen(
                                 Text(
                                     text = "Unlock Level ${currentRank.level}",
                                     color = GlassWhite,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -337,12 +343,16 @@ fun CertificateScreen(
                                 onClick = { viewModel.openMintModal(currentRank) },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD700)),
                                 shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth(0.7f)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 48.dp)
                             ) {
                                 Text(
                                     text = "Mint Certificate (${String.format("%,d", currentRank.certificateCost)} XP)",
                                     color = DarkNavy,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
