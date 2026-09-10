@@ -41,6 +41,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -346,70 +348,50 @@ fun AddHolidayDialog(
     var date by remember { mutableStateOf("") }
     var reduction by remember { mutableStateOf("50") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0E1A33),
-        title = {
-            Text("Add Festival / Holiday", color = GlassWhite, fontWeight = FontWeight.Bold)
+    RebuildDialog(
+        onDismiss = onDismiss,
+        title = "Add Festival / Holiday",
+        subtitle = "Schedule workload adjustments for upcoming events",
+        icon = Icons.Default.Celebration,
+        iconTint = WarningAmber,
+        headerAccentColor = WarningAmber,
+        confirmButtonText = "Save Holiday",
+        confirmButtonEnabled = name.isNotBlank(),
+        onConfirm = {
+            if (name.isNotBlank()) {
+                onConfirm(name.trim(), date.trim(), reduction.toIntOrNull() ?: 50)
+            }
         },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Festival Name (e.g. Diwali)") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhiteMuted,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+        testTag = "add_holiday_dialog"
+    ) {
+        RebuildTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = "Festival / Event Name",
+            placeholder = "e.g. Diwali, Pre-board Practical",
+            singleLine = true,
+            focusedBorderColor = WarningAmber,
+            testTag = "holiday_name_input"
+        )
 
-                OutlinedTextField(
-                    value = date,
-                    onValueChange = { date = it },
-                    label = { Text("Date (MM-DD or YYYY-MM-DD)") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhiteMuted,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+        RebuildTextField(
+            value = date,
+            onValueChange = { date = it },
+            label = "Date (MM-DD or YYYY-MM-DD)",
+            placeholder = "e.g. 11-12",
+            singleLine = true,
+            focusedBorderColor = WarningAmber,
+            testTag = "holiday_date_input"
+        )
 
-                OutlinedTextField(
-                    value = reduction,
-                    onValueChange = { reduction = it },
-                    label = { Text("Workload Reduction % (e.g. 50)") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhiteMuted,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (name.isNotBlank()) {
-                        onConfirm(name, date, reduction.toIntOrNull() ?: 50)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary)
-            ) {
-                Text("Save", color = DarkNavy, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = GlassWhiteMuted)
-            }
-        }
-    )
+        RebuildTextField(
+            value = reduction,
+            onValueChange = { reduction = it },
+            label = "Workload Reduction %",
+            placeholder = "50",
+            singleLine = true,
+            focusedBorderColor = WarningAmber,
+            testTag = "holiday_reduction_input"
+        )
+    }
 }

@@ -62,6 +62,8 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -294,82 +296,29 @@ fun AiCoachScreen(
 
     // API Key Dialog
     if (showApiKeyDialog) {
-        androidx.compose.ui.window.Dialog(onDismissRequest = { showApiKeyDialog = false }) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(20.dp),
-                color = LuxuryCard,
-                border = BorderStroke(1.dp, LuxuryAccent.copy(alpha = 0.5f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Key,
-                        contentDescription = null,
-                        tint = IceCyanPrimary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Gemini API Configuration",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = GlassWhite
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Enter your personal Gemini API key to activate high-precision coaching. (Or leave blank to use the pre-configured environment key).",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = GlassWhiteMuted,
-                        textAlign = TextAlign.Center,
-                        fontSize = 12.sp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    OutlinedTextField(
-                        value = enteredKey,
-                        onValueChange = { enteredKey = it },
-                        label = { Text("Gemini API Key") },
-                        placeholder = { Text("AIzaSy...") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("api_key_input"),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = LuxuryAccent,
-                            unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.4f),
-                            focusedTextColor = GlassWhite,
-                            unfocusedTextColor = GlassWhite
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = { showApiKeyDialog = false }) {
-                            Text("Cancel", color = GlassWhiteMuted)
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                viewModel.updateApiKey(enteredKey)
-                                showApiKeyDialog = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = LuxuryAccent),
-                            modifier = Modifier.testTag("save_api_key_btn")
-                        ) {
-                            Text("Save Key", color = DarkNavy, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
+        RebuildDialog(
+            onDismiss = { showApiKeyDialog = false },
+            title = "Gemini API Configuration",
+            subtitle = "Enter your personal Gemini API key to activate high-precision coaching (or leave blank to use default)",
+            icon = Icons.Default.Key,
+            iconTint = IceCyanPrimary,
+            headerAccentColor = IceCyanPrimary,
+            confirmButtonText = "Save Key",
+            onConfirm = {
+                viewModel.updateApiKey(enteredKey)
+                showApiKeyDialog = false
+            },
+            testTag = "api_key_dialog"
+        ) {
+            RebuildTextField(
+                value = enteredKey,
+                onValueChange = { enteredKey = it },
+                label = "Gemini API Key",
+                placeholder = "AIzaSy...",
+                singleLine = true,
+                focusedBorderColor = IceCyanPrimary,
+                testTag = "api_key_input"
+            )
         }
     }
 }
@@ -860,71 +809,30 @@ fun AiPlansSection(viewModel: AiCoachViewModel, state: AiCoachUiState) {
 
     // Save Plan Dialog
     if (showSavePlanDialog) {
-        androidx.compose.ui.window.Dialog(onDismissRequest = { showSavePlanDialog = false }) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(20.dp),
-                color = LuxuryCard,
-                border = BorderStroke(1.dp, LuxuryAccent.copy(alpha = 0.5f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Save Plan to Library",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = GlassWhite
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Give this plan a recognizable title to access it anytime offline.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = GlassWhiteMuted,
-                        textAlign = TextAlign.Center,
-                        fontSize = 12.sp
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    OutlinedTextField(
-                        value = savePlanTitleInput,
-                        onValueChange = { savePlanTitleInput = it },
-                        label = { Text("Plan Title") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = LuxuryAccent,
-                            unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.4f),
-                            focusedTextColor = GlassWhite,
-                            unfocusedTextColor = GlassWhite
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = { showSavePlanDialog = false }) {
-                            Text("Cancel", color = GlassWhiteMuted)
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                viewModel.savePlanWithCustomTitle(savePlanTitleInput)
-                                showSavePlanDialog = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = LuxuryAccent)
-                        ) {
-                            Text("Save", color = DarkNavy, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
+        RebuildDialog(
+            onDismiss = { showSavePlanDialog = false },
+            title = "Save Plan to Library",
+            subtitle = "Give this plan a recognizable title to access it anytime offline",
+            icon = Icons.Default.AutoAwesome,
+            iconTint = LuxuryAccent,
+            headerAccentColor = LuxuryAccent,
+            confirmButtonText = "Save Plan",
+            confirmButtonEnabled = savePlanTitleInput.isNotBlank(),
+            onConfirm = {
+                viewModel.savePlanWithCustomTitle(savePlanTitleInput.trim())
+                showSavePlanDialog = false
+            },
+            testTag = "save_plan_dialog"
+        ) {
+            RebuildTextField(
+                value = savePlanTitleInput,
+                onValueChange = { savePlanTitleInput = it },
+                label = "Plan Title",
+                placeholder = "e.g. 14-Day Organic Chemistry Sprint",
+                singleLine = true,
+                focusedBorderColor = LuxuryAccent,
+                testTag = "save_plan_title_input"
+            )
         }
     }
 }

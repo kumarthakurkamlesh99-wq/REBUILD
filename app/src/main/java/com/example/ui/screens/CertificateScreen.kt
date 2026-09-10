@@ -47,6 +47,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import com.example.ui.components.RebuildDialog
 import com.example.ui.components.MintCertificateModal
 import com.example.ui.components.UnlockLevelModal
 import com.example.ui.components.CertificateCelebrationModal
@@ -458,68 +459,47 @@ fun CertificateScreen(
 
     // Success Dialog with instant Share action
     (state.exportStatus as? ExportStatus.Success)?.let { success ->
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissExportStatus() },
-            containerColor = DeepNavySurface,
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = IceCyanPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Export Ready", color = Color.White, fontWeight = FontWeight.Bold)
-                }
+        RebuildDialog(
+            onDismiss = { viewModel.dismissExportStatus() },
+            title = "Export Ready",
+            subtitle = "Official high-resolution certification document rendered",
+            icon = Icons.Default.CheckCircle,
+            iconTint = SuccessGreen,
+            headerAccentColor = SuccessGreen,
+            confirmButtonText = "Share Now",
+            dismissButtonText = "Dismiss",
+            onConfirm = {
+                viewModel.shareCertificate(context, success.file, success.mimeType)
+                viewModel.dismissExportStatus()
             },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            testTag = "certificate_export_success_dialog"
+        ) {
+            Text(
+                text = success.message,
+                color = GlassWhite,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = LuxuryCard,
+                border = BorderStroke(1.dp, Color(0x337C8CFF))
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
                     Text(
-                        text = success.message,
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium
+                        text = "File: ${success.file.name}",
+                        color = IceCyanPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
                     )
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = LuxuryCard,
-                        border = BorderStroke(0.5.dp, Color(0x337C8CFF))
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Text(
-                                text = "File: ${success.file.name}",
-                                color = IceCyanPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Location: Internal Certificates Directory (${success.file.length() / 1024} KB)",
-                                color = GlassWhiteMuted,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.shareCertificate(context, success.file, success.mimeType)
-                        viewModel.dismissExportStatus()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary)
-                ) {
-                    Icon(imageVector = Icons.Default.Share, contentDescription = null, tint = DarkNavy, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Share Now", color = DarkNavy, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissExportStatus() }) {
-                    Text("Dismiss", color = GlassWhiteMuted)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Location: Internal Certificates Directory (${success.file.length() / 1024} KB)",
+                        color = GlassWhiteMuted,
+                        fontSize = 11.sp
+                    )
                 }
             }
-        )
+        }
     }
 }
 

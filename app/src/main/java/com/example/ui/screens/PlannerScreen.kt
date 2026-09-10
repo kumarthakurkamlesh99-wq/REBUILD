@@ -39,6 +39,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -420,83 +422,62 @@ fun AddTaskDialog(
     var durationMins by remember { mutableStateOf("45") }
     var selectedType by remember { mutableStateOf(TaskType.LECTURE) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0E1A33),
-        title = {
-            Text("Add Protocol Task", color = GlassWhite, fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = subject,
-                    onValueChange = { subject = it },
-                    label = { Text("Subject (Physics/Chem/Bio/Workout)") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhiteMuted,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Task Title (e.g. Nuclei Lecture)") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhiteMuted,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = details,
-                    onValueChange = { details = it },
-                    label = { Text("Details / Concepts") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhiteMuted,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = durationMins,
-                    onValueChange = { durationMins = it },
-                    label = { Text("Target Minutes") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhiteMuted,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+    RebuildDialog(
+        onDismiss = onDismiss,
+        title = "Add Protocol Task",
+        subtitle = "Schedule academic or physical target block",
+        icon = Icons.Default.CalendarMonth,
+        iconTint = IceCyanPrimary,
+        headerAccentColor = IceCyanPrimary,
+        confirmButtonText = "Add Task",
+        confirmButtonEnabled = title.isNotBlank(),
+        onConfirm = {
+            if (title.isNotBlank()) {
+                onConfirm(subject.trim(), title.trim(), selectedType, durationMins.toIntOrNull() ?: 45, details.trim())
             }
         },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (title.isNotBlank()) {
-                        onConfirm(subject, title, selectedType, durationMins.toIntOrNull() ?: 45, details)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary)
-            ) {
-                Text("Add Task", color = DarkNavy, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = GlassWhiteMuted)
-            }
-        }
-    )
+        testTag = "add_task_dialog"
+    ) {
+        RebuildTextField(
+            value = subject,
+            onValueChange = { subject = it },
+            label = "Subject",
+            placeholder = "Physics, Chem, Bio, Math, Workout",
+            singleLine = true,
+            focusedBorderColor = IceCyanPrimary,
+            testTag = "task_subject_input"
+        )
+
+        RebuildTextField(
+            value = title,
+            onValueChange = { title = it },
+            label = "Task Title",
+            placeholder = "e.g. Nuclei Lecture & PYQ Solving",
+            singleLine = true,
+            focusedBorderColor = IceCyanPrimary,
+            testTag = "task_title_input"
+        )
+
+        RebuildTextField(
+            value = details,
+            onValueChange = { details = it },
+            label = "Details / Concepts",
+            placeholder = "Notes, formulas, target problems...",
+            singleLine = false,
+            minLines = 2,
+            maxLines = 4,
+            focusedBorderColor = IceCyanPrimary,
+            testTag = "task_details_input"
+        )
+
+        RebuildTextField(
+            value = durationMins,
+            onValueChange = { durationMins = it },
+            label = "Target Minutes",
+            placeholder = "45",
+            singleLine = true,
+            focusedBorderColor = IceCyanPrimary,
+            testTag = "task_duration_input"
+        )
+    }
 }

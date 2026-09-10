@@ -39,6 +39,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -346,57 +348,38 @@ fun AddHabitDialog(
     var weight by remember { mutableStateOf("15") }
     var isNegative by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0E1A33),
-        title = {
-            Text("Add Habit Protocol", color = GlassWhite, fontWeight = FontWeight.Bold)
+    RebuildDialog(
+        onDismiss = onDismiss,
+        title = "Add Habit Protocol",
+        subtitle = "Form positive habits or track vice eliminations",
+        icon = Icons.Default.SelfImprovement,
+        iconTint = IceCyanPrimary,
+        headerAccentColor = IceCyanPrimary,
+        confirmButtonText = "Add Habit",
+        confirmButtonEnabled = name.isNotBlank(),
+        onConfirm = {
+            if (name.isNotBlank()) {
+                onConfirm(name.trim(), isNegative, weight.toIntOrNull() ?: 15, "Target")
+            }
         },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Habit Name (e.g. Cold Shower)") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhiteMuted,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+        testTag = "add_habit_dialog"
+    ) {
+        RebuildTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = "Habit Name",
+            placeholder = "e.g. Cold Shower, Reading, No Sugar",
+            focusedBorderColor = IceCyanPrimary,
+            testTag = "habit_name_input"
+        )
 
-                OutlinedTextField(
-                    value = weight,
-                    onValueChange = { weight = it },
-                    label = { Text("Score Weight (e.g. 10 - 20 pts)") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhiteMuted,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (name.isNotBlank()) {
-                        onConfirm(name, isNegative, weight.toIntOrNull() ?: 15, "Target")
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary)
-            ) {
-                Text("Add", color = DarkNavy, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = GlassWhiteMuted)
-            }
-        }
-    )
+        RebuildTextField(
+            value = weight,
+            onValueChange = { weight = it },
+            label = "Discipline Score Weight",
+            placeholder = "e.g. 15",
+            focusedBorderColor = IceCyanPrimary,
+            testTag = "habit_weight_input"
+        )
+    }
 }

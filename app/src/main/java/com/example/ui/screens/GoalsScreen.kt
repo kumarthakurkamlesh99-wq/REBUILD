@@ -57,6 +57,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
+import com.example.ui.components.RebuildSelectorChip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -734,216 +737,143 @@ fun AddGoalDialog(
     var reminderHour by remember { mutableIntStateOf(7) }
     var reminderMinute by remember { mutableIntStateOf(0) }
 
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        Surface(
+    RebuildDialog(
+        onDismiss = onDismiss,
+        title = "Set Apex Target Goal",
+        subtitle = "Define target milestones for exams, fitness, or discipline",
+        icon = Icons.Default.EmojiEvents,
+        iconTint = LuxuryAccent,
+        headerAccentColor = LuxuryAccent,
+        confirmButtonText = "Save Target",
+        confirmButtonEnabled = title.isNotBlank(),
+        onConfirm = {
+            if (title.isNotBlank()) {
+                onAdd(
+                    title.trim(),
+                    description.trim(),
+                    selectedCategory,
+                    targetDate.ifBlank { null },
+                    reminderEnabled,
+                    if (reminderEnabled) reminderHour else null,
+                    if (reminderEnabled) reminderMinute else null
+                )
+            }
+        },
+        testTag = "add_goal_dialog"
+    ) {
+        RebuildTextField(
+            value = title,
+            onValueChange = { title = it },
+            label = "Goal Title",
+            placeholder = "e.g. Class 12 Boards 95%+, 50 Pushups",
+            focusedBorderColor = LuxuryAccent,
+            testTag = "goal_title_input"
+        )
+
+        // Category Selector
+        Text(text = "Category", style = MaterialTheme.typography.bodySmall, color = GlassWhiteMuted)
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
-            shape = RoundedCornerShape(20.dp),
-            color = LuxuryCard,
-            border = BorderStroke(1.dp, LuxuryAccent)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .padding(20.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
+            GoalCategory.values().forEach { cat ->
+                RebuildSelectorChip(
+                    text = cat.name,
+                    isSelected = selectedCategory == cat,
+                    onClick = { selectedCategory = cat },
+                    selectedColor = LuxuryAccent
+                )
+            }
+        }
+
+        RebuildTextField(
+            value = description,
+            onValueChange = { description = it },
+            label = "Key Milestones / Notes",
+            placeholder = "Master 14 Physics chapters with NCERT pyqs...",
+            singleLine = false,
+            minLines = 2,
+            maxLines = 4,
+            focusedBorderColor = LuxuryAccent,
+            testTag = "goal_desc_input"
+        )
+
+        RebuildTextField(
+            value = targetDate,
+            onValueChange = { targetDate = it },
+            label = "Target Deadline",
+            placeholder = "YYYY-MM-DD",
+            focusedBorderColor = LuxuryAccent,
+            testTag = "goal_date_input"
+        )
+
+        // Daily Reminder Alarm Toggle
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
                 Text(
-                    text = "Set Apex Target Goal",
-                    style = MaterialTheme.typography.titleMedium,
+                    text = "Daily Reminder Alarm",
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = GlassWhite
                 )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Goal Title") },
-                    placeholder = { Text("e.g. Class 12 Boards 95%+, 50 Pushups") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = LuxuryAccent,
-                        unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite
-                    )
+                Text(
+                    text = "Receive scheduled notification",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = GlassWhiteMuted,
+                    fontSize = 11.sp
                 )
+            }
 
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Category selector
-                Text(text = "Category", style = MaterialTheme.typography.bodySmall, color = GlassWhiteMuted)
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    GoalCategory.values().forEach { cat ->
-                        val isSelected = selectedCategory == cat
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) LuxuryAccent else Color(0x227C8CFF),
-                            modifier = Modifier.clickable { selectedCategory = cat }
-                        ) {
-                            Text(
-                                text = cat.name,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isSelected) DarkNavy else GlassWhite,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Key Milestones / Notes") },
-                    placeholder = { Text("Master 14 Physics chapters with NCERT pyqs...") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = LuxuryAccent,
-                        unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite
-                    )
+            Switch(
+                checked = reminderEnabled,
+                onCheckedChange = { reminderEnabled = it },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = DarkNavy,
+                    checkedTrackColor = LuxuryAccent
                 )
+            )
+        }
 
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Target Date
-                OutlinedTextField(
-                    value = targetDate,
-                    onValueChange = { targetDate = it },
-                    label = { Text("Target Deadline (yyyy-MM-dd)") },
-                    placeholder = { Text("2026-02-15") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = LuxuryAccent,
-                        unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite
+        if (reminderEnabled) {
+            Text(
+                text = "Reminder Time: ${String.format(Locale.getDefault(), "%02d:%02d %s", if (reminderHour % 12 == 0) 12 else reminderHour % 12, reminderMinute, if (reminderHour >= 12) "PM" else "AM")}",
+                style = MaterialTheme.typography.bodySmall,
+                color = LuxuryAccent,
+                fontWeight = FontWeight.Bold
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(
+                    Pair(6, 0), Pair(7, 0), Pair(8, 30),
+                    Pair(13, 0), Pair(17, 30), Pair(20, 0), Pair(22, 0)
+                ).forEach { (h, m) ->
+                    val isSelected = reminderHour == h && reminderMinute == m
+                    val label = String.format(
+                        Locale.getDefault(),
+                        "%02d:%02d %s",
+                        if (h % 12 == 0) 12 else h % 12,
+                        m,
+                        if (h >= 12) "PM" else "AM"
                     )
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Daily Reminder Alarm Toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Daily Reminder Alarm",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = GlassWhite
-                        )
-                        Text(
-                            text = "Receive scheduled notification",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = GlassWhiteMuted,
-                            fontSize = 11.sp
-                        )
-                    }
-
-                    Switch(
-                        checked = reminderEnabled,
-                        onCheckedChange = { reminderEnabled = it },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = DarkNavy,
-                            checkedTrackColor = LuxuryAccent
-                        )
-                    )
-                }
-
-                if (reminderEnabled) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Reminder Time: ${String.format(Locale.getDefault(), "%02d:%02d %s", if (reminderHour % 12 == 0) 12 else reminderHour % 12, reminderMinute, if (reminderHour >= 12) "PM" else "AM")}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = LuxuryAccent,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf(
-                            Pair(6, 0), Pair(7, 0), Pair(8, 30),
-                            Pair(13, 0), Pair(17, 30), Pair(20, 0), Pair(22, 0)
-                        ).forEach { (h, m) ->
-                            val isSelected = reminderHour == h && reminderMinute == m
-                            val label = String.format(
-                                Locale.getDefault(),
-                                "%02d:%02d %s",
-                                if (h % 12 == 0) 12 else h % 12,
-                                m,
-                                if (h >= 12) "PM" else "AM"
-                            )
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) LuxuryAccent else Color(0x227C8CFF),
-                                modifier = Modifier.clickable {
-                                    reminderHour = h
-                                    reminderMinute = m
-                                }
-                            ) {
-                                Text(
-                                    text = label,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 10.sp,
-                                    color = if (isSelected) DarkNavy else GlassWhite,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = GlassWhiteMuted)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    RebuildSelectorChip(
+                        text = label,
+                        isSelected = isSelected,
                         onClick = {
-                            if (title.isNotBlank()) {
-                                onAdd(
-                                    title,
-                                    description,
-                                    selectedCategory,
-                                    targetDate.ifBlank { null },
-                                    reminderEnabled,
-                                    if (reminderEnabled) reminderHour else null,
-                                    if (reminderEnabled) reminderMinute else null
-                                )
-                            }
+                            reminderHour = h
+                            reminderMinute = m
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = LuxuryAccent)
-                    ) {
-                        Text("Save Target", color = DarkNavy, fontWeight = FontWeight.Bold)
-                    }
+                        selectedColor = LuxuryAccent
+                    )
                 }
             }
         }

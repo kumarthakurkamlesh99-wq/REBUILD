@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,6 +27,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.local.entity.FlashcardDeckEntity
 import com.example.data.local.entity.FlashcardEntity
 import com.example.ui.components.FrostedGlassCard
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
+import com.example.ui.components.RebuildSelectorChip
 import com.example.ui.theme.*
 import com.example.viewmodel.FlashcardsViewModel
 
@@ -182,52 +187,62 @@ fun FlashcardsScreen(
 
             // Create Deck Dialog
             if (showCreateDialog) {
-                AlertDialog(
-                    onDismissRequest = { showCreateDialog = false },
-                    title = { Text("Create Flashcard Deck", color = GlassWhite, fontWeight = FontWeight.Bold) },
-                    text = {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            OutlinedTextField(
-                                value = newDeckTitle,
-                                onValueChange = { newDeckTitle = it },
-                                label = { Text("Deck Title") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = newDeckSubject,
-                                onValueChange = { newDeckSubject = it },
-                                label = { Text("Subject (e.g., PHYSICS, CHEMISTRY)") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = newDeckChapter,
-                                onValueChange = { newDeckChapter = it },
-                                label = { Text("Chapter Title (Optional)") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                val subjects = listOf("PHYSICS", "CHEMISTRY", "BIOLOGY", "MATHEMATICS", "ENGLISH", "GENERAL")
+                RebuildDialog(
+                    onDismiss = { showCreateDialog = false },
+                    title = "Create Flashcard Deck",
+                    subtitle = "Organize high-yield cards for SuperMemo SM-2 spaced repetition",
+                    icon = Icons.Default.Style,
+                    iconTint = IceCyanPrimary,
+                    headerAccentColor = IceCyanPrimary,
+                    confirmButtonText = "Create Deck",
+                    confirmButtonEnabled = newDeckTitle.isNotBlank(),
+                    onConfirm = {
+                        if (newDeckTitle.isNotBlank()) {
+                            viewModel.createCustomDeck(newDeckTitle.trim(), newDeckSubject.trim(), newDeckChapter.trim())
+                            showCreateDialog = false
+                            newDeckTitle = ""
                         }
                     },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                if (newDeckTitle.isNotBlank()) {
-                                    viewModel.createCustomDeck(newDeckTitle.trim(), newDeckSubject.trim(), newDeckChapter.trim())
-                                    showCreateDialog = false
-                                    newDeckTitle = ""
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary)
-                        ) {
-                            Text("Create", color = DarkNavy, fontWeight = FontWeight.Bold)
+                    testTag = "create_deck_dialog"
+                ) {
+                    RebuildTextField(
+                        value = newDeckTitle,
+                        onValueChange = { newDeckTitle = it },
+                        label = "Deck Title",
+                        placeholder = "e.g. Electromagnetism Formulas & Derivations",
+                        singleLine = true,
+                        focusedBorderColor = IceCyanPrimary,
+                        testTag = "deck_title_input"
+                    )
+
+                    Text("Subject", fontSize = 12.sp, color = GlassWhiteMuted)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        subjects.forEach { s ->
+                            RebuildSelectorChip(
+                                text = s,
+                                isSelected = newDeckSubject == s,
+                                onClick = { newDeckSubject = s },
+                                selectedColor = IceCyanPrimary
+                            )
                         }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showCreateDialog = false }) {
-                            Text("Cancel", color = GlassWhiteMuted)
-                        }
-                    },
-                    containerColor = Color(0xFF131D38)
-                )
+                    }
+
+                    RebuildTextField(
+                        value = newDeckChapter,
+                        onValueChange = { newDeckChapter = it },
+                        label = "Chapter / Unit (Optional)",
+                        placeholder = "e.g. Optics, Thermodynamics",
+                        singleLine = true,
+                        focusedBorderColor = IceCyanPrimary,
+                        testTag = "deck_chapter_input"
+                    )
+                }
             }
         }
     }

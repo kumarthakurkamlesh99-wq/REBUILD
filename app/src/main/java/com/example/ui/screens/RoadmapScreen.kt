@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +46,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
+import com.example.ui.components.RebuildSelectorChip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -454,69 +459,61 @@ private fun GenerateRoadmapDialog(
     var category by remember { mutableStateOf("Coding") }
     var days by remember { mutableStateOf(30) }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = FrostedNavyCard),
-            border = BorderStroke(1.dp, PurpleArc.copy(alpha = 0.5f)),
-            modifier = Modifier.fillMaxWidth().padding(8.dp)
+    val categories = listOf("Coding", "Academic", "Fitness", "Career")
+
+    RebuildDialog(
+        onDismiss = onDismiss,
+        title = "Generate AI Roadmap",
+        subtitle = "Create personalized syllabus & mastery milestones",
+        icon = Icons.Default.AutoAwesome,
+        iconTint = PurpleArc,
+        headerAccentColor = PurpleArc,
+        confirmButtonText = "Generate",
+        confirmButtonEnabled = title.isNotBlank(),
+        onConfirm = {
+            if (title.isNotBlank()) onGenerate(title.trim(), category, days)
+        },
+        testTag = "generate_roadmap_dialog"
+    ) {
+        RebuildTextField(
+            value = title,
+            onValueChange = { title = it },
+            label = "Goal or Target Title",
+            placeholder = "e.g. Master React & DSA, Crack UPSC Prelims",
+            singleLine = true,
+            focusedBorderColor = PurpleArc,
+            testTag = "roadmap_target_input"
+        )
+
+        Text("Category", fontSize = 12.sp, color = GlassWhiteMuted)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text("Generate AI Roadmap", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PurpleArc)
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Goal or Target Title", color = FrostBlueAccent) },
-                    placeholder = { Text("e.g. Master React & DSA, Crack UPSC Prelims", color = GlassWhiteMuted) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite,
-                        focusedBorderColor = PurpleArc,
-                        unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
-                        focusedContainerColor = DarkNavy,
-                        unfocusedContainerColor = DarkNavy
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+            categories.forEach { cat ->
+                RebuildSelectorChip(
+                    text = cat,
+                    isSelected = category == cat,
+                    onClick = { category = cat },
+                    selectedColor = PurpleArc
                 )
+            }
+        }
 
-                Text("Horizon Duration", fontSize = 12.sp, color = FrostBlueAccent, fontWeight = FontWeight.Bold)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(30, 60, 90).forEach { d ->
-                        val isSel = days == d
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSel) PurpleArc else Color(0x33284B75),
-                            modifier = Modifier.weight(1f).clickable { days = d }
-                        ) {
-                            Text(
-                                "$d Days",
-                                color = if (isSel) DarkNavy else GlassWhite,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(vertical = 8.dp),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                        }
-                    }
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("Cancel", color = GlassWhiteMuted) }
-                    Button(
-                        onClick = {
-                            if (title.isNotBlank()) onGenerate(title.trim(), category, days)
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = PurpleArc),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Generate", color = DarkNavy, fontWeight = FontWeight.Bold)
-                    }
-                }
+        Text("Horizon Duration", fontSize = 12.sp, color = GlassWhiteMuted)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf(30, 60, 90).forEach { d ->
+                RebuildSelectorChip(
+                    text = "$d Days",
+                    isSelected = days == d,
+                    onClick = { days = d },
+                    selectedColor = PurpleArc
+                )
             }
         }
     }
@@ -532,83 +529,76 @@ private fun CreateTrackerDialog(
     var target by remember { mutableStateOf("100") }
     var unit by remember { mutableStateOf("Problems") }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = FrostedNavyCard),
-            border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f)),
-            modifier = Modifier.fillMaxWidth().padding(8.dp)
+    val categories = listOf("CODING", "ACADEMIC", "FITNESS", "READING")
+
+    RebuildDialog(
+        onDismiss = onDismiss,
+        title = "New Custom Metric Tracker",
+        subtitle = "Track quantifiable daily and weekly volume targets",
+        icon = Icons.Default.Timeline,
+        iconTint = IceCyanPrimary,
+        headerAccentColor = IceCyanPrimary,
+        confirmButtonText = "Save Tracker",
+        confirmButtonEnabled = title.isNotBlank(),
+        onConfirm = {
+            val count = target.toIntOrNull() ?: 100
+            if (title.isNotBlank()) onSave(title.trim(), category, count, unit.trim())
+        },
+        testTag = "create_tracker_dialog"
+    ) {
+        RebuildTextField(
+            value = title,
+            onValueChange = { title = it },
+            label = "Tracker Name",
+            placeholder = "e.g. LeetCode Easy/Medium, 5km Runs",
+            singleLine = true,
+            focusedBorderColor = IceCyanPrimary,
+            testTag = "tracker_name_input"
+        )
+
+        Text("Category", fontSize = 12.sp, color = GlassWhiteMuted)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text("New Custom Metric Tracker", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = IceCyanPrimary)
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Tracker Name", color = FrostBlueAccent) },
-                    placeholder = { Text("e.g. LeetCode Easy/Medium, 5km Runs", color = GlassWhiteMuted) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
-                        focusedContainerColor = DarkNavy,
-                        unfocusedContainerColor = DarkNavy
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+            categories.forEach { cat ->
+                RebuildSelectorChip(
+                    text = cat,
+                    isSelected = category == cat,
+                    onClick = { category = cat },
+                    selectedColor = IceCyanPrimary
                 )
+            }
+        }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = target,
-                        onValueChange = { target = it },
-                        label = { Text("Target Count", color = FrostBlueAccent) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = GlassWhite,
-                            unfocusedTextColor = GlassWhite,
-                            focusedBorderColor = IceCyanPrimary,
-                            unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
-                            focusedContainerColor = DarkNavy,
-                            unfocusedContainerColor = DarkNavy
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = unit,
-                        onValueChange = { unit = it },
-                        label = { Text("Unit", color = FrostBlueAccent) },
-                        placeholder = { Text("Problems, km, pages", color = GlassWhiteMuted) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = GlassWhite,
-                            unfocusedTextColor = GlassWhite,
-                            focusedBorderColor = IceCyanPrimary,
-                            unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
-                            focusedContainerColor = DarkNavy,
-                            unfocusedContainerColor = DarkNavy
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                RebuildTextField(
+                    value = target,
+                    onValueChange = { target = it },
+                    label = "Target Count",
+                    placeholder = "100",
+                    singleLine = true,
+                    focusedBorderColor = IceCyanPrimary,
+                    testTag = "tracker_target_input"
+                )
+            }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("Cancel", color = GlassWhiteMuted) }
-                    Button(
-                        onClick = {
-                            val count = target.toIntOrNull() ?: 100
-                            if (title.isNotBlank()) onSave(title.trim(), category, count, unit.trim())
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Save Tracker", color = DarkNavy, fontWeight = FontWeight.Bold)
-                    }
-                }
+            Box(modifier = Modifier.weight(1f)) {
+                RebuildTextField(
+                    value = unit,
+                    onValueChange = { unit = it },
+                    label = "Unit",
+                    placeholder = "Problems, km",
+                    singleLine = true,
+                    focusedBorderColor = IceCyanPrimary,
+                    testTag = "tracker_unit_input"
+                )
             }
         }
     }

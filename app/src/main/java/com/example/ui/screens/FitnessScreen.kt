@@ -43,6 +43,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -395,77 +397,54 @@ fun AddWorkoutDialog(
     var reps by remember { mutableStateOf("15") }
     var duration by remember { mutableStateOf("15") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0E1A33),
-        title = {
-            Text("Add Workout Exercise", color = GlassWhite, fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Exercise Name (e.g. Pullups, Planks)") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhiteMuted,
-                        focusedBorderColor = FireOrange,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+    RebuildDialog(
+        onDismiss = onDismiss,
+        title = "Add Workout Exercise",
+        subtitle = "Target sets, reps, and discipline duration",
+        icon = Icons.Default.FitnessCenter,
+        iconTint = FireOrange,
+        headerAccentColor = FireOrange,
+        confirmButtonText = "Add Exercise",
+        confirmButtonEnabled = name.isNotBlank(),
+        onConfirm = {
+            if (name.isNotBlank()) {
+                onConfirm(
+                    name.trim(),
+                    ExerciseType.PUSHUPS,
+                    sets.toIntOrNull() ?: 3,
+                    reps.toIntOrNull() ?: 15,
+                    duration.toIntOrNull() ?: 15,
+                    0f
                 )
+            }
+        },
+        testTag = "add_workout_dialog"
+    ) {
+        RebuildTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = "Exercise Name",
+            placeholder = "e.g. Pullups, Planks, Squats",
+            focusedBorderColor = FireOrange,
+            testTag = "workout_name_input"
+        )
 
-                OutlinedTextField(
-                    value = sets,
-                    onValueChange = { sets = it },
-                    label = { Text("Sets") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhiteMuted,
-                        focusedBorderColor = FireOrange,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+        RebuildTextField(
+            value = sets,
+            onValueChange = { sets = it },
+            label = "Target Sets",
+            placeholder = "e.g. 3",
+            focusedBorderColor = FireOrange,
+            testTag = "workout_sets_input"
+        )
 
-                OutlinedTextField(
-                    value = reps,
-                    onValueChange = { reps = it },
-                    label = { Text("Reps / Seconds") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhiteMuted,
-                        focusedBorderColor = FireOrange,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.5f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (name.isNotBlank()) {
-                        onConfirm(
-                            name,
-                            ExerciseType.PUSHUPS,
-                            sets.toIntOrNull() ?: 3,
-                            reps.toIntOrNull() ?: 15,
-                            duration.toIntOrNull() ?: 15,
-                            0f
-                        )
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = FireOrange)
-            ) {
-                Text("Add", color = DarkNavy, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = GlassWhiteMuted)
-            }
-        }
-    )
+        RebuildTextField(
+            value = reps,
+            onValueChange = { reps = it },
+            label = "Reps / Seconds per Set",
+            placeholder = "e.g. 15",
+            focusedBorderColor = FireOrange,
+            testTag = "workout_reps_input"
+        )
+    }
 }

@@ -62,6 +62,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
+import com.example.ui.components.RebuildSelectorChip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -667,87 +671,72 @@ fun AddObjectiveDialog(
     var desc by remember { mutableStateOf("") }
     var target by remember { mutableStateOf("") }
     var category by remember { mutableStateOf(ObjectiveCategory.ACADEMIC) }
-    var catMenuOpen by remember { mutableStateOf(false) }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = FrostedNavyCard),
-            border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f)),
-            modifier = Modifier.fillMaxWidth().padding(8.dp)
+    RebuildDialog(
+        onDismiss = onDismiss,
+        title = "New Winter Arc Objective",
+        subtitle = "Set non-negotiable target discipline benchmark",
+        icon = Icons.Default.Bolt,
+        iconTint = IceCyanPrimary,
+        headerAccentColor = IceCyanPrimary,
+        confirmButtonText = "Save Objective",
+        confirmButtonEnabled = title.isNotBlank(),
+        onConfirm = {
+            if (title.isNotBlank()) {
+                onSave(title.trim(), desc.trim(), category, target.trim())
+            }
+        },
+        testTag = "add_objective_dialog"
+    ) {
+        RebuildTextField(
+            value = title,
+            onValueChange = { title = it },
+            label = "Objective Title",
+            placeholder = "e.g. 95%+ Board Physics, 500 Pushups",
+            singleLine = true,
+            focusedBorderColor = IceCyanPrimary,
+            testTag = "objective_title_input"
+        )
+
+        // Category Selector
+        Text(text = "Category", style = MaterialTheme.typography.bodySmall, color = GlassWhiteMuted)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text("New Winter Arc Objective", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = IceCyanPrimary)
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Objective Title", color = FrostBlueAccent) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.3f),
-                        focusedContainerColor = DarkNavy,
-                        unfocusedContainerColor = DarkNavy
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+            ObjectiveCategory.values().forEach { cat ->
+                RebuildSelectorChip(
+                    text = cat.name,
+                    isSelected = category == cat,
+                    onClick = { category = cat },
+                    selectedColor = IceCyanPrimary
                 )
-
-                OutlinedTextField(
-                    value = desc,
-                    onValueChange = { desc = it },
-                    label = { Text("Daily Benchmark / Details", color = FrostBlueAccent) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.3f),
-                        focusedContainerColor = DarkNavy,
-                        unfocusedContainerColor = DarkNavy
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = target,
-                    onValueChange = { target = it },
-                    label = { Text("Target (e.g. 95%+, 6h Daily)", color = FrostBlueAccent) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.3f),
-                        focusedContainerColor = DarkNavy,
-                        unfocusedContainerColor = DarkNavy
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                        Text("Cancel", color = GlassWhiteMuted)
-                    }
-                    Button(
-                        onClick = { onSave(title, desc, category, target) },
-                        enabled = title.isNotBlank(),
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue, contentColor = DarkNavy)
-                    ) {
-                        Text("Save", fontWeight = FontWeight.Bold)
-                    }
-                }
             }
         }
+
+        RebuildTextField(
+            value = desc,
+            onValueChange = { desc = it },
+            label = "Daily Benchmark / Details",
+            placeholder = "e.g. 2 hours numerical practice every evening",
+            singleLine = false,
+            minLines = 2,
+            maxLines = 4,
+            focusedBorderColor = IceCyanPrimary,
+            testTag = "objective_desc_input"
+        )
+
+        RebuildTextField(
+            value = target,
+            onValueChange = { target = it },
+            label = "Target Metric",
+            placeholder = "e.g. 95%+, 6h Daily, 100%",
+            singleLine = true,
+            focusedBorderColor = IceCyanPrimary,
+            testTag = "objective_target_input"
+        )
     }
 }
 
@@ -761,68 +750,63 @@ fun AddGoalDialog(
     var desc by remember { mutableStateOf("") }
     var horizon by remember { mutableStateOf(defaultHorizon) }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = FrostedNavyCard),
-            border = BorderStroke(1.dp, PurpleArc.copy(alpha = 0.5f)),
-            modifier = Modifier.fillMaxWidth().padding(8.dp)
+    val horizons = listOf("1_MONTH", "3_MONTH", "6_MONTH", "1_YEAR")
+
+    RebuildDialog(
+        onDismiss = onDismiss,
+        title = "Add Goal to Matrix",
+        subtitle = "Horizon target milestone for your personal arc",
+        icon = Icons.Default.EmojiEvents,
+        iconTint = PurpleArc,
+        headerAccentColor = PurpleArc,
+        confirmButtonText = "Add Goal",
+        confirmButtonEnabled = title.isNotBlank(),
+        onConfirm = {
+            if (title.isNotBlank()) {
+                onSave(title.trim(), desc.trim(), horizon, "HIGH", 50)
+            }
+        },
+        testTag = "add_goal_matrix_dialog"
+    ) {
+        RebuildTextField(
+            value = title,
+            onValueChange = { title = it },
+            label = "Goal Title",
+            placeholder = "e.g. Master Optics & Modern Physics",
+            singleLine = true,
+            focusedBorderColor = PurpleArc,
+            testTag = "matrix_goal_title_input"
+        )
+
+        // Horizon Selector
+        Text(text = "Time Horizon", style = MaterialTheme.typography.bodySmall, color = GlassWhiteMuted)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text("Add Goal to Matrix", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PurpleArc)
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Goal Title", color = FrostBlueAccent) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite,
-                        focusedBorderColor = PurpleArc,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.3f),
-                        focusedContainerColor = DarkNavy,
-                        unfocusedContainerColor = DarkNavy
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+            horizons.forEach { h ->
+                val label = h.replace("_", " ")
+                RebuildSelectorChip(
+                    text = label,
+                    isSelected = horizon == h,
+                    onClick = { horizon = h },
+                    selectedColor = PurpleArc
                 )
-
-                OutlinedTextField(
-                    value = desc,
-                    onValueChange = { desc = it },
-                    label = { Text("Notes / Target", color = FrostBlueAccent) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite,
-                        focusedBorderColor = PurpleArc,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.3f),
-                        focusedContainerColor = DarkNavy,
-                        unfocusedContainerColor = DarkNavy
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                        Text("Cancel", color = GlassWhiteMuted)
-                    }
-                    Button(
-                        onClick = { onSave(title, desc, horizon, "HIGH", 50) },
-                        enabled = title.isNotBlank(),
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = PurpleArc, contentColor = GlassWhite)
-                    ) {
-                        Text("Add Goal", fontWeight = FontWeight.Bold)
-                    }
-                }
             }
         }
+
+        RebuildTextField(
+            value = desc,
+            onValueChange = { desc = it },
+            label = "Notes / Target",
+            placeholder = "Milestones, syllabus references, target chapters...",
+            singleLine = false,
+            minLines = 2,
+            maxLines = 4,
+            focusedBorderColor = PurpleArc,
+            testTag = "matrix_goal_desc_input"
+        )
     }
 }

@@ -23,6 +23,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.local.entity.MistakeEntity
 import com.example.data.local.entity.MistakeSeverity
 import com.example.ui.components.FrostedGlassCard
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
 import com.example.ui.theme.*
 import com.example.viewmodel.MistakeNotebookViewModel
 
@@ -159,91 +161,112 @@ fun MistakeNotebookScreen(
 
             // Log Mistake Dialog
             if (showAddDialog) {
-                AlertDialog(
-                    onDismissRequest = { showAddDialog = false },
-                    title = { Text("Log New Exam/Test Mistake", color = GlassWhite, fontWeight = FontWeight.Bold) },
-                    text = {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            OutlinedTextField(
-                                value = inputSubject,
-                                onValueChange = { inputSubject = it },
-                                label = { Text("Subject") },
-                                modifier = Modifier.fillMaxWidth()
+                RebuildDialog(
+                    onDismiss = { showAddDialog = false },
+                    title = "Log Test Mistake",
+                    subtitle = "Analyze errors and document correct formulas",
+                    icon = Icons.Default.Edit,
+                    iconTint = IceCyanPrimary,
+                    headerAccentColor = IceCyanPrimary,
+                    confirmButtonText = "Save Mistake",
+                    confirmButtonEnabled = inputQuestion.isNotBlank() && inputMistake.isNotBlank(),
+                    onConfirm = {
+                        if (inputQuestion.isNotBlank() && inputMistake.isNotBlank()) {
+                            viewModel.addMistake(
+                                subjectCode = inputSubject.trim(),
+                                chapterTitle = inputChapter.trim(),
+                                questionOrContext = inputQuestion.trim(),
+                                studentMistake = inputMistake.trim(),
+                                correctSolution = inputSolution.trim(),
+                                coreConcept = inputConcept.trim(),
+                                whyMade = inputWhy.trim()
                             )
-                            OutlinedTextField(
-                                value = inputChapter,
-                                onValueChange = { inputChapter = it },
-                                label = { Text("Chapter Title") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = inputQuestion,
-                                onValueChange = { inputQuestion = it },
-                                label = { Text("Question / Problem Statement") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = inputMistake,
-                                onValueChange = { inputMistake = it },
-                                label = { Text("What mistake did you make?") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = inputSolution,
-                                onValueChange = { inputSolution = it },
-                                label = { Text("Correct Solution & Formula") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = inputConcept,
-                                onValueChange = { inputConcept = it },
-                                label = { Text("Core Concept to Remember") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = inputWhy,
-                                onValueChange = { inputWhy = it },
-                                label = { Text("Root Cause (e.g., Calculation, Misread, Forgot)") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            showAddDialog = false
+                            inputQuestion = ""
+                            inputMistake = ""
+                            inputSolution = ""
+                            inputConcept = ""
+                            inputWhy = ""
                         }
                     },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                if (inputQuestion.isNotBlank() && inputMistake.isNotBlank()) {
-                                    viewModel.addMistake(
-                                        subjectCode = inputSubject,
-                                        chapterTitle = inputChapter,
-                                        questionOrContext = inputQuestion,
-                                        studentMistake = inputMistake,
-                                        correctSolution = inputSolution,
-                                        coreConcept = inputConcept,
-                                        whyMade = inputWhy
-                                    )
-                                    showAddDialog = false
-                                    inputQuestion = ""
-                                    inputMistake = ""
-                                    inputSolution = ""
-                                    inputConcept = ""
-                                    inputWhy = ""
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary)
-                        ) {
-                            Text("Save Mistake", color = DarkNavy, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showAddDialog = false }) {
-                            Text("Cancel", color = GlassWhiteMuted)
-                        }
-                    },
-                    containerColor = Color(0xFF131D38)
-                )
+                    testTag = "log_mistake_dialog"
+                ) {
+                    RebuildTextField(
+                        value = inputSubject,
+                        onValueChange = { inputSubject = it },
+                        label = "Subject",
+                        placeholder = "e.g. Physics, Chem, Bio",
+                        singleLine = true,
+                        focusedBorderColor = IceCyanPrimary,
+                        testTag = "mistake_subject_input"
+                    )
+
+                    RebuildTextField(
+                        value = inputChapter,
+                        onValueChange = { inputChapter = it },
+                        label = "Chapter Title",
+                        placeholder = "e.g. Electrostatics & Capacitance",
+                        singleLine = true,
+                        focusedBorderColor = IceCyanPrimary,
+                        testTag = "mistake_chapter_input"
+                    )
+
+                    RebuildTextField(
+                        value = inputQuestion,
+                        onValueChange = { inputQuestion = it },
+                        label = "Question / Problem Statement",
+                        placeholder = "Describe the problem or context...",
+                        singleLine = false,
+                        minLines = 2,
+                        maxLines = 4,
+                        focusedBorderColor = IceCyanPrimary,
+                        testTag = "mistake_question_input"
+                    )
+
+                    RebuildTextField(
+                        value = inputMistake,
+                        onValueChange = { inputMistake = it },
+                        label = "What mistake did you make?",
+                        placeholder = "Calculation error, wrong formula used, misread sign...",
+                        singleLine = false,
+                        minLines = 2,
+                        maxLines = 4,
+                        focusedBorderColor = WarningAmber,
+                        testTag = "mistake_error_input"
+                    )
+
+                    RebuildTextField(
+                        value = inputSolution,
+                        onValueChange = { inputSolution = it },
+                        label = "Correct Solution & Formula",
+                        placeholder = "Step-by-step correct procedure...",
+                        singleLine = false,
+                        minLines = 2,
+                        maxLines = 4,
+                        focusedBorderColor = SuccessGreen,
+                        testTag = "mistake_solution_input"
+                    )
+
+                    RebuildTextField(
+                        value = inputConcept,
+                        onValueChange = { inputConcept = it },
+                        label = "Core Concept to Remember",
+                        placeholder = "Key rule, edge-case, or mnemonic...",
+                        singleLine = true,
+                        focusedBorderColor = IceCyanPrimary,
+                        testTag = "mistake_concept_input"
+                    )
+
+                    RebuildTextField(
+                        value = inputWhy,
+                        onValueChange = { inputWhy = it },
+                        label = "Root Cause",
+                        placeholder = "e.g. Rushed in last 5 mins, conceptual gap",
+                        singleLine = true,
+                        focusedBorderColor = PurpleArc,
+                        testTag = "mistake_why_input"
+                    )
+                }
             }
         }
     }

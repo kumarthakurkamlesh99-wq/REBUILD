@@ -63,6 +63,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -714,53 +716,34 @@ fun AlarmEditDialog(
         "SYSTEM_DEFAULT" to "System Notification Default"
     )
 
-    Dialog(onDismissRequest = { viewModel.dismissDialog() }) {
-        Card(
-            shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = FrostedNavyCard),
-            border = BorderStroke(1.dp, ElectricBlue.copy(alpha = 0.5f)),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(20.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (uiState.editingAlarm == null) "New Protocol Alarm" else "Edit Alarm",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = IceCyanPrimary
-                    )
-                    IconButton(onClick = { viewModel.dismissDialog() }) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = GlassWhite)
-                    }
-                }
-
-                // Title
-                OutlinedTextField(
-                    value = uiState.inputTitle,
-                    onValueChange = { viewModel.setInputTitle(it) },
-                    label = { Text("Alarm Label / Protocol", color = FrostBlueAccent) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite,
-                        focusedBorderColor = IceCyanPrimary,
-                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.4f),
-                        focusedContainerColor = DarkNavy,
-                        unfocusedContainerColor = DarkNavy
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
+    RebuildDialog(
+        onDismiss = { viewModel.dismissDialog() },
+        title = if (uiState.editingAlarm == null) "New Protocol Alarm" else "Edit Alarm",
+        subtitle = "Zero Snooze Anti-Slumber Wake Protocol",
+        icon = Icons.Default.Alarm,
+        iconTint = ElectricBlue,
+        headerAccentColor = ElectricBlue,
+        confirmButtonText = "Save Alarm",
+        onConfirm = {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !AlarmScheduler.hasNotificationPermission(context)) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !AlarmScheduler.canScheduleExactAlarms(context)) {
+                AlarmScheduler.openExactAlarmSettings(context)
+            }
+            viewModel.saveAlarm()
+        },
+        testTag = "alarm_edit_dialog"
+    ) {
+        // Title
+        RebuildTextField(
+            value = uiState.inputTitle,
+            onValueChange = { viewModel.setInputTitle(it) },
+            label = "Alarm Label / Protocol",
+            singleLine = true,
+            focusedBorderColor = IceCyanPrimary,
+            testTag = "alarm_label_input"
+        )
 
                 // Time Pickers (Hour & Minute)
                 Row(
@@ -1099,106 +1082,58 @@ fun AlarmEditDialog(
                     }
                 }
 
-                // Snooze Settings (Max Snoozes & Duration)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Max Snoozes", fontSize = 12.sp, color = GlassWhiteMuted)
-                        OutlinedTextField(
-                            value = "${uiState.inputMaxSnoozes}",
-                            onValueChange = {
-                                val s = it.toIntOrNull()?.coerceIn(0, 10) ?: 0
-                                viewModel.setInputMaxSnoozes(s)
-                            },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = GlassWhite,
-                                unfocusedTextColor = GlassWhite,
-                                focusedBorderColor = IceCyanPrimary,
-                                unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.4f),
-                                focusedContainerColor = DarkNavy,
-                                unfocusedContainerColor = DarkNavy
-                            )
-                        )
-                    }
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Snooze (Mins)", fontSize = 12.sp, color = GlassWhiteMuted)
-                        OutlinedTextField(
-                            value = "${uiState.inputSnoozeDuration}",
-                            onValueChange = {
-                                val d = it.toIntOrNull()?.coerceIn(1, 30) ?: 5
-                                viewModel.setInputSnoozeDuration(d)
-                            },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = GlassWhite,
-                                unfocusedTextColor = GlassWhite,
-                                focusedBorderColor = IceCyanPrimary,
-                                unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.4f),
-                                focusedContainerColor = DarkNavy,
-                                unfocusedContainerColor = DarkNavy
-                            )
-                        )
-                    }
-                }
-
-                // Volume Slider
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Alarm Volume", fontSize = 12.sp, color = GlassWhiteMuted)
-                        Text("${uiState.inputVolume}%", fontSize = 12.sp, color = IceCyanPrimary, fontWeight = FontWeight.Bold)
-                    }
-                    Slider(
-                        value = uiState.inputVolume.toFloat(),
-                        onValueChange = { viewModel.setInputVolume(it.toInt()) },
-                        valueRange = 20f..100f,
-                        colors = SliderDefaults.colors(
-                            thumbColor = IceCyanPrimary,
-                            activeTrackColor = ElectricBlue
-                        )
-                    )
-                }
-
-                // Action Buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { viewModel.dismissDialog() },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Cancel", color = GlassWhiteMuted)
-                    }
-
-                    Button(
-                        onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !AlarmScheduler.hasNotificationPermission(context)) {
-                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !AlarmScheduler.canScheduleExactAlarms(context)) {
-                                AlarmScheduler.openExactAlarmSettings(context)
-                            }
-                            viewModel.saveAlarm()
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = ElectricBlue,
-                            contentColor = DarkNavy
-                        )
-                    ) {
-                        Text("Save Alarm", fontWeight = FontWeight.Bold)
-                    }
-                }
+        // Snooze Settings (Max Snoozes & Duration)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Max Snoozes", fontSize = 12.sp, color = GlassWhiteMuted)
+                RebuildTextField(
+                    value = "${uiState.inputMaxSnoozes}",
+                    onValueChange = {
+                        val s = it.toIntOrNull()?.coerceIn(0, 10) ?: 0
+                        viewModel.setInputMaxSnoozes(s)
+                    },
+                    singleLine = true,
+                    focusedBorderColor = IceCyanPrimary,
+                    testTag = "max_snoozes_input"
+                )
             }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Snooze (Mins)", fontSize = 12.sp, color = GlassWhiteMuted)
+                RebuildTextField(
+                    value = "${uiState.inputSnoozeDuration}",
+                    onValueChange = {
+                        val d = it.toIntOrNull()?.coerceIn(1, 30) ?: 5
+                        viewModel.setInputSnoozeDuration(d)
+                    },
+                    singleLine = true,
+                    focusedBorderColor = IceCyanPrimary,
+                    testTag = "snooze_duration_input"
+                )
+            }
+        }
+
+        // Volume Slider
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Alarm Volume", fontSize = 12.sp, color = GlassWhiteMuted)
+                Text("${uiState.inputVolume}%", fontSize = 12.sp, color = IceCyanPrimary, fontWeight = FontWeight.Bold)
+            }
+            Slider(
+                value = uiState.inputVolume.toFloat(),
+                onValueChange = { viewModel.setInputVolume(it.toInt()) },
+                valueRange = 20f..100f,
+                colors = SliderDefaults.colors(
+                    thumbColor = IceCyanPrimary,
+                    activeTrackColor = ElectricBlue
+                )
+            )
         }
     }
 }

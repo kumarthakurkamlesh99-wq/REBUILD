@@ -43,6 +43,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
+import com.example.ui.components.RebuildSelectorChip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -403,200 +406,132 @@ fun AddTaskDialog(
 
     val subjects = listOf("Physics", "Chemistry", "Biology", "English", "Hindi", "Workout", "General")
 
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        Surface(
+    RebuildDialog(
+        onDismiss = onDismiss,
+        title = "Add Custom Task",
+        subtitle = "Set syllabus milestone or practice drill",
+        icon = Icons.Default.Add,
+        iconTint = LuxuryAccent,
+        headerAccentColor = LuxuryAccent,
+        confirmButtonText = "Add Task",
+        confirmButtonEnabled = title.isNotBlank(),
+        onConfirm = {
+            if (title.isNotBlank()) {
+                onAdd(
+                    subject,
+                    title.trim(),
+                    durationMins,
+                    details.trim(),
+                    if (enableReminder) reminderHour else null,
+                    if (enableReminder) reminderMinute else null
+                )
+            }
+        },
+        testTag = "tasks_add_dialog"
+    ) {
+        RebuildTextField(
+            value = title,
+            onValueChange = { title = it },
+            label = "Task Title",
+            placeholder = "e.g. Wave Optics PYQs",
+            singleLine = true,
+            focusedBorderColor = LuxuryAccent,
+            testTag = "task_title_input"
+        )
+
+        // Subject selector
+        Text(text = "Subject", style = MaterialTheme.typography.bodySmall, color = GlassWhiteMuted)
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(20.dp),
-            color = LuxuryCard,
-            border = BorderStroke(1.dp, LuxuryAccent)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            subjects.forEach { s ->
+                RebuildSelectorChip(
+                    text = s,
+                    isSelected = subject == s,
+                    onClick = { subject = s },
+                    selectedColor = LuxuryAccent
+                )
+            }
+        }
+
+        RebuildTextField(
+            value = details,
+            onValueChange = { details = it },
+            label = "Details / Micro-steps",
+            placeholder = "Solve 10 questions from 2023 CBSE paper...",
+            singleLine = false,
+            minLines = 2,
+            maxLines = 4,
+            focusedBorderColor = LuxuryAccent,
+            testTag = "task_details_input"
+        )
+
+        // Reminder alarm toggle & time selector
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0x22102A45))
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Alarm,
+                    contentDescription = "Alarm",
+                    tint = if (enableReminder) IceCyanPrimary else GlassWhiteMuted,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Add Custom Task",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = GlassWhite
+                    text = "Set Reminder Alarm",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (enableReminder) GlassWhite else GlassWhiteMuted
+                )
+            }
+
+            Checkbox(
+                checked = enableReminder,
+                onCheckedChange = { enableReminder = it },
+                colors = CheckboxDefaults.colors(checkedColor = IceCyanPrimary)
+            )
+        }
+
+        if (enableReminder) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Time (24h):",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = GlassWhiteMuted
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Task Title") },
-                    placeholder = { Text("e.g. Wave Optics PYQs") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = LuxuryAccent,
-                        unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Subject row
-                Text(text = "Subject", style = MaterialTheme.typography.bodySmall, color = GlassWhiteMuted)
-                Spacer(modifier = Modifier.height(4.dp))
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    subjects.forEach { s ->
-                        val isSelected = subject == s
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) LuxuryAccent else Color(0x227C8CFF),
-                            modifier = Modifier.clickable { subject = s }
-                        ) {
-                            Text(
-                                text = s,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isSelected) DarkNavy else GlassWhite,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = details,
-                    onValueChange = { details = it },
-                    label = { Text("Details / Micro-steps") },
-                    placeholder = { Text("Solve 10 questions from 2023 CBSE paper...") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = LuxuryAccent,
-                        unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite
+                    RebuildSelectorChip(
+                        text = String.format("%02d", reminderHour),
+                        isSelected = true,
+                        onClick = { reminderHour = (reminderHour + 1) % 24 },
+                        selectedColor = IceCyanPrimary
                     )
-                )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Text(":", color = GlassWhite, fontWeight = FontWeight.Bold)
 
-                // Reminder alarm toggle & time selector
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0x22102A45))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Alarm,
-                            contentDescription = "Alarm",
-                            tint = if (enableReminder) IceCyanPrimary else GlassWhiteMuted,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Set Reminder Alarm",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (enableReminder) GlassWhite else GlassWhiteMuted
-                        )
-                    }
-
-                    Checkbox(
-                        checked = enableReminder,
-                        onCheckedChange = { enableReminder = it },
-                        colors = CheckboxDefaults.colors(checkedColor = IceCyanPrimary)
+                    RebuildSelectorChip(
+                        text = String.format("%02d", reminderMinute),
+                        isSelected = true,
+                        onClick = { reminderMinute = (reminderMinute + 15) % 60 },
+                        selectedColor = IceCyanPrimary
                     )
-                }
-
-                if (enableReminder) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Time (24h):",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = GlassWhiteMuted
-                        )
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = Color(0x337C8CFF),
-                                modifier = Modifier.clickable {
-                                    reminderHour = (reminderHour + 1) % 24
-                                }
-                            ) {
-                                Text(
-                                    text = String.format("%02d", reminderHour),
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = IceCyanPrimary
-                                )
-                            }
-
-                            Text(":", color = GlassWhite, fontWeight = FontWeight.Bold)
-
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = Color(0x337C8CFF),
-                                modifier = Modifier.clickable {
-                                    reminderMinute = (reminderMinute + 15) % 60
-                                }
-                            ) {
-                                Text(
-                                    text = String.format("%02d", reminderMinute),
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = IceCyanPrimary
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = GlassWhiteMuted)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            if (title.isNotBlank()) {
-                                onAdd(
-                                    subject,
-                                    title,
-                                    durationMins,
-                                    details,
-                                    if (enableReminder) reminderHour else null,
-                                    if (enableReminder) reminderMinute else null
-                                )
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = LuxuryAccent)
-                    ) {
-                        Text("Add Task", color = DarkNavy, fontWeight = FontWeight.Bold)
-                    }
                 }
             }
         }

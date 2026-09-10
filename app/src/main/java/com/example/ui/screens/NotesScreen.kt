@@ -50,6 +50,9 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildTextField
+import com.example.ui.components.RebuildSelectorChip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -699,110 +702,60 @@ fun AddNoteDialog(
 
     val tags = listOf("Physics", "Chemistry", "Biology", "English", "Hindi", "Strategy", "General")
 
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        Surface(
+    RebuildDialog(
+        onDismiss = onDismiss,
+        title = "New Note / Cheatsheet",
+        subtitle = "Formula summary, high-yield notes, or strategy",
+        icon = Icons.Default.Notes,
+        iconTint = LuxuryAccent,
+        headerAccentColor = LuxuryAccent,
+        confirmButtonText = "Save Note",
+        confirmButtonEnabled = title.isNotBlank() && content.isNotBlank(),
+        onConfirm = {
+            if (title.isNotBlank() && content.isNotBlank()) {
+                onSave(title.trim(), content.trim(), subjectTag, isPinned)
+            }
+        },
+        testTag = "add_note_dialog"
+    ) {
+        RebuildTextField(
+            value = title,
+            onValueChange = { title = it },
+            label = "Title",
+            placeholder = "e.g. Wave Optics High-Yield Derivations",
+            singleLine = true,
+            focusedBorderColor = LuxuryAccent,
+            testTag = "note_title_input"
+        )
+
+        // Tag selector
+        Text(text = "Subject Tag", style = MaterialTheme.typography.bodySmall, color = GlassWhiteMuted)
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(20.dp),
-            color = LuxuryCard,
-            border = BorderStroke(1.dp, LuxuryAccent)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = "New Note / Cheatsheet",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = GlassWhite
+            tags.forEach { t ->
+                RebuildSelectorChip(
+                    text = t,
+                    isSelected = subjectTag == t,
+                    onClick = { subjectTag = t },
+                    selectedColor = LuxuryAccent
                 )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Title") },
-                    placeholder = { Text("e.g. Wave Optics High-Yield Derivations") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = LuxuryAccent,
-                        unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Tag selector
-                Text(text = "Subject Tag", style = MaterialTheme.typography.bodySmall, color = GlassWhiteMuted)
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    tags.forEach { t ->
-                        val isSelected = subjectTag == t
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSelected) LuxuryAccent else Color(0x227C8CFF),
-                            modifier = Modifier.clickable { subjectTag = t }
-                        ) {
-                            Text(
-                                text = t,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isSelected) DarkNavy else GlassWhite,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = content,
-                    onValueChange = { content = it },
-                    label = { Text("Content / Formulas / Mechanisms") },
-                    placeholder = { Text("Write formulas, equations, or key steps...") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(140.dp),
-                    maxLines = 8,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = LuxuryAccent,
-                        unfocusedBorderColor = GlassWhiteMuted.copy(alpha = 0.3f),
-                        focusedTextColor = GlassWhite,
-                        unfocusedTextColor = GlassWhite
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = GlassWhiteMuted)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            if (title.isNotBlank() && content.isNotBlank()) {
-                                onSave(title, content, subjectTag, isPinned)
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = LuxuryAccent)
-                    ) {
-                        Text("Save Note", color = DarkNavy, fontWeight = FontWeight.Bold)
-                    }
-                }
             }
         }
+
+        RebuildTextField(
+            value = content,
+            onValueChange = { content = it },
+            label = "Content / Formulas / Mechanisms",
+            placeholder = "Write formulas, equations, or key steps...",
+            singleLine = false,
+            minLines = 4,
+            maxLines = 8,
+            focusedBorderColor = LuxuryAccent,
+            testTag = "note_content_input"
+        )
     }
 }
