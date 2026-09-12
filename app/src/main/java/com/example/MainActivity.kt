@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
     private val settingsViewModel: SettingsViewModel by viewModels {
         SettingsViewModelFactory(
             applicationInstance.userPreferencesRepository,
+            applicationInstance.database,
             applicationContext
         )
     }

@@ -1,9 +1,13 @@
 package com.example.viewmodel
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.data.local.AppDatabase
+import com.example.data.model.PlanImport
+import com.example.util.PlanImportManager
 import com.example.data.local.entity.DailyDisciplineEntity
 import com.example.data.local.entity.HabitEntity
 import com.example.data.local.entity.HabitLogEntity
@@ -185,8 +189,74 @@ data class SettingsUiState(
 
 class SettingsViewModel(
     private val userPreferencesRepository: UserPreferencesRepository,
+    private val database: AppDatabase,
     private val context: Context
 ) : ViewModel() {
+
+    private val planImportManager = PlanImportManager(context, database)
+
+    private val _planImportPreview = MutableStateFlow<PlanImport?>(null)
+    val planImportPreview: StateFlow<PlanImport?> = _planImportPreview
+    
+    private val _importError = MutableStateFlow<String?>(null)
+    val importError: StateFlow<String?> = _importError
+    
+    private val _importSuccess = MutableStateFlow<Boolean>(false)
+    val importSuccess: StateFlow<Boolean> = _importSuccess
+    
+    private val _restoreSuccess = MutableStateFlow<Boolean>(false)
+    val restoreSuccess: StateFlow<Boolean> = _restoreSuccess
+
+    fun parsePlanFile(uri: Uri) {
+        viewModelScope.launch {
+            _importError.value = null
+            _importSuccess.value = false
+            val result = planImportManager.parsePlan(uri)
+            if (result.isSuccess) {
+                _planImportPreview.value = result.getOrNull()
+            } else {
+                _importError.value = result.exceptionOrNull()?.message ?: "Unknown error"
+            }
+        }
+    }
+
+    fun confirmImport(replaceMode: Boolean) {
+        viewModelScope.launch {
+            val plan = _planImportPreview.value ?: return@launch
+            try {
+                planImportManager.importPlan(plan, replaceMode)
+                _importSuccess.value = true
+                _planImportPreview.value = null
+            } catch (e: Exception) {
+                _importError.value = "Import failed: ${e.message}"
+            }
+        }
+    }
+
+    fun cancelImport() {
+        _planImportPreview.value = null
+        _importError.value = null
+        _importSuccess.value = false
+    }
+    
+    fun dismissError() {
+        _importError.value = null
+    }
+
+    fun restoreBackup() {
+        viewModelScope.launch {
+            val result = planImportManager.restoreBackup()
+            if (result.isSuccess) {
+                _restoreSuccess.value = true
+            } else {
+                _importError.value = "Restore failed: ${result.exceptionOrNull()?.message}"
+            }
+        }
+    }
+    
+    fun dismissRestoreSuccess() {
+        _restoreSuccess.value = false
+    }
 
     private val audioSettingsFlow = combine(
         userPreferencesRepository.isNotificationsEnabled,
@@ -262,12 +332,13 @@ class AnalyticsViewModelFactory(private val repository: RebuildRepository) : Vie
 
 class SettingsViewModelFactory(
     private val userPreferencesRepository: UserPreferencesRepository,
+    private val database: AppDatabase,
     private val context: Context
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return SettingsViewModel(userPreferencesRepository, context) as T
+            return SettingsViewModel(userPreferencesRepository, database, context) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

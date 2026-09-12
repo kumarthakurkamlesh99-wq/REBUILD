@@ -44,6 +44,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,12 +55,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.data.local.entity.UserProfileEntity
 import com.example.notification.AlarmScheduler
 import com.example.ui.components.FrostedGlassCard
 import com.example.ui.components.GlowPill
 import com.example.ui.components.HeroGlassCard
 import com.example.ui.components.RebuildTopAppBar
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildSelectorChip
 import com.example.ui.theme.DarkNavy
 import com.example.ui.theme.ElectricBlue
 import com.example.ui.theme.FrostBlueAccent
@@ -85,9 +90,19 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
+    val planImportPreview by viewModel.planImportPreview.collectAsStateWithLifecycle()
+    val importError by viewModel.importError.collectAsStateWithLifecycle()
+    val importSuccess by viewModel.importSuccess.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
+    
     val activeAlarms = userProfile?.let { AlarmScheduler.getProfileAlarmsList(it) } ?: emptyList()
+    
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { viewModel.parsePlanFile(it) }
+    }
 
     Column(
         modifier = modifier
@@ -399,6 +414,184 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            // Data Management Section
+            item {
+                Text(
+                    text = "Data Management",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = IceCyanPrimary,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                )
+                FrostedGlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { filePickerLauncher.launch("application/json") }
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = "Import",
+                                    tint = FrostBlueAccent
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column {
+                                    Text(
+                                        text = "Import Plan",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = GlassWhite
+                                    )
+                                    Text(
+                                        text = "Load external JSON configuration",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = GlassWhiteMuted
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ArrowForward,
+                                contentDescription = null,
+                                tint = GlassWhiteMuted,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        // Restore Backup Option
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.restoreBackup() }
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = "Restore",
+                                    tint = WarningAmber
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column {
+                                    Text(
+                                        text = "Restore Previous Plan",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = GlassWhite
+                                    )
+                                    Text(
+                                        text = "Revert to auto-backup state",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = GlassWhiteMuted
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    val restoreSuccess by viewModel.restoreSuccess.collectAsStateWithLifecycle()
+    if (restoreSuccess) {
+        RebuildDialog(
+            onDismiss = { viewModel.dismissRestoreSuccess() },
+            title = "Restore Successful",
+            subtitle = "Your previous plan has been restored.",
+            icon = Icons.Default.Sync,
+            iconTint = SuccessGreen,
+            headerAccentColor = SuccessGreen,
+            confirmButtonText = "Done",
+            onConfirm = { viewModel.dismissRestoreSuccess() }
+        ) {
+            Text("Your goals, tasks, habits and alarms have been successfully reverted.", color = GlassWhite, fontSize = 14.sp)
+        }
+    }
+
+    // Import Modals
+    planImportPreview?.let { plan ->
+        var replaceMode by androidx.compose.runtime.mutableStateOf(true)
+        
+        RebuildDialog(
+            onDismiss = { viewModel.cancelImport() },
+            title = "Preview Plan Import",
+            subtitle = "Review the contents before committing to your local database.",
+            icon = Icons.Default.Sync,
+            iconTint = IceCyanPrimary,
+            headerAccentColor = IceCyanPrimary,
+            confirmButtonText = "Import Plan",
+            dismissButtonText = "Cancel",
+            onConfirm = { viewModel.confirmImport(replaceMode) },
+            testTag = "import_plan_dialog"
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Plan Name: ${plan.planName}", color = GlassWhite, fontWeight = FontWeight.Bold)
+                Text("Goals to create: ${plan.goals?.size ?: 0}", color = GlassWhiteMuted, fontSize = 14.sp)
+                Text("Tasks to create: ${plan.tasks?.size ?: 0}", color = GlassWhiteMuted, fontSize = 14.sp)
+                Text("Habits to create: ${plan.habits?.size ?: 0}", color = GlassWhiteMuted, fontSize = 14.sp)
+                Text("Alarms to create: ${plan.alarms?.size ?: 0}", color = GlassWhiteMuted, fontSize = 14.sp)
+                Text("Schedules (Focus): ${plan.focusSessions?.size ?: 0}", color = GlassWhiteMuted, fontSize = 14.sp)
+                Text("Milestones: ${plan.milestones?.size ?: 0}", color = GlassWhiteMuted, fontSize = 14.sp)
+                Text("XP changes: ${if (plan.xpRules != null) "Yes" else "No"}", color = GlassWhiteMuted, fontSize = 14.sp)
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Import Mode", color = GlassWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    RebuildSelectorChip(
+                        text = "Replace Existing",
+                        isSelected = replaceMode,
+                        onClick = { replaceMode = true },
+                        selectedColor = WarningAmber
+                    )
+                    RebuildSelectorChip(
+                        text = "Merge",
+                        isSelected = !replaceMode,
+                        onClick = { replaceMode = false },
+                        selectedColor = SuccessGreen
+                    )
+                }
+            }
+        }
+    }
+    
+    importError?.let { error ->
+        RebuildDialog(
+            onDismiss = { viewModel.dismissError() },
+            title = "Import Failed",
+            subtitle = "The JSON configuration was invalid.",
+            icon = Icons.Default.Sync,
+            iconTint = WarningAmber,
+            headerAccentColor = WarningAmber,
+            confirmButtonText = "Dismiss",
+            onConfirm = { viewModel.dismissError() }
+        ) {
+            Text(error, color = GlassWhite, fontSize = 14.sp)
+        }
+    }
+    
+    if (importSuccess) {
+        RebuildDialog(
+            onDismiss = { viewModel.cancelImport() },
+            title = "Import Successful",
+            subtitle = "Your plan has been loaded successfully.",
+            icon = Icons.Default.Sync,
+            iconTint = SuccessGreen,
+            headerAccentColor = SuccessGreen,
+            confirmButtonText = "Done",
+            onConfirm = { viewModel.cancelImport() }
+        ) {
+            Text("The goals, tasks, habits and alarms have been injected into your system.", color = GlassWhite, fontSize = 14.sp)
         }
     }
 }
