@@ -294,9 +294,6 @@ class SettingsViewModel(
 
     fun toggleNotifications(enabled: Boolean) = viewModelScope.launch {
         userPreferencesRepository.setNotificationsEnabled(enabled)
-        if (enabled) {
-            AlarmScheduler.scheduleAllDefaultAlarms(context)
-        }
     }
 
     fun toggleSound(enabled: Boolean) = viewModelScope.launch {
@@ -313,10 +310,6 @@ class SettingsViewModel(
 
     fun updateGoalHours(hours: String) = viewModelScope.launch {
         userPreferencesRepository.setDailyGoalHours(hours)
-    }
-
-    fun resyncAlarms() {
-        AlarmScheduler.scheduleAllDefaultAlarms(context)
     }
 }
 

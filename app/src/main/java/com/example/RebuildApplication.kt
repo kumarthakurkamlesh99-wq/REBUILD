@@ -34,9 +34,6 @@ class RebuildApplication : Application() {
             // 1. Initialize Notification Channels
             NotificationHelper.createNotificationChannels(this)
 
-            // 2. Schedule daily recurring alarms (06:00 AM, 09:45 AM, 01:00 PM, etc.)
-            AlarmScheduler.scheduleAllDefaultAlarms(this)
-
             // 3. Setup periodic WorkManager daily task rollover & discipline calculation
             setupPeriodicDailyWorker()
         } catch (e: Exception) {

@@ -121,7 +121,7 @@ fun NotificationCenterScreen(
 
     val defaultProfile = userProfile ?: UserProfileEntity(name = "Student")
     val alarmsList = remember(userProfile) {
-        AlarmScheduler.getProfileAlarmsList(defaultProfile)
+        emptyList<ScheduledAlarmInfo>()
     }
 
     var testStatusMessage by remember { mutableStateOf<String?>(null) }
@@ -131,34 +131,7 @@ fun NotificationCenterScreen(
         topBar = {
             RebuildTopAppBar(
                 title = "Notification Engine",
-                onBack = onBack,
-                actions = {
-                    IconButton(
-                        onClick = {
-                            isRescheduling = true
-                            coroutineScope.launch {
-                                AlarmScheduler.scheduleProfileAlarms(context, defaultProfile)
-                                delay(400)
-                                isRescheduling = false
-                                testStatusMessage = "All ${alarmsList.count { it.isEnabled }} active alarms resynchronized!"
-                            }
-                        }
-                    ) {
-                        if (isRescheduling) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = IceCyanPrimary,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Resync",
-                                tint = IceCyanPrimary
-                            )
-                        }
-                    }
-                }
+                onBack = onBack
             )
         },
         containerColor = DarkNavy
@@ -276,6 +249,37 @@ fun NotificationCenterScreen(
                     modifier = Modifier.padding(start = 4.dp, top = 4.dp)
                 )
             }
+            
+            if (alarmsList.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "📭 No alarms created yet",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = GlassWhite
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Create your first alarm to get started.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = GlassWhiteMuted
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = onBack,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary)
+                        ) {
+                            Text("Create Alarm", color = DarkNavy, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
 
             // Items
             items(alarmsList) { alarm ->
@@ -296,31 +300,8 @@ private fun AlarmDiagnosticCard(
     alarm: ScheduledAlarmInfo,
     onTestClick: () -> Unit
 ) {
-    val icon = when (alarm.id) {
-        AlarmScheduler.ID_WAKE_UP -> Icons.Default.WbSunny
-        AlarmScheduler.ID_SCHOOL_DEPARTURE -> Icons.Default.School
-        AlarmScheduler.ID_SCHOOL_ARRIVAL -> Icons.Default.School
-        AlarmScheduler.ID_RETURN_HOME -> Icons.Default.Home
-        AlarmScheduler.ID_STUDY_SESSION -> Icons.Default.MenuBook
-        AlarmScheduler.ID_WORKOUT -> Icons.Default.FitnessCenter
-        AlarmScheduler.ID_REVISION -> Icons.Default.Timer
-        AlarmScheduler.ID_REFLECTION -> Icons.Default.SelfImprovement
-        AlarmScheduler.ID_SLEEP -> Icons.Default.NightlightRound
-        else -> Icons.Default.Alarm
-    }
-
-    val iconColor = when (alarm.id) {
-        AlarmScheduler.ID_WAKE_UP -> WarningAmber
-        AlarmScheduler.ID_SCHOOL_DEPARTURE -> LuxuryAccent
-        AlarmScheduler.ID_SCHOOL_ARRIVAL -> LuxuryAccent
-        AlarmScheduler.ID_RETURN_HOME -> IceCyanPrimary
-        AlarmScheduler.ID_STUDY_SESSION -> FrostBlueAccent
-        AlarmScheduler.ID_WORKOUT -> FireOrange
-        AlarmScheduler.ID_REVISION -> PurpleArc
-        AlarmScheduler.ID_REFLECTION -> SuccessGreen
-        AlarmScheduler.ID_SLEEP -> Color(0xFF70B8FF)
-        else -> IceCyanPrimary
-    }
+    val icon = Icons.Default.Alarm
+    val iconColor = IceCyanPrimary
 
     val timeFormatted = String.format("%02d:%02d", alarm.hour, alarm.minute)
 

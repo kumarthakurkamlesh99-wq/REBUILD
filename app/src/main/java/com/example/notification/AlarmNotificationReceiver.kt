@@ -104,11 +104,10 @@ class AlarmNotificationReceiver : BroadcastReceiver() {
                 val db = AppDatabase.getDatabase(context, this)
                 val profile = db.userProfileDao().getUserProfileDirect()
                 if (profile != null && profile.isCompleted) {
-                    val matching = AlarmScheduler.getProfileAlarmsList(profile).find { it.id == alarmId }
+                    val matching = emptyList<ScheduledAlarmInfo>().find { it.id == alarmId }
                     if (matching != null && matching.isEnabled) {
                         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-                        // Re-trigger schedule for tomorrow
-                        AlarmScheduler.scheduleProfileAlarms(context, profile)
+                        // (Removed default alarm scheduling to support zero-hardcoded alarms constraint)
                     }
                 }
             } catch (e: Exception) {

@@ -96,8 +96,6 @@ fun SettingsScreen(
 
     val context = LocalContext.current
     
-    val activeAlarms = userProfile?.let { AlarmScheduler.getProfileAlarmsList(it) } ?: emptyList()
-    
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
@@ -329,91 +327,7 @@ fun SettingsScreen(
                 }
             }
 
-            // Timetable Scheduled Notifications Breakdown
-            if (activeAlarms.isNotEmpty()) {
-                item {
-                    FrostedGlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Active Daily Protocol Alarms",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = GlassWhite
-                                )
-
-                                Button(
-                                    onClick = {
-                                        userProfile?.let { AlarmScheduler.scheduleProfileAlarms(context, it) }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0x3338E1FF)),
-                                    border = BorderStroke(1.dp, IceCyanPrimary),
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Sync,
-                                        contentDescription = null,
-                                        tint = IceCyanPrimary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Resync", color = GlassWhite, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            activeAlarms.forEach { alarm ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Alarm,
-                                            contentDescription = null,
-                                            tint = if (alarm.isEnabled) FrostBlueAccent else GlassWhiteMuted,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                text = alarm.title,
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = GlassWhite
-                                            )
-                                            Text(
-                                                text = alarm.message,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = GlassWhiteMuted,
-                                                fontSize = 10.sp,
-                                                maxLines = 1
-                                            )
-                                        }
-                                    }
-
-                                    val timeStr = String.format("%02d:%02d", alarm.hour, alarm.minute)
-                                    GlowPill(
-                                        text = timeStr,
-                                        color = if (alarm.isEnabled) IceCyanPrimary else GlassWhiteMuted
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // Timetable Scheduled Notifications Breakdown removed to support zero-hardcoded alarms constraint
 
             // Data Management Section
             item {

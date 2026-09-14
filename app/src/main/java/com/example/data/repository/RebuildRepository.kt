@@ -92,7 +92,7 @@ class RebuildRepository(
         }
 
         if (context != null && profile.isCompleted) {
-            AlarmScheduler.scheduleProfileAlarms(context, profile)
+            // (Removed default alarm scheduling to support zero-hardcoded alarms constraint)
         }
     }
 
@@ -305,7 +305,7 @@ class RebuildRepository(
 
         // 7. Schedule Alarms
         if (context != null) {
-            AlarmScheduler.scheduleProfileAlarms(context, completedProfile)
+            // (Removed default alarm scheduling to support zero-hardcoded alarms constraint)
         }
     }
 

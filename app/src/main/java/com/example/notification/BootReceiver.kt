@@ -19,11 +19,7 @@ class BootReceiver : BroadcastReceiver() {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val db = AppDatabase.getDatabase(context, this)
-                    val profile = db.userProfileDao().getUserProfileDirect()
-                    if (profile != null && profile.isCompleted) {
-                        AlarmScheduler.scheduleProfileAlarms(context, profile)
-                        Log.d("BootReceiver", "Restored all alarms for profile: ${profile.name}")
-                    }
+                    
                     val enabledCustomAlarms = db.alarmDao().getEnabledAlarmsDirect()
                     for (alarm in enabledCustomAlarms) {
                         AlarmScheduler.scheduleCustomAlarm(context, alarm)

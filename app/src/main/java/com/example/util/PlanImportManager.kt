@@ -178,7 +178,7 @@ class PlanImportManager(
         }
         
         // Ensure Alarms are scheduled via AlarmScheduler
-        AlarmScheduler.scheduleAllDefaultAlarms(context)
+        // (Removed default alarm scheduling to support zero-hardcoded alarms constraint)
     }
 
     private suspend fun createBackup() = withContext(Dispatchers.IO) {
@@ -229,7 +229,7 @@ class PlanImportManager(
                     database.alarmDao().insertAlarm(AlarmEntity(title = a.title, hour = h, minute = m, challengeType = c, challengeDifficulty = d))
                 }
             }
-            AlarmScheduler.scheduleAllDefaultAlarms(context)
+            // (Removed default alarm scheduling to support zero-hardcoded alarms constraint)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
