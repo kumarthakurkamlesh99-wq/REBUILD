@@ -7,6 +7,9 @@ import com.example.data.local.entity.BoardExamConfigEntity
 import com.example.data.local.entity.ChapterEntity
 import com.example.data.local.entity.DailyDisciplineEntity
 import com.example.data.local.entity.DailyPlanTaskEntity
+import com.example.data.local.entity.DistractionLogEntity
+import com.example.data.local.entity.MistakeEntity
+import com.example.data.local.entity.MistakeSeverity
 import com.example.data.local.entity.ExerciseType
 import com.example.data.local.entity.GoalCategory
 import com.example.data.local.entity.GoalEntity
@@ -721,6 +724,45 @@ class RebuildRepository(
         val chapDesc = if (chapterName.isNotBlank()) " ($chapterName)" else ""
         addXp(60, "Deep Work: $subjectName$chapDesc", "Study")
         recalculateDisciplineScore(today)
+    }
+
+    suspend fun logDistraction(reason: String, triggerContext: String = "") {
+        val today = getTodayDateString()
+        val log = DistractionLogEntity(
+            attemptedAppName = triggerContext,
+            reasonOrUrge = reason,
+            date = today
+        )
+        db.distractionDao().insertDistraction(log)
+    }
+
+    suspend fun logMistakeFromStudySession(
+        subjectCode: String,
+        chapterTitle: String,
+        questionOrContext: String,
+        studentMistake: String,
+        correctSolution: String,
+        whyMade: String = "",
+        severity: MistakeSeverity = MistakeSeverity.MODERATE
+    ) {
+        val today = getTodayDateString()
+        val entity = MistakeEntity(
+            subjectCode = subjectCode,
+            chapterTitle = chapterTitle,
+            questionOrContext = questionOrContext,
+            studentMistake = studentMistake,
+            correctSolution = correctSolution,
+            coreConcept = "Focus Session Practice",
+            severity = severity,
+            whyMade = whyMade,
+            dateCreated = today
+        )
+        db.mistakeDao().insertMistake(entity)
+        addXp(25, "Exam Defense: Mistake Documented", "Study")
+    }
+
+    suspend fun getTaskById(taskId: Long): DailyPlanTaskEntity? {
+        return db.dailyPlanDao().getTaskById(taskId)
     }
 
     // ----------------------------------------------------

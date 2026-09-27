@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -93,7 +94,8 @@ import com.example.viewmodel.SyllabusViewModel
 @Composable
 fun SyllabusScreen(
     viewModel: SyllabusViewModel,
-    onOpenDrawer: () -> Unit
+    onOpenDrawer: () -> Unit,
+    onStartFocusForChapter: (subject: String, chapter: String) -> Unit = { _, _ -> }
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentSummary = uiState.subjectSummaries.find { it.code == uiState.selectedSubjectCode }
@@ -281,7 +283,8 @@ fun SyllabusScreen(
                     onToggleChapter = { chId -> viewModel.toggleChapterExpanded(chId) },
                     onUpdateChapterStatus = { chId, status -> viewModel.updateChapterStatus(chId, status) },
                     onUpdateTopicStatus = { topId, status -> viewModel.updateTopicStatus(topId, status) },
-                    onToggleChapterNotes = { ch -> viewModel.toggleChapterNotes(ch) }
+                    onToggleChapterNotes = { ch -> viewModel.toggleChapterNotes(ch) },
+                    onStartFocus = { chTitle -> onStartFocusForChapter(uiState.selectedSubjectCode, chTitle) }
                 )
             }
         }
@@ -299,7 +302,8 @@ fun UnitAccordionItem(
     onToggleChapter: (Long) -> Unit,
     onUpdateChapterStatus: (Long, SyllabusStatus) -> Unit,
     onUpdateTopicStatus: (Long, SyllabusStatus) -> Unit,
-    onToggleChapterNotes: (SyllabusChapterEntity) -> Unit
+    onToggleChapterNotes: (SyllabusChapterEntity) -> Unit,
+    onStartFocus: (String) -> Unit = {}
 ) {
     val rotationState by animateFloatAsState(targetValue = if (isExpanded) 180f else 0f, label = "rot")
 
@@ -386,7 +390,8 @@ fun UnitAccordionItem(
                             onToggleChapter = { onToggleChapter(chapter.id) },
                             onUpdateStatus = { st -> onUpdateChapterStatus(chapter.id, st) },
                             onUpdateTopicStatus = onUpdateTopicStatus,
-                            onToggleNotes = { onToggleChapterNotes(chapter) }
+                            onToggleNotes = { onToggleChapterNotes(chapter) },
+                            onStartFocus = { onStartFocus(chapter.title) }
                         )
                     }
                 }
@@ -403,7 +408,8 @@ fun ChapterCardItem(
     onToggleChapter: () -> Unit,
     onUpdateStatus: (SyllabusStatus) -> Unit,
     onUpdateTopicStatus: (Long, SyllabusStatus) -> Unit,
-    onToggleNotes: () -> Unit
+    onToggleNotes: () -> Unit,
+    onStartFocus: () -> Unit = {}
 ) {
     val rotationState by animateFloatAsState(targetValue = if (isExpanded) 180f else 0f, label = "rotCh")
     var showStatusMenu by remember { mutableStateOf(false) }
@@ -558,6 +564,30 @@ fun ChapterCardItem(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
+                                .background(IceCyanPrimary.copy(alpha = 0.2f))
+                                .border(1.dp, IceCyanPrimary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                .clickable { onStartFocus() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Timer,
+                                contentDescription = null,
+                                tint = IceCyanPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Study Focus",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = IceCyanPrimary
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(if (chapter.pyqsDone) SuccessGreen.copy(alpha = 0.2f) else Color(0xFF131F37))
                                 .border(1.dp, if (chapter.pyqsDone) SuccessGreen else FrostBlueAccent.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
                                 .clickable {
@@ -574,7 +604,7 @@ fun ChapterCardItem(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (chapter.status == SyllabusStatus.MASTERED) "Mastered (100 XP)" else "Mark Mastered",
+                                text = if (chapter.status == SyllabusStatus.MASTERED) "Mastered" else "Mark Mastered",
                                 fontSize = 11.sp,
                                 color = if (chapter.status == SyllabusStatus.MASTERED) PurpleArc else GlassWhite
                             )

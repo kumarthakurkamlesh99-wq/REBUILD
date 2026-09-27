@@ -6,7 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
-import com.example.data.model.PlanImport
+import com.example.data.model.*
 import com.example.util.PlanImportManager
 import com.example.data.local.entity.DailyDisciplineEntity
 import com.example.data.local.entity.HabitEntity
@@ -197,6 +197,15 @@ class SettingsViewModel(
 
     private val _planImportPreview = MutableStateFlow<PlanImport?>(null)
     val planImportPreview: StateFlow<PlanImport?> = _planImportPreview
+
+    private val _validationErrors = MutableStateFlow<List<PlanValidationError>>(emptyList())
+    val validationErrors: StateFlow<List<PlanValidationError>> = _validationErrors
+
+    private val _technicalDetails = MutableStateFlow<String?>(null)
+    val technicalDetails: StateFlow<String?> = _technicalDetails
+
+    private val _importReport = MutableStateFlow<ImportReport?>(null)
+    val importReport: StateFlow<ImportReport?> = _importReport
     
     private val _importError = MutableStateFlow<String?>(null)
     val importError: StateFlow<String?> = _importError
@@ -211,11 +220,20 @@ class SettingsViewModel(
         viewModelScope.launch {
             _importError.value = null
             _importSuccess.value = false
-            val result = planImportManager.parsePlan(uri)
-            if (result.isSuccess) {
-                _planImportPreview.value = result.getOrNull()
+            _importReport.value = null
+            _validationErrors.value = emptyList()
+            _technicalDetails.value = null
+            _planImportPreview.value = null
+
+            val result = planImportManager.validateAndParsePlan(uri)
+            if (result.isValid && result.plan != null) {
+                _planImportPreview.value = result.plan
             } else {
-                _importError.value = result.exceptionOrNull()?.message ?: "Unknown error"
+                _validationErrors.value = result.errors
+                _technicalDetails.value = result.technicalSummary
+                if (result.errors.isEmpty()) {
+                    _importError.value = result.technicalSummary.ifBlank { "Unknown validation error" }
+                }
             }
         }
     }
@@ -224,7 +242,8 @@ class SettingsViewModel(
         viewModelScope.launch {
             val plan = _planImportPreview.value ?: return@launch
             try {
-                planImportManager.importPlan(plan, replaceMode)
+                val report = planImportManager.importPlan(plan, replaceMode)
+                _importReport.value = report
                 _importSuccess.value = true
                 _planImportPreview.value = null
             } catch (e: Exception) {
@@ -237,10 +256,22 @@ class SettingsViewModel(
         _planImportPreview.value = null
         _importError.value = null
         _importSuccess.value = false
+        _validationErrors.value = emptyList()
+        _technicalDetails.value = null
     }
     
     fun dismissError() {
         _importError.value = null
+    }
+
+    fun dismissValidationErrors() {
+        _validationErrors.value = emptyList()
+        _technicalDetails.value = null
+    }
+
+    fun dismissImportReport() {
+        _importReport.value = null
+        _importSuccess.value = false
     }
 
     fun restoreBackup() {

@@ -44,6 +44,9 @@ interface DailyPlanDao {
     @Query("SELECT COUNT(*) FROM daily_plan_tasks WHERE date = :date AND isCompleted = 1")
     fun getCompletedTaskCountForDate(date: String): Flow<Int>
 
+    @Query("SELECT * FROM daily_plan_tasks WHERE id = :id LIMIT 1")
+    suspend fun getTaskById(id: Long): DailyPlanTaskEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTask(task: DailyPlanTaskEntity): Long
 

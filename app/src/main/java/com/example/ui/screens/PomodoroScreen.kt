@@ -67,12 +67,19 @@ import com.example.viewmodel.PomodoroViewModel
 
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 
 @Composable
 fun PomodoroScreen(
     viewModel: PomodoroViewModel,
     onOpenDrawer: () -> Unit = {},
+    onNavigateToMistakeNotebook: () -> Unit = {},
+    onNavigateToFlashcards: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -280,6 +287,103 @@ fun PomodoroScreen(
                         fontWeight = FontWeight.Black,
                         fontSize = 14.sp
                     )
+                }
+            }
+        }
+
+        // Academic Defense Lab Integration (Fast error logging & recall during focus)
+        item {
+            FrostedGlassCard(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "ACADEMIC DEFENSE LAB",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.2.sp,
+                            color = WarningAmber
+                        )
+                        Text(
+                            text = "Instant Capture",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = GlassWhiteMuted,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Made a calculation slip or encountered a tough trap question during this session? Log it before you forget.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = GlassWhiteMuted,
+                        fontSize = 12.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onNavigateToMistakeNotebook,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(42.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, WarningAmber.copy(alpha = 0.6f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = WarningAmber
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Flag Mistake",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onNavigateToFlashcards,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(42.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.6f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = IceCyanPrimary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MenuBook,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "SM-2 Recall",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
                 }
             }
         }

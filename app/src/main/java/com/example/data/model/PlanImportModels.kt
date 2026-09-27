@@ -31,7 +31,8 @@ data class PlanTask(
     val type: String? = "LECTURE",
     val details: String? = "",
     @Json(name = "target_minutes") val targetMinutes: Int? = 45,
-    val date: String? = null // yyyy-MM-dd
+    val date: String? = null, // yyyy-MM-dd
+    val xp: Int? = 0
 )
 
 @JsonClass(generateAdapter = true)
@@ -68,4 +69,28 @@ data class PlanXpRules(
     @Json(name = "task_xp") val taskXp: Int? = 50,
     @Json(name = "habit_xp") val habitXp: Int? = 10,
     @Json(name = "focus_xp") val focusXp: Int? = 20
+)
+
+data class PlanValidationError(
+    val itemType: String, // e.g. "Habit", "Task", "Goal", "Alarm"
+    val index: Int, // 1-based index
+    val field: String, // e.g. "Name", "Title", "Time"
+    val summaryBullet: String, // e.g. "Habit #2 is missing Name"
+    val friendlyMessage: String, // Full friendly message
+    val technicalDetails: String // Developer json path and info
+)
+
+data class PlanValidationResult(
+    val isValid: Boolean,
+    val plan: PlanImport?,
+    val errors: List<PlanValidationError> = emptyList(),
+    val technicalSummary: String = ""
+)
+
+data class ImportReport(
+    val planName: String,
+    val goalsCount: Int,
+    val tasksCount: Int,
+    val habitsCount: Int,
+    val alarmsCount: Int
 )

@@ -55,6 +55,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
@@ -151,18 +152,18 @@ import kotlinx.coroutines.launch
 sealed class Screen(val route: String, val title: String, val icon: ImageVector, val badgeText: String? = null) {
     object Splash : Screen("splash", "Splash", Icons.Default.Bolt)
     object Onboarding : Screen("onboarding", "Profile Calibration", Icons.Default.Tune)
-    object Home : Screen("home", "Dashboard", Icons.Default.Home)
+    object Home : Screen("home", "Command", Icons.Default.Home, "Today")
     object AiChat : Screen("ai_chat", "AI Neural Chat", Icons.Default.Psychology, "Live AI")
     object AiCoach : Screen("ai_coach", "AI Plans Generator", Icons.Default.AutoAwesome, "Gemini")
     object Goals : Screen("goals", "Apex Goals", Icons.Default.EmojiEvents, "Targets")
     object Schedule : Screen("schedule", "Schedule", Icons.Default.CalendarMonth)
-    object WinterArc : Screen("winter_arc", "Arc Protocol Mission Control", Icons.Default.TrendingUp, "90D Arc")
+    object WinterArc : Screen("winter_arc", "Arc Protocol", Icons.Default.TrendingUp, "90D Arc")
     object SkillTree : Screen("skill_tree", "Skill Progression Trees", Icons.Default.Bolt, "Skills")
     object Roadmap : Screen("roadmap", "AI Roadmaps & Trackers", Icons.Default.Timeline, "Roadmap")
-    object Syllabus : Screen("syllabus", "Class 12 Syllabus", Icons.Default.MenuBook, "70 Chaps")
-    object Subjects : Screen("subjects", "Study Tracker", Icons.Default.School)
-    object Tasks : Screen("tasks", "Tasks", Icons.Default.TaskAlt)
-    object Focus : Screen("focus", "Focus & Pomodoro", Icons.Default.Timer)
+    object Syllabus : Screen("syllabus", "Syllabus Tracker", Icons.Default.MenuBook, "Class 12")
+    object Subjects : Screen("subjects", "Subjects & Units", Icons.Default.School)
+    object Tasks : Screen("tasks", "Study Tasks", Icons.Default.TaskAlt)
+    object Focus : Screen("focus", "Focus Timer", Icons.Default.Timer, "Study")
     object Fitness : Screen("fitness", "Fitness & Calisthenics", Icons.Default.FitnessCenter)
     object Habits : Screen("habits", "Habits & Discipline", Icons.Default.CheckCircle)
     object BoardExam : Screen("board_exam", "Board Exam Blueprint", Icons.Default.School)
@@ -219,6 +220,15 @@ fun RebuildAppScaffold(
 
     val userProfile = homeUiState.userProfile
 
+    val primaryRoutes = setOf(
+        Screen.Syllabus.route,
+        Screen.Tasks.route,
+        Screen.Focus.route,
+        Screen.Notes.route,
+        Screen.Home.route
+    )
+    val showBottomBar = currentRoute in primaryRoutes
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = false,
@@ -257,22 +267,42 @@ fun RebuildAppScaffold(
             }
         }
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            DarkNavy,
-                            Color(0xFF070E22),
-                            Color(0xFF040714)
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent,
+            bottomBar = {
+                if (showBottomBar) {
+                    RebuildBottomBar(
+                        currentRoute = currentRoute,
+                        onNavigate = { route ->
+                            if (currentRoute != route) {
+                                navController.navigate(route) {
+                                    popUpTo(Screen.Syllabus.route) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = if (showBottomBar) innerPadding.calculateBottomPadding() else 0.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                DarkNavy,
+                                Color(0xFF070E22),
+                                Color(0xFF040714)
+                            )
                         )
                     )
-                )
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .imePadding()
-        ) {
+                    .statusBarsPadding()
+                    .imePadding()
+            ) {
             NavHost(
                 navController = navController,
                 startDestination = startDestination,
@@ -288,8 +318,8 @@ fun RebuildAppScaffold(
                             android.util.Log.d("Splash", "Splash → Checking onboarding state")
                             android.util.Log.d("Splash", "Onboarding Completed = $isCompleted")
                             val targetRoute = if (isCompleted) {
-                                android.util.Log.d("Splash", "Navigation Target = Dashboard")
-                                Screen.Home.route
+                                android.util.Log.d("Splash", "Navigation Target = Syllabus Tracker")
+                                Screen.Syllabus.route
                             } else {
                                 android.util.Log.d("Splash", "Navigation Target = Onboarding")
                                 Screen.Onboarding.route
@@ -309,8 +339,8 @@ fun RebuildAppScaffold(
                             application.userPreferencesRepository.setOnboardingCompletedSync(true)
                             onOnboardingComplete()
                             android.util.Log.d("Splash", "Onboarding Completed = true")
-                            android.util.Log.d("Splash", "Navigation Target = Dashboard")
-                            navController.navigate(Screen.Home.route) {
+                            android.util.Log.d("Splash", "Navigation Target = Syllabus Tracker")
+                            navController.navigate(Screen.Syllabus.route) {
                                 popUpTo(Screen.Onboarding.route) { inclusive = true }
                             }
                         }
@@ -319,15 +349,33 @@ fun RebuildAppScaffold(
 
                 // 1. Dashboard / Home
                 composable(Screen.Home.route) {
+                    val pomodoroVm: PomodoroViewModel = viewModel(
+                        factory = PomodoroViewModelFactory(application.repository)
+                    )
                     HomeScreen(
                         viewModel = homeViewModel,
                         onOpenDrawer = openDrawer,
                         onNavigateToSchool = { navController.navigate(Screen.Schedule.route) },
                         onNavigateToPlanner = { navController.navigate(Screen.Tasks.route) },
                         onNavigateToPomodoro = { navController.navigate(Screen.Focus.route) },
-                        onNavigateToWinterArc = { navController.navigate(Screen.WinterArc.route) },
+                        onStartFocusWithPreset = { subject, chapter, durationMins ->
+                            pomodoroVm.setSelectedSubjectAndChapter(subject, chapter)
+                            val sessionType = when (durationMins) {
+                                25 -> com.example.data.local.entity.SessionType.POMODORO_25_5
+                                50 -> com.example.data.local.entity.SessionType.POMODORO_50_10
+                                90 -> com.example.data.local.entity.SessionType.DEEP_WORK
+                                30 -> com.example.data.local.entity.SessionType.REVISION
+                                else -> com.example.data.local.entity.SessionType.CUSTOM_FOCUS
+                            }
+                            pomodoroVm.setMode(sessionType)
+                            navController.navigate(Screen.Focus.route)
+                        },
+                        onNavigateToMistakeNotebook = { navController.navigate(Screen.MistakeNotebook.route) },
+                        onNavigateToFlashcards = { navController.navigate(Screen.Flashcards.route) },
+                        onNavigateToWinterArc = { navController.navigate(Screen.Syllabus.route) },
                         onNavigateToBoardExam = { navController.navigate(Screen.BoardExam.route) },
-                        onNavigateToRankReport = { navController.navigate(Screen.RankReport.route) }
+                        onNavigateToRankReport = { navController.navigate(Screen.Syllabus.route) },
+                        onNavigateToSyllabus = { navController.navigate(Screen.Syllabus.route) }
                     )
                 }
 
@@ -398,9 +446,17 @@ fun RebuildAppScaffold(
                     val syllabusVm: SyllabusViewModel = viewModel(
                         factory = SyllabusViewModelFactory(application.repository)
                     )
+                    val pomodoroVm: PomodoroViewModel = viewModel(
+                        factory = PomodoroViewModelFactory(application.repository)
+                    )
                     SyllabusScreen(
                         viewModel = syllabusVm,
-                        onOpenDrawer = openDrawer
+                        onOpenDrawer = openDrawer,
+                        onStartFocusForChapter = { subject, chapter ->
+                            pomodoroVm.setSelectedSubjectAndChapter(subject, chapter)
+                            pomodoroVm.setMode(com.example.data.local.entity.SessionType.POMODORO_25_5)
+                            navController.navigate(Screen.Focus.route)
+                        }
                     )
                 }
 
@@ -451,7 +507,9 @@ fun RebuildAppScaffold(
                     )
                     PomodoroScreen(
                         viewModel = pomodoroVm,
-                        onOpenDrawer = openDrawer
+                        onOpenDrawer = openDrawer,
+                        onNavigateToMistakeNotebook = { navController.navigate(Screen.MistakeNotebook.route) },
+                        onNavigateToFlashcards = { navController.navigate(Screen.Flashcards.route) }
                     )
                 }
 
@@ -658,6 +716,7 @@ fun RebuildAppScaffold(
         }
     }
 }
+}
 
 @Composable
 fun RebuildDrawerContent(
@@ -754,158 +813,62 @@ fun RebuildDrawerContent(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Compact Telemetry Info Cards (2x2 Grid)
-                Column(
+                // Academic Info Card (Class 12 Syllabus & Exam Countdown)
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        color = LuxuryCard,
+                        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f))
                     ) {
-                        // Level Card (Clickable to open Rank Intelligence Report)
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { onNavigate(Screen.RankReport.route) },
-                            shape = RoundedCornerShape(10.dp),
-                            color = LuxuryCard,
-                            border = BorderStroke(1.dp, PurpleArc.copy(alpha = 0.6f))
-                        ) {
-                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "LEVEL $level",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = PurpleArc,
-                                        fontSize = 12.sp,
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                    )
-                                    Icon(
-                                        imageVector = Icons.Default.Bolt,
-                                        contentDescription = null,
-                                        tint = PurpleArc,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                }
-                                Text(
-                                    text = "Rank Tier • Tap",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 10.sp,
-                                    color = GlassWhiteMuted,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        // XP Card (Clickable to open XP Ledger)
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { onNavigate(Screen.XpLedger.route) },
-                            shape = RoundedCornerShape(10.dp),
-                            color = LuxuryCard,
-                            border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.6f))
-                        ) {
-                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "${String.format("%,d", xp)} XP",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = IceCyanPrimary,
-                                        fontSize = 12.sp,
-                                        maxLines = 1,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                    )
-                                    Icon(
-                                        imageVector = Icons.Default.Bolt,
-                                        contentDescription = null,
-                                        tint = IceCyanPrimary,
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                }
-                                Text(
-                                    text = "Ledger • Tap",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 10.sp,
-                                    color = GlassWhiteMuted,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                            }
+                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                            Text(
+                                text = "Class 12",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = IceCyanPrimary,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "Syllabus Active",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 10.sp,
+                                color = GlassWhiteMuted,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                         }
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        color = LuxuryCard,
+                        border = BorderStroke(1.dp, WarningAmber.copy(alpha = 0.5f))
                     ) {
-                        Surface(
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            color = LuxuryCard,
-                            border = BorderStroke(0.5.dp, Color(0x337C8CFF))
-                        ) {
-                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                                Text(
-                                    text = "Day $arcDay / 90",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = FrostBlueAccent,
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "Winter Arc",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 10.sp,
-                                    color = GlassWhiteMuted,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        Surface(
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            color = LuxuryCard,
-                            border = BorderStroke(0.5.dp, Color(0x337C8CFF))
-                        ) {
-                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                                Text(
-                                    text = "$daysUntilExam Days",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = WarningAmber,
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "To Target Exam",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 10.sp,
-                                    color = GlassWhiteMuted,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                            }
+                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                            Text(
+                                text = "$daysUntilExam Days Left",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = WarningAmber,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "To Board Exam",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 10.sp,
+                                color = GlassWhiteMuted,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
@@ -915,112 +878,9 @@ fun RebuildDrawerContent(
             }
         }
 
-        // Section 1: CORE PROTOCOL & AI
+        // Section 1: SYLLABUS & CURRICULUM
         item {
-            DrawerSectionHeader(title = "CORE PROTOCOL & AI")
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Home,
-                isSelected = currentRoute == Screen.Home.route,
-                onClick = { onNavigate(Screen.Home.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.AiChat,
-                isSelected = currentRoute == Screen.AiChat.route,
-                highlightColor = IceCyanPrimary,
-                onClick = { onNavigate(Screen.AiChat.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.AiCoach,
-                isSelected = currentRoute == Screen.AiCoach.route,
-                highlightColor = LuxuryAccent,
-                onClick = { onNavigate(Screen.AiCoach.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Goals,
-                isSelected = currentRoute == Screen.Goals.route,
-                highlightColor = LuxuryAccent,
-                onClick = { onNavigate(Screen.Goals.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Schedule,
-                isSelected = currentRoute == Screen.Schedule.route,
-                onClick = { onNavigate(Screen.Schedule.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Tasks,
-                isSelected = currentRoute == Screen.Tasks.route,
-                onClick = { onNavigate(Screen.Tasks.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Focus,
-                isSelected = currentRoute == Screen.Focus.route,
-                onClick = { onNavigate(Screen.Focus.route) }
-            )
-        }
-
-        // Section 2: GOALS & MASTERY PROTOCOLS
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = Color(0x11FFFFFF), thickness = 0.5.dp)
-            Spacer(modifier = Modifier.height(4.dp))
-            DrawerSectionHeader(title = "GOALS & MASTERY PROTOCOLS")
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.WinterArc,
-                isSelected = currentRoute == Screen.WinterArc.route,
-                highlightColor = PurpleArc,
-                onClick = { onNavigate(Screen.WinterArc.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.SkillTree,
-                isSelected = currentRoute == Screen.SkillTree.route,
-                highlightColor = IceCyanPrimary,
-                onClick = { onNavigate(Screen.SkillTree.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Roadmap,
-                isSelected = currentRoute == Screen.Roadmap.route,
-                highlightColor = PurpleArc,
-                onClick = { onNavigate(Screen.Roadmap.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Certificate,
-                isSelected = currentRoute == Screen.Certificate.route,
-                highlightColor = LuxuryAccent,
-                onClick = { onNavigate(Screen.Certificate.route) }
-            )
+            DrawerSectionHeader(title = "SYLLABUS & CURRICULUM")
         }
 
         item {
@@ -1034,10 +894,54 @@ fun RebuildDrawerContent(
 
         item {
             DrawerNavigationItem(
-                screen = Screen.Flashcards,
-                isSelected = currentRoute == Screen.Flashcards.route,
+                screen = Screen.Subjects,
+                isSelected = currentRoute == Screen.Subjects.route,
+                highlightColor = ElectricBlue,
+                onClick = { onNavigate(Screen.Subjects.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.BoardExam,
+                isSelected = currentRoute == Screen.BoardExam.route,
+                highlightColor = WarningAmber,
+                onClick = { onNavigate(Screen.BoardExam.route) }
+            )
+        }
+
+        // Section 2: STUDY TOOLS & RETENTION
+        item {
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = Color(0x11FFFFFF), thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(4.dp))
+            DrawerSectionHeader(title = "STUDY TOOLS & RETENTION")
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Tasks,
+                isSelected = currentRoute == Screen.Tasks.route,
+                highlightColor = FrostBlueAccent,
+                onClick = { onNavigate(Screen.Tasks.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Focus,
+                isSelected = currentRoute == Screen.Focus.route,
                 highlightColor = IceCyanPrimary,
-                onClick = { onNavigate(Screen.Flashcards.route) }
+                onClick = { onNavigate(Screen.Focus.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Notes,
+                isSelected = currentRoute == Screen.Notes.route,
+                highlightColor = ElectricBlue,
+                onClick = { onNavigate(Screen.Notes.route) }
             )
         }
 
@@ -1052,87 +956,27 @@ fun RebuildDrawerContent(
 
         item {
             DrawerNavigationItem(
-                screen = Screen.WeeklyRealityReport,
-                isSelected = currentRoute == Screen.WeeklyRealityReport.route,
-                highlightColor = PurpleArc,
-                onClick = { onNavigate(Screen.WeeklyRealityReport.route) }
+                screen = Screen.Flashcards,
+                isSelected = currentRoute == Screen.Flashcards.route,
+                highlightColor = FrostBlueAccent,
+                onClick = { onNavigate(Screen.Flashcards.route) }
             )
         }
 
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Subjects,
-                isSelected = currentRoute == Screen.Subjects.route,
-                onClick = { onNavigate(Screen.Subjects.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.BoardExam,
-                isSelected = currentRoute == Screen.BoardExam.route,
-                highlightColor = WarningAmber,
-                onClick = { onNavigate(Screen.BoardExam.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Fitness,
-                isSelected = currentRoute == Screen.Fitness.route,
-                highlightColor = FireOrange,
-                onClick = { onNavigate(Screen.Fitness.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Habits,
-                isSelected = currentRoute == Screen.Habits.route,
-                highlightColor = SuccessGreen,
-                onClick = { onNavigate(Screen.Habits.route) }
-            )
-        }
-
-        // Section 3: REFLECTIONS & TELEMETRY
+        // Section 3: ASSISTANT & SETTINGS
         item {
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = Color(0x11FFFFFF), thickness = 0.5.dp)
             Spacer(modifier = Modifier.height(4.dp))
-            DrawerSectionHeader(title = "INSIGHTS & SYSTEM")
+            DrawerSectionHeader(title = "ASSISTANT & SETTINGS")
         }
 
         item {
             DrawerNavigationItem(
-                screen = Screen.Alarms,
-                isSelected = currentRoute == Screen.Alarms.route,
+                screen = Screen.AiChat,
+                isSelected = currentRoute == Screen.AiChat.route,
                 highlightColor = IceCyanPrimary,
-                onClick = { onNavigate(Screen.Alarms.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Notes,
-                isSelected = currentRoute == Screen.Notes.route,
-                onClick = { onNavigate(Screen.Notes.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Analytics,
-                isSelected = currentRoute == Screen.Analytics.route,
-                onClick = { onNavigate(Screen.Analytics.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Notifications,
-                isSelected = currentRoute == Screen.Notifications.route,
-                highlightColor = SuccessGreen,
-                onClick = { onNavigate(Screen.Notifications.route) }
+                onClick = { onNavigate(Screen.AiChat.route) }
             )
         }
 
@@ -1140,6 +984,7 @@ fun RebuildDrawerContent(
             DrawerNavigationItem(
                 screen = Screen.Settings,
                 isSelected = currentRoute == Screen.Settings.route,
+                highlightColor = GlassWhiteMuted,
                 onClick = { onNavigate(Screen.Settings.route) }
             )
         }
@@ -1224,3 +1069,95 @@ private fun DrawerNavigationItem(
         }
     }
 }
+
+@Composable
+fun RebuildBottomBar(
+    currentRoute: String,
+    onNavigate: (String) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding(),
+        color = FrostedNavyCard,
+        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.25f)),
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BottomNavItem(
+                title = "Syllabus",
+                icon = Icons.Default.MenuBook,
+                isSelected = currentRoute == Screen.Syllabus.route,
+                onClick = { onNavigate(Screen.Syllabus.route) },
+                testTag = "bottom_nav_syllabus"
+            )
+            BottomNavItem(
+                title = "Tasks",
+                icon = Icons.Default.TaskAlt,
+                isSelected = currentRoute == Screen.Tasks.route,
+                onClick = { onNavigate(Screen.Tasks.route) },
+                testTag = "bottom_nav_tasks"
+            )
+            BottomNavItem(
+                title = "Timer",
+                icon = Icons.Default.Timer,
+                isSelected = currentRoute == Screen.Focus.route,
+                onClick = { onNavigate(Screen.Focus.route) },
+                testTag = "bottom_nav_focus"
+            )
+            BottomNavItem(
+                title = "Notes",
+                icon = Icons.Default.Notes,
+                isSelected = currentRoute == Screen.Notes.route,
+                onClick = { onNavigate(Screen.Notes.route) },
+                testTag = "bottom_nav_notes"
+            )
+        }
+    }
+}
+
+@Composable
+private fun BottomNavItem(
+    title: String,
+    icon: ImageVector,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    testTag: String
+) {
+    val activeColor = IceCyanPrimary
+    val inactiveColor = GlassWhiteMuted
+    val selectedBg = if (isSelected) IceCyanPrimary.copy(alpha = 0.15f) else Color.Transparent
+
+    Column(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(selectedBg)
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .testTag(testTag),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            tint = if (isSelected) activeColor else inactiveColor,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            fontSize = 11.sp,
+            color = if (isSelected) GlassWhite else inactiveColor
+        )
+    }
+}
+
