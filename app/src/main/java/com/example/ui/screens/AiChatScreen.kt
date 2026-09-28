@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,18 +32,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -52,20 +57,24 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -82,6 +91,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.local.entity.AiCoachPersona
 import com.example.data.local.entity.ChatMessageEntity
+import com.example.data.local.entity.FlashcardDeckEntity
+import com.example.data.local.entity.FlashcardEntity
+import com.example.ui.components.FrostedGlassCard
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildSelectorChip
+import com.example.ui.components.RebuildTextField
 import com.example.ui.components.RebuildTopAppBar
 import com.example.ui.theme.DarkNavy
 import com.example.ui.theme.ElectricBlue
@@ -91,19 +106,27 @@ import com.example.ui.theme.FrostedNavyCard
 import com.example.ui.theme.GlassWhite
 import com.example.ui.theme.GlassWhiteMuted
 import com.example.ui.theme.IceCyanPrimary
+import com.example.ui.theme.LuxuryAccent
+import com.example.ui.theme.LuxuryCard
 import com.example.ui.theme.PurpleArc
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningAmber
 import com.example.viewmodel.AiChatViewModel
+import com.example.viewmodel.FlashcardsViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiChatScreen(
     viewModel: AiChatViewModel,
+    flashcardsViewModel: FlashcardsViewModel? = null,
     onOpenDrawer: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    var activeTab by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(uiState.messages.size, uiState.isSending) {
         if (uiState.messages.isNotEmpty()) {
@@ -119,8 +142,8 @@ fun AiChatScreen(
     ) {
         // Top Navigation Bar
         RebuildTopAppBar(
-            title = "AI Neural Coach",
-            subtitle = "Live Data Synchronized • 4 Personas",
+            title = "JARVIS AI Assistant",
+            subtitle = "Cognitive Study Copilot • Neural Chat & SM-2 Recall",
             onMenuClick = onOpenDrawer,
             actions = {
                 IconButton(
@@ -146,30 +169,132 @@ fun AiChatScreen(
             }
         )
 
+        // Unified JARVIS Tabs: Neural Chat vs Flashcards
+        TabRow(
+            selectedTabIndex = activeTab,
+            containerColor = Color.Transparent,
+            contentColor = GlassWhite,
+            indicator = { tabPositions ->
+                TabRowDefaults.Indicator(
+                    Modifier.tabIndicatorOffset(tabPositions[activeTab]),
+                    color = IceCyanPrimary,
+                    height = 3.dp
+                )
+            },
+            divider = {},
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+        ) {
+            Tab(
+                selected = activeTab == 0,
+                onClick = { activeTab = 0 },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = null,
+                            tint = if (activeTab == 0) IceCyanPrimary else GlassWhiteMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "JARVIS Chat",
+                            fontWeight = if (activeTab == 0) FontWeight.Bold else FontWeight.Normal,
+                            color = if (activeTab == 0) IceCyanPrimary else GlassWhiteMuted,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            )
+            Tab(
+                selected = activeTab == 1,
+                onClick = { activeTab = 1 },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Style,
+                            contentDescription = null,
+                            tint = if (activeTab == 1) LuxuryAccent else GlassWhiteMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "JARVIS Flashcards",
+                            fontWeight = if (activeTab == 1) FontWeight.Bold else FontWeight.Normal,
+                            color = if (activeTab == 1) LuxuryAccent else GlassWhiteMuted,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        if (activeTab == 0) {
+            // JARVIS Chat Content
+            JarvisChatContent(
+                viewModel = viewModel,
+                uiState = uiState,
+                listState = listState
+            )
+        } else {
+            // JARVIS Flashcards Content
+            if (flashcardsViewModel != null) {
+                JarvisFlashcardsContent(viewModel = flashcardsViewModel)
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Flashcard Engine Initializing...",
+                        color = GlassWhiteMuted,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        }
+    }
+
+    if (uiState.showContextDialog) {
+        TelemetryContextDialog(
+            snapshot = uiState.contextSnapshot,
+            onDismiss = { viewModel.toggleContextDialog(false) }
+        )
+    }
+}
+
+@Composable
+private fun JarvisChatContent(
+    viewModel: AiChatViewModel,
+    uiState: com.example.viewmodel.AiChatUiState,
+    listState: androidx.compose.foundation.lazy.LazyListState
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
         // Persona Selection Row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             PersonaChip(
-                title = "Board Coach",
-                icon = Icons.Default.School,
-                color = ElectricBlue,
+                title = "JARVIS Lead",
+                icon = Icons.Default.Psychology,
+                color = IceCyanPrimary,
                 isSelected = uiState.selectedPersona == AiCoachPersona.BOARD_EXAM_COACH,
                 onClick = { viewModel.selectPersona(AiCoachPersona.BOARD_EXAM_COACH) }
             )
             PersonaChip(
-                title = "Winter Arc",
+                title = "Discipline Master",
                 icon = Icons.Default.TrendingUp,
-                color = IceCyanPrimary,
+                color = ElectricBlue,
                 isSelected = uiState.selectedPersona == AiCoachPersona.WINTER_ARC_COACH,
                 onClick = { viewModel.selectPersona(AiCoachPersona.WINTER_ARC_COACH) }
             )
             PersonaChip(
-                title = "Productivity",
+                title = "Deep Work Strategist",
                 icon = Icons.Default.Speed,
                 color = WarningAmber,
                 isSelected = uiState.selectedPersona == AiCoachPersona.PRODUCTIVITY_MENTOR,
@@ -184,34 +309,32 @@ fun AiChatScreen(
             )
         }
 
-        // Live Context Synchronization Banner
+        // Quick Prompt Chips
         Row(
-            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF0D192E))
-                .border(1.dp, FrostBlueAccent.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.AutoAwesome,
-                contentDescription = null,
-                tint = IceCyanPrimary,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Trained on your Profile, 70-Chapter Syllabus, Alarms & Habits",
-                fontSize = 11.sp,
-                color = FrostBlueAccent,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f)
-            )
+            uiState.quickPrompts.forEach { prompt ->
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = FrostedNavyCard,
+                    border = BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.25f)),
+                    modifier = Modifier.clickable { viewModel.sendMessage(prompt) }
+                ) {
+                    Text(
+                        text = prompt,
+                        fontSize = 11.sp,
+                        color = GlassWhite,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            }
         }
 
-        // Messages List
+        // Message Feed
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -219,7 +342,7 @@ fun AiChatScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             contentPadding = PaddingValues(vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(uiState.messages) { message ->
                 ChatMessageBubble(message = message)
@@ -229,168 +352,74 @@ fun AiChatScreen(
                 item {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(FrostedNavyCard)
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                        modifier = Modifier.padding(start = 12.dp, top = 4.dp)
                     ) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
                             color = IceCyanPrimary,
-                            strokeWidth = 2.dp
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Analyzing personal telemetry & formulating plan...",
+                            text = "JARVIS is analyzing telemetry & calculating response...",
                             fontSize = 12.sp,
-                            color = FrostBlueAccent,
-                            fontWeight = FontWeight.Medium
+                            color = FrostBlueAccent
                         )
                     }
                 }
             }
         }
 
-        // Quick Suggestion Chips
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // Message Input Row
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = FrostedNavyCard,
+            border = BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.2f))
         ) {
-            uiState.quickPrompts.forEach { prompt ->
-                QuickPromptChip(
-                    text = prompt,
-                    onClick = { viewModel.sendMessage(prompt) }
-                )
-            }
-        }
-
-        // Bottom Input Area
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = uiState.currentInput,
-                onValueChange = { viewModel.setInput(it) },
-                placeholder = { Text("Ask your AI Coach anything...", color = GlassWhiteMuted, fontSize = 13.sp) },
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("ai_chat_input_field"),
-                shape = RoundedCornerShape(20.dp),
-                maxLines = 4,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = GlassWhite,
-                    unfocusedTextColor = GlassWhite,
-                    focusedBorderColor = IceCyanPrimary,
-                    unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.3f),
-                    focusedContainerColor = FrostedNavyCard,
-                    unfocusedContainerColor = FrostedNavyCard
-                )
-            )
-
-            IconButton(
-                onClick = { viewModel.sendMessage() },
-                enabled = uiState.currentInput.isNotBlank() && !uiState.isSending,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (uiState.currentInput.isNotBlank() && !uiState.isSending)
-                            Brush.linearGradient(listOf(ElectricBlue, IceCyanPrimary))
-                        else
-                            Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF1E293B)))
-                    )
-                    .testTag("ai_chat_send_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Send,
-                    contentDescription = "Send",
-                    tint = if (uiState.currentInput.isNotBlank()) DarkNavy else GlassWhiteMuted,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-    }
-
-    // Telemetry Snapshot Dialog
-    if (uiState.showContextDialog) {
-        Dialog(onDismissRequest = { viewModel.toggleContextDialog(false) }) {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = FrostedNavyCard),
-                border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f)),
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
+                OutlinedTextField(
+                    value = uiState.currentInput,
+                    onValueChange = { viewModel.setInput(it) },
+                    placeholder = {
+                        Text("Ask JARVIS anything...", color = GlassWhiteMuted, fontSize = 13.sp)
+                    },
                     modifier = Modifier
-                        .padding(20.dp)
-                        .verticalScroll(rememberScrollState())
+                        .weight(1f)
+                        .testTag("ai_chat_input"),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = GlassWhite,
+                        unfocusedTextColor = GlassWhite,
+                        focusedBorderColor = IceCyanPrimary,
+                        unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.3f),
+                        focusedContainerColor = DarkNavy,
+                        unfocusedContainerColor = DarkNavy
+                    ),
+                    maxLines = 4
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                IconButton(
+                    onClick = { viewModel.sendMessage() },
+                    enabled = uiState.currentInput.isNotBlank() && !uiState.isSending,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(if (uiState.currentInput.isNotBlank() && !uiState.isSending) IceCyanPrimary else GlassWhiteMuted.copy(alpha = 0.2f))
+                        .testTag("ai_chat_send_button")
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Live Telemetry Snapshot",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = IceCyanPrimary
-                        )
-                        IconButton(onClick = { viewModel.toggleContextDialog(false) }) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = GlassWhite)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Text(
-                        text = "This live data is fed to the Gemini AI on every query to ensure 100% personalized responses:",
-                        fontSize = 12.sp,
-                        color = GlassWhiteMuted
+                    Icon(
+                        imageVector = Icons.Default.Send,
+                        contentDescription = "Send",
+                        tint = if (uiState.currentInput.isNotBlank() && !uiState.isSending) DarkNavy else GlassWhiteMuted,
+                        modifier = Modifier.size(20.dp)
                     )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    SelectionContainer {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF070E1A))
-                                .padding(12.dp)
-                        ) {
-                            Text(
-                                text = uiState.contextSnapshot.ifEmpty { "Generating real telemetry..." },
-                                fontSize = 11.sp,
-                                fontFamily = FontFamily.Monospace,
-                                color = GlassWhite,
-                                lineHeight = 16.sp
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { viewModel.toggleContextDialog(false) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = ElectricBlue,
-                            contentColor = DarkNavy
-                        )
-                    ) {
-                        Text("Dismiss", fontWeight = FontWeight.Bold)
-                    }
                 }
             }
         }
@@ -398,132 +427,378 @@ fun AiChatScreen(
 }
 
 @Composable
-fun PersonaChip(
+private fun JarvisFlashcardsContent(
+    viewModel: FlashcardsViewModel
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var newDeckTitle by remember { mutableStateOf("") }
+    var newDeckSubject by remember { mutableStateOf("PHYSICS") }
+    var newDeckChapter by remember { mutableStateOf("") }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (uiState.isReviewMode) {
+            // REVIEW MODE UI
+            ActiveReviewCard(
+                cards = if (uiState.currentDeck != null) uiState.cardsInDeck else uiState.dueCards,
+                currentIndex = uiState.currentReviewCardIndex,
+                isShowingAnswer = uiState.isShowingAnswer,
+                onToggleAnswer = { viewModel.toggleShowAnswer() },
+                onSubmitResult = { knew -> viewModel.submitReviewResult(knew) },
+                onCloseReview = { viewModel.closeReview() }
+            )
+        } else {
+            // DECK LIST & RECALL SUMMARY
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Due Review Banner
+                item {
+                    FrostedGlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("CARDS DUE FOR REVIEW", color = WarningAmber, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    Text("${uiState.dueCards.size} Cards Scheduled", color = GlassWhite, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp)
+                                }
+                                Button(
+                                    onClick = { viewModel.startReview(null) },
+                                    enabled = uiState.dueCards.isNotEmpty(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("START RECALL", color = DarkNavy, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // AI Quick Deck Generator Banner
+                item {
+                    FrostedGlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = LuxuryAccent)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("JARVIS High-Yield Flashcard Generator", color = GlassWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "Generate core formulas, derivations, definitions, and NCERT concepts on demand.",
+                                color = GlassWhiteMuted,
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = { viewModel.generateAiFlashcards("PHYSICS", "Electrostatics") },
+                                    border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Physics: Electrostatics", color = IceCyanPrimary, fontSize = 11.sp)
+                                }
+                                OutlinedButton(
+                                    onClick = { viewModel.generateAiFlashcards("CHEMISTRY", "Solutions") },
+                                    border = BorderStroke(1.dp, LuxuryAccent.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Chemistry: Solutions", color = LuxuryAccent, fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Section Title + Create Deck Action
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Active Decks (${uiState.decks.size})", color = GlassWhite, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        TextButton(onClick = { showCreateDialog = true }) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = IceCyanPrimary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("New Deck", color = IceCyanPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                if (uiState.decks.isEmpty()) {
+                    item {
+                        com.example.ui.components.RebuildEmptyState(
+                            title = "No Flashcard Decks Yet",
+                            description = "Active recall & spaced repetition power retention. Tap 'New Deck' or generate with JARVIS above.",
+                            icon = Icons.Default.AutoAwesome,
+                            iconTint = LuxuryAccent,
+                            actionLabel = "Create Deck",
+                            onAction = { showCreateDialog = true }
+                        )
+                    }
+                } else {
+                    items(uiState.decks, key = { it.id }) { deck ->
+                        DeckListItem(
+                            deck = deck,
+                            onSelect = {
+                                viewModel.selectDeck(deck)
+                                viewModel.startReview(deck)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Create Deck Dialog
+        if (showCreateDialog) {
+            val subjects = listOf("PHYSICS", "CHEMISTRY", "BIOLOGY", "MATHEMATICS", "ENGLISH", "GENERAL")
+            RebuildDialog(
+                onDismiss = { showCreateDialog = false },
+                title = "Create Flashcard Deck",
+                subtitle = "Organize high-yield cards for SuperMemo SM-2 spaced repetition",
+                icon = Icons.Default.Style,
+                iconTint = IceCyanPrimary,
+                headerAccentColor = IceCyanPrimary,
+                confirmButtonText = "Create Deck",
+                confirmButtonEnabled = newDeckTitle.isNotBlank(),
+                onConfirm = {
+                    if (newDeckTitle.isNotBlank()) {
+                        viewModel.createCustomDeck(newDeckTitle.trim(), newDeckSubject.trim(), newDeckChapter.trim())
+                        showCreateDialog = false
+                        newDeckTitle = ""
+                    }
+                },
+                testTag = "create_deck_dialog"
+            ) {
+                RebuildTextField(
+                    value = newDeckTitle,
+                    onValueChange = { newDeckTitle = it },
+                    label = "Deck Title",
+                    placeholder = "e.g. Electromagnetism Formulas & Derivations",
+                    singleLine = true,
+                    focusedBorderColor = IceCyanPrimary,
+                    testTag = "deck_title_input"
+                )
+
+                Text("Subject", fontSize = 12.sp, color = GlassWhiteMuted)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    subjects.forEach { s ->
+                        RebuildSelectorChip(
+                            text = s,
+                            isSelected = newDeckSubject == s,
+                            onClick = { newDeckSubject = s },
+                            selectedColor = IceCyanPrimary
+                        )
+                    }
+                }
+
+                RebuildTextField(
+                    value = newDeckChapter,
+                    onValueChange = { newDeckChapter = it },
+                    label = "Chapter / Unit (Optional)",
+                    placeholder = "e.g. Optics, Thermodynamics",
+                    singleLine = true,
+                    focusedBorderColor = IceCyanPrimary,
+                    testTag = "deck_chapter_input"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PersonaChip(
     title: String,
     icon: ImageVector,
     color: Color,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (isSelected) color.copy(alpha = 0.25f) else FrostedNavyCard)
-            .border(
-                1.dp,
-                if (isSelected) color else FrostBlueAccent.copy(alpha = 0.2f),
-                RoundedCornerShape(16.dp)
-            )
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (isSelected) color else GlassWhiteMuted,
-            modifier = Modifier.size(16.dp)
-        )
-        Text(
-            text = title,
-            fontSize = 12.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) GlassWhite else GlassWhiteMuted
-        )
-    }
-}
-
-@Composable
-fun QuickPromptChip(
-    text: String,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF131F37))
-            .border(1.dp, ElectricBlue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 7.dp)
-    ) {
-        Text(
-            text = text,
-            fontSize = 12.sp,
-            color = IceCyanPrimary,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-@Composable
-fun ChatMessageBubble(message: ChatMessageEntity) {
-    val isUser = message.role == "user"
-    val senderName = if (isUser) "You" else message.persona.title
-    val timeFormat = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
-    val timeStr = remember(message.timestamp) { timeFormat.format(Date(message.timestamp)) }
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = if (isSelected) color.copy(alpha = 0.25f) else FrostedNavyCard,
+        border = BorderStroke(1.dp, if (isSelected) color else FrostBlueAccent.copy(alpha = 0.2f)),
+        modifier = Modifier.clickable { onClick() }
     ) {
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (!isUser) {
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = null,
-                    tint = IceCyanPrimary,
-                    modifier = Modifier.size(12.dp)
-                )
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = if (isSelected) color else GlassWhiteMuted,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "$senderName • $timeStr",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isUser) FrostBlueAccent else IceCyanPrimary
+                text = title,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isSelected) GlassWhite else GlassWhiteMuted,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                fontSize = 12.sp
             )
         }
+    }
+}
 
-        Box(
-            modifier = Modifier
-                .widthIn(max = 320.dp)
-                .clip(
-                    RoundedCornerShape(
-                        topStart = 18.dp,
-                        topEnd = 18.dp,
-                        bottomStart = if (isUser) 18.dp else 4.dp,
-                        bottomEnd = if (isUser) 4.dp else 18.dp
+@Composable
+private fun ChatMessageBubble(message: ChatMessageEntity) {
+    val isUser = message.role == "user"
+    val timeFormat = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
+    val formattedTime = remember(message.timestamp) { timeFormat.format(Date(message.timestamp)) }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+    ) {
+        if (!isUser) {
+            Surface(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape),
+                color = Color(0xFF131D38),
+                border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f))
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "JARVIS",
+                        tint = IceCyanPrimary,
+                        modifier = Modifier.size(18.dp)
                     )
-                )
-                .background(
-                    if (isUser)
-                        Brush.linearGradient(listOf(Color(0xFF1E3A8A), Color(0xFF1D4ED8)))
-                    else
-                        Brush.linearGradient(listOf(Color(0xFF0F1E36), Color(0xFF122340)))
-                )
-                .border(
-                    1.dp,
-                    if (isUser) ElectricBlue.copy(alpha = 0.4f) else FrostBlueAccent.copy(alpha = 0.2f),
-                    RoundedCornerShape(
-                        topStart = 18.dp,
-                        topEnd = 18.dp,
-                        bottomStart = if (isUser) 18.dp else 4.dp,
-                        bottomEnd = if (isUser) 4.dp else 18.dp
-                    )
-                )
-                .padding(14.dp)
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+
+        Surface(
+            shape = RoundedCornerShape(
+                topStart = 16.dp,
+                topEnd = 16.dp,
+                bottomStart = if (isUser) 16.dp else 4.dp,
+                bottomEnd = if (isUser) 4.dp else 16.dp
+            ),
+            color = if (isUser) Color(0xFF16325C) else FrostedNavyCard,
+            border = BorderStroke(
+                1.dp,
+                if (isUser) ElectricBlue.copy(alpha = 0.4f) else FrostBlueAccent.copy(alpha = 0.2f)
+            ),
+            modifier = Modifier.widthIn(max = 300.dp)
         ) {
-            SelectionContainer {
+            Column(modifier = Modifier.padding(12.dp)) {
+                if (!isUser) {
+                    Text(
+                        text = "JARVIS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = IceCyanPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+
+                SelectionContainer {
+                    Text(
+                        text = message.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = GlassWhite,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
                 Text(
-                    text = message.content,
-                    fontSize = 13.sp,
-                    color = GlassWhite,
-                    lineHeight = 20.sp
+                    text = formattedTime,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = GlassWhiteMuted,
+                    fontSize = 9.sp,
+                    modifier = Modifier.align(Alignment.End)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TelemetryContextDialog(snapshot: String, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = DarkNavy,
+            border = BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.4f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "JARVIS Live Telemetry",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = GlassWhite
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = GlassWhiteMuted)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF060B18),
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .heightIn(max = 350.dp)
+                ) {
+                    Text(
+                        text = snapshot.ifBlank { "Synchronizing live database snapshot..." },
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = FrostBlueAccent,
+                        modifier = Modifier
+                            .padding(10.dp)
+                            .verticalScroll(rememberScrollState())
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary)
+                ) {
+                    Text("Dismiss", color = DarkNavy, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

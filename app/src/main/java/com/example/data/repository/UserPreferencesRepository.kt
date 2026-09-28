@@ -30,6 +30,7 @@ class UserPreferencesRepository(private val context: Context) {
         val USER_NAME = stringPreferencesKey("user_name")
         val GOAL_HOURS = stringPreferencesKey("goal_hours")
         val GEMINI_API_KEY = stringPreferencesKey("gemini_api_key")
+        val CURRENT_ENERGY_LEVEL = stringPreferencesKey("current_energy_level")
     }
 
     /**
@@ -152,6 +153,16 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun setDailyGoalHours(hours: String) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.GOAL_HOURS] = hours
+        }
+    }
+
+    val currentEnergyLevel: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[PreferencesKeys.CURRENT_ENERGY_LEVEL] ?: "MEDIUM"
+    }
+
+    suspend fun setCurrentEnergyLevel(level: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.CURRENT_ENERGY_LEVEL] = level
         }
     }
 }

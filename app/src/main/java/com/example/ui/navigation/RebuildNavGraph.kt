@@ -86,7 +86,6 @@ import com.example.ui.screens.AiChatScreen
 import com.example.ui.screens.AiCoachScreen
 import com.example.ui.screens.AlarmsScreen
 import com.example.ui.screens.AnalyticsScreen
-import com.example.ui.screens.BoardExamScreen
 import com.example.ui.screens.FitnessScreen
 import com.example.ui.screens.GoalsScreen
 import com.example.ui.screens.HabitsScreen
@@ -152,15 +151,15 @@ import kotlinx.coroutines.launch
 sealed class Screen(val route: String, val title: String, val icon: ImageVector, val badgeText: String? = null) {
     object Splash : Screen("splash", "Splash", Icons.Default.Bolt)
     object Onboarding : Screen("onboarding", "Profile Calibration", Icons.Default.Tune)
-    object Home : Screen("home", "Command", Icons.Default.Home, "Today")
-    object AiChat : Screen("ai_chat", "AI Neural Chat", Icons.Default.Psychology, "Live AI")
+    object Home : Screen("home", "Dashboard", Icons.Default.Home, "Today")
+    object AiChat : Screen("ai_chat", "JARVIS", Icons.Default.Psychology, "AI")
     object AiCoach : Screen("ai_coach", "AI Plans Generator", Icons.Default.AutoAwesome, "Gemini")
     object Goals : Screen("goals", "Apex Goals", Icons.Default.EmojiEvents, "Targets")
     object Schedule : Screen("schedule", "Schedule", Icons.Default.CalendarMonth)
     object WinterArc : Screen("winter_arc", "Arc Protocol", Icons.Default.TrendingUp, "90D Arc")
     object SkillTree : Screen("skill_tree", "Skill Progression Trees", Icons.Default.Bolt, "Skills")
     object Roadmap : Screen("roadmap", "AI Roadmaps & Trackers", Icons.Default.Timeline, "Roadmap")
-    object Syllabus : Screen("syllabus", "Syllabus Tracker", Icons.Default.MenuBook, "Class 12")
+    object Syllabus : Screen("syllabus", "Syllabus & Units", Icons.Default.MenuBook, "Class 12")
     object Subjects : Screen("subjects", "Subjects & Units", Icons.Default.School)
     object Tasks : Screen("tasks", "Study Tasks", Icons.Default.TaskAlt)
     object Focus : Screen("focus", "Focus Timer", Icons.Default.Timer, "Study")
@@ -168,7 +167,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector,
     object Habits : Screen("habits", "Habits & Discipline", Icons.Default.CheckCircle)
     object BoardExam : Screen("board_exam", "Board Exam Blueprint", Icons.Default.School)
     object Alarms : Screen("alarms", "Smart Alarm Engine", Icons.Default.NotificationsActive, "Challenges")
-    object Notes : Screen("notes", "Notes & Reflection", Icons.Default.Notes)
+    object Notes : Screen("notes", "Notes & Mistakes", Icons.Default.Notes)
     object Analytics : Screen("analytics", "Analytics", Icons.Default.Analytics)
     object Notifications : Screen("notifications", "Notification Hub", Icons.Default.NotificationsActive, "9 Alarms")
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
@@ -176,7 +175,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector,
     object XpLedger : Screen("xp_ledger", "XP Ledger", Icons.Default.Bolt)
     object ProfileSettings : Screen("profile_settings", "Profile Settings", Icons.Default.Person)
     object Certificate : Screen("certificate", "Certificate Engine", Icons.Default.WorkspacePremium, "Official")
-    object Flashcards : Screen("flashcards", "AI Flashcards", Icons.Default.MenuBook, "SM-2")
+    object Flashcards : Screen("flashcards", "JARVIS Flashcards", Icons.Default.MenuBook, "SM-2")
     object MistakeNotebook : Screen("mistake_notebook", "Mistake Notebook", Icons.Default.Notes, "Audit")
     object WeeklyRealityReport : Screen("weekly_reality_report", "Weekly Reality Report", Icons.Default.Analytics, "Sunday")
 }
@@ -221,11 +220,12 @@ fun RebuildAppScaffold(
     val userProfile = homeUiState.userProfile
 
     val primaryRoutes = setOf(
+        Screen.Home.route,
         Screen.Syllabus.route,
         Screen.Tasks.route,
         Screen.Focus.route,
-        Screen.Notes.route,
-        Screen.Home.route
+        Screen.AiChat.route,
+        Screen.Notes.route
     )
     val showBottomBar = currentRoute in primaryRoutes
 
@@ -277,7 +277,7 @@ fun RebuildAppScaffold(
                         onNavigate = { route ->
                             if (currentRoute != route) {
                                 navController.navigate(route) {
-                                    popUpTo(Screen.Syllabus.route) { saveState = true }
+                                    popUpTo(Screen.Home.route) { saveState = true }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
@@ -318,8 +318,8 @@ fun RebuildAppScaffold(
                             android.util.Log.d("Splash", "Splash → Checking onboarding state")
                             android.util.Log.d("Splash", "Onboarding Completed = $isCompleted")
                             val targetRoute = if (isCompleted) {
-                                android.util.Log.d("Splash", "Navigation Target = Syllabus Tracker")
-                                Screen.Syllabus.route
+                                android.util.Log.d("Splash", "Navigation Target = Dashboard")
+                                Screen.Home.route
                             } else {
                                 android.util.Log.d("Splash", "Navigation Target = Onboarding")
                                 Screen.Onboarding.route
@@ -339,8 +339,8 @@ fun RebuildAppScaffold(
                             application.userPreferencesRepository.setOnboardingCompletedSync(true)
                             onOnboardingComplete()
                             android.util.Log.d("Splash", "Onboarding Completed = true")
-                            android.util.Log.d("Splash", "Navigation Target = Syllabus Tracker")
-                            navController.navigate(Screen.Syllabus.route) {
+                            android.util.Log.d("Splash", "Navigation Target = Dashboard")
+                            navController.navigate(Screen.Home.route) {
                                 popUpTo(Screen.Onboarding.route) { inclusive = true }
                             }
                         }
@@ -375,11 +375,12 @@ fun RebuildAppScaffold(
                         onNavigateToWinterArc = { navController.navigate(Screen.Syllabus.route) },
                         onNavigateToBoardExam = { navController.navigate(Screen.BoardExam.route) },
                         onNavigateToRankReport = { navController.navigate(Screen.Syllabus.route) },
-                        onNavigateToSyllabus = { navController.navigate(Screen.Syllabus.route) }
+                        onNavigateToSyllabus = { navController.navigate(Screen.Syllabus.route) },
+                        onNavigateToJarvis = { navController.navigate(Screen.AiChat.route) }
                     )
                 }
 
-                // 1.5 AI Neural Chat (Lazy Loaded)
+                // 1.5 JARVIS AI (Chat & Flashcards Merged)
                 composable(Screen.AiChat.route) {
                     val aiChatVm: AiChatViewModel = viewModel(
                         factory = AiChatViewModelFactory(
@@ -387,8 +388,15 @@ fun RebuildAppScaffold(
                             application.repository
                         )
                     )
+                    val flashcardsVm: com.example.viewmodel.FlashcardsViewModel = viewModel(
+                        factory = com.example.viewmodel.FlashcardsViewModelFactory(
+                            application.visionTwoRepository,
+                            application.geminiCoachRepository
+                        )
+                    )
                     AiChatScreen(
                         viewModel = aiChatVm,
+                        flashcardsViewModel = flashcardsVm,
                         onOpenDrawer = openDrawer
                     )
                 }
@@ -460,19 +468,20 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 5. Study Tracker (Lazy Loaded)
+                // 5. Subjects & Units (Merged into Syllabus)
                 composable(Screen.Subjects.route) {
-                    val subjectsVm: SubjectsViewModel = viewModel(
-                        factory = SubjectsViewModelFactory(application.repository)
+                    val syllabusVm: SyllabusViewModel = viewModel(
+                        factory = SyllabusViewModelFactory(application.repository)
                     )
                     val pomodoroVm: PomodoroViewModel = viewModel(
                         factory = PomodoroViewModelFactory(application.repository)
                     )
-                    SubjectsScreen(
-                        viewModel = subjectsVm,
+                    SyllabusScreen(
+                        viewModel = syllabusVm,
                         onOpenDrawer = openDrawer,
-                        onStartFocusSession = { sub, chap ->
+                        onStartFocusForChapter = { sub, chap ->
                             pomodoroVm.setSelectedSubjectAndChapter(sub, chap)
+                            pomodoroVm.setMode(com.example.data.local.entity.SessionType.POMODORO_25_5)
                             navController.navigate(Screen.Focus.route)
                         }
                     )
@@ -546,13 +555,19 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 11. Notes & Reflection (Lazy Loaded)
+                // 11. Notes & Reflection & Mistakes (Lazy Loaded)
                 composable(Screen.Notes.route) {
                     val notesVm: NotesViewModel = viewModel(
                         factory = NotesViewModelFactory(application.repository)
                     )
+                    val mistakeVm: com.example.viewmodel.MistakeNotebookViewModel = viewModel(
+                        factory = com.example.viewmodel.MistakeNotebookViewModelFactory(
+                            application.visionTwoRepository
+                        )
+                    )
                     NotesScreen(
                         viewModel = notesVm,
+                        mistakeViewModel = mistakeVm,
                         onOpenDrawer = openDrawer
                     )
                 }
@@ -646,30 +661,41 @@ fun RebuildAppScaffold(
                     )
                 }
 
-                // 18. AI Flashcards & Spaced Recall
+                // 18. AI Flashcards & Spaced Recall (Merged into JARVIS)
                 composable(Screen.Flashcards.route) {
+                    val aiChatVm: AiChatViewModel = viewModel(
+                        factory = AiChatViewModelFactory(
+                            application.geminiCoachRepository,
+                            application.repository
+                        )
+                    )
                     val flashcardsVm: com.example.viewmodel.FlashcardsViewModel = viewModel(
                         factory = com.example.viewmodel.FlashcardsViewModelFactory(
                             application.visionTwoRepository,
                             application.geminiCoachRepository
                         )
                     )
-                    com.example.ui.screens.FlashcardsScreen(
-                        viewModel = flashcardsVm,
-                        onNavigateBack = { navController.popBackStack() }
+                    AiChatScreen(
+                        viewModel = aiChatVm,
+                        flashcardsViewModel = flashcardsVm,
+                        onOpenDrawer = openDrawer
                     )
                 }
 
-                // 19. Mistake Notebook
+                // 19. Mistake Notebook (Merged into Notes & Reflection)
                 composable(Screen.MistakeNotebook.route) {
+                    val notesVm: NotesViewModel = viewModel(
+                        factory = NotesViewModelFactory(application.repository)
+                    )
                     val mistakeVm: com.example.viewmodel.MistakeNotebookViewModel = viewModel(
                         factory = com.example.viewmodel.MistakeNotebookViewModelFactory(
                             application.visionTwoRepository
                         )
                     )
-                    com.example.ui.screens.MistakeNotebookScreen(
-                        viewModel = mistakeVm,
-                        onNavigateBack = { navController.popBackStack() }
+                    NotesScreen(
+                        viewModel = notesVm,
+                        mistakeViewModel = mistakeVm,
+                        onOpenDrawer = openDrawer
                     )
                 }
 
@@ -878,26 +904,43 @@ fun RebuildDrawerContent(
             }
         }
 
+        // Section 0: COMMAND CENTER & DASHBOARD
+        item {
+            DrawerSectionHeader(title = "COMMAND CENTER")
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Home,
+                isSelected = currentRoute == Screen.Home.route,
+                highlightColor = IceCyanPrimary,
+                onClick = { onNavigate(Screen.Home.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.AiChat,
+                isSelected = currentRoute == Screen.AiChat.route,
+                highlightColor = PurpleArc,
+                onClick = { onNavigate(Screen.AiChat.route) }
+            )
+        }
+
         // Section 1: SYLLABUS & CURRICULUM
         item {
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = Color(0x11FFFFFF), thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(4.dp))
             DrawerSectionHeader(title = "SYLLABUS & CURRICULUM")
         }
 
         item {
             DrawerNavigationItem(
                 screen = Screen.Syllabus,
-                isSelected = currentRoute == Screen.Syllabus.route,
+                isSelected = currentRoute == Screen.Syllabus.route || currentRoute == Screen.Subjects.route,
                 highlightColor = IceCyanPrimary,
                 onClick = { onNavigate(Screen.Syllabus.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Subjects,
-                isSelected = currentRoute == Screen.Subjects.route,
-                highlightColor = ElectricBlue,
-                onClick = { onNavigate(Screen.Subjects.route) }
             )
         }
 
@@ -939,27 +982,9 @@ fun RebuildDrawerContent(
         item {
             DrawerNavigationItem(
                 screen = Screen.Notes,
-                isSelected = currentRoute == Screen.Notes.route,
+                isSelected = currentRoute == Screen.Notes.route || currentRoute == Screen.MistakeNotebook.route,
                 highlightColor = ElectricBlue,
                 onClick = { onNavigate(Screen.Notes.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.MistakeNotebook,
-                isSelected = currentRoute == Screen.MistakeNotebook.route,
-                highlightColor = WarningAmber,
-                onClick = { onNavigate(Screen.MistakeNotebook.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Flashcards,
-                isSelected = currentRoute == Screen.Flashcards.route,
-                highlightColor = FrostBlueAccent,
-                onClick = { onNavigate(Screen.Flashcards.route) }
             )
         }
 
@@ -1086,14 +1111,21 @@ fun RebuildBottomBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(horizontal = 4.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
             BottomNavItem(
+                title = "Dashboard",
+                icon = Icons.Default.Home,
+                isSelected = currentRoute == Screen.Home.route,
+                onClick = { onNavigate(Screen.Home.route) },
+                testTag = "bottom_nav_dashboard"
+            )
+            BottomNavItem(
                 title = "Syllabus",
                 icon = Icons.Default.MenuBook,
-                isSelected = currentRoute == Screen.Syllabus.route,
+                isSelected = currentRoute == Screen.Syllabus.route || currentRoute == Screen.Subjects.route,
                 onClick = { onNavigate(Screen.Syllabus.route) },
                 testTag = "bottom_nav_syllabus"
             )
@@ -1105,16 +1137,16 @@ fun RebuildBottomBar(
                 testTag = "bottom_nav_tasks"
             )
             BottomNavItem(
-                title = "Timer",
-                icon = Icons.Default.Timer,
-                isSelected = currentRoute == Screen.Focus.route,
-                onClick = { onNavigate(Screen.Focus.route) },
-                testTag = "bottom_nav_focus"
+                title = "JARVIS",
+                icon = Icons.Default.Psychology,
+                isSelected = currentRoute == Screen.AiChat.route || currentRoute == Screen.Flashcards.route,
+                onClick = { onNavigate(Screen.AiChat.route) },
+                testTag = "bottom_nav_jarvis"
             )
             BottomNavItem(
                 title = "Notes",
                 icon = Icons.Default.Notes,
-                isSelected = currentRoute == Screen.Notes.route,
+                isSelected = currentRoute == Screen.Notes.route || currentRoute == Screen.MistakeNotebook.route,
                 onClick = { onNavigate(Screen.Notes.route) },
                 testTag = "bottom_nav_notes"
             )

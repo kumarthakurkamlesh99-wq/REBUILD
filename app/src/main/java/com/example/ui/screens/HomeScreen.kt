@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Science
@@ -92,6 +93,7 @@ import com.example.ui.theme.GlassWhiteMuted
 import com.example.ui.theme.GlowBorderBrush
 import com.example.ui.theme.IceCyanGlow
 import com.example.ui.theme.IceCyanPrimary
+import com.example.ui.theme.LuxuryAccent
 import com.example.ui.theme.LuxuryCard
 import com.example.ui.theme.PurpleArc
 import com.example.ui.theme.SuccessGreen
@@ -105,16 +107,15 @@ import androidx.compose.material3.IconButton
 fun HomeScreen(
     viewModel: HomeViewModel,
     onOpenDrawer: () -> Unit = {},
-    onNavigateToSchool: () -> Unit,
     onNavigateToPlanner: () -> Unit,
     onNavigateToPomodoro: () -> Unit,
     onNavigateToWinterArc: () -> Unit,
-    onNavigateToBoardExam: () -> Unit,
     onNavigateToRankReport: () -> Unit = {},
     onStartFocusWithPreset: (subject: String, chapter: String, durationMins: Int) -> Unit = { _, _, _ -> onNavigateToPomodoro() },
     onNavigateToMistakeNotebook: () -> Unit = {},
     onNavigateToFlashcards: () -> Unit = {},
     onNavigateToSyllabus: () -> Unit = {},
+    onNavigateToJarvis: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -154,21 +155,140 @@ fun HomeScreen(
             )
         }
 
-        // 3. SCHOOL STATUS SYSTEM (Transit & In-School Protocol)
+        // 2.5. JARVIS DYNAMIC SCHEDULER & DEEP WORK CARD
         item {
-            SchoolStatusCard(
-                currentState = uiState.schoolStatus.currentState,
-                travelToSchoolMins = uiState.schoolStatus.travelToSchoolMinutes,
-                travelHomeMins = uiState.schoolStatus.travelHomeMinutes,
-                onDispatchSchool = { viewModel.onDispatchSchool() },
-                onArrivedSchool = { viewModel.onArrivedSchool() },
-                onDispatchHome = { viewModel.onDispatchHome() },
-                onArrivedHome = { viewModel.onArrivedHome() },
-                onViewFullSchool = onNavigateToSchool
-            )
+            FrostedGlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                borderBrush = Brush.horizontalGradient(
+                    listOf(
+                        IceCyanPrimary.copy(alpha = 0.7f),
+                        PurpleArc.copy(alpha = 0.5f),
+                        LuxuryAccent.copy(alpha = 0.6f)
+                    )
+                )
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = CircleShape,
+                                color = IceCyanPrimary.copy(alpha = 0.15f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Psychology,
+                                        contentDescription = "JARVIS",
+                                        tint = IceCyanPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "JARVIS Dynamic Scheduler",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = GlassWhite
+                                )
+                                Text(
+                                    text = "AI Predictive Deep Work & Energy Adapted",
+                                    fontSize = 11.sp,
+                                    color = FrostBlueAccent
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = LuxuryAccent.copy(alpha = 0.2f),
+                            border = BorderStroke(1.dp, LuxuryAccent.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "ONLINE",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = LuxuryAccent,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+
+                    // Telemetry Snapshot
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0x33102A45),
+                            border = BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.25f)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text("PREDICTED DEEP WORK", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = GlassWhiteMuted)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("05:30 - 07:30 AM", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = IceCyanPrimary)
+                                Text("Historical Peak (94%)", fontSize = 10.sp, color = GlassWhiteMuted)
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0x33102A45),
+                            border = BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.25f)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text("URGENCY WEIGHT", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = GlassWhiteMuted)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("Physics / Chemistry", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WarningAmber)
+                                Text("Aligned with Board Exam", fontSize = 10.sp, color = GlassWhiteMuted)
+                            }
+                        }
+                    }
+
+                    // Action Buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onNavigateToPlanner,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary)
+                        ) {
+                            Icon(Icons.Default.Bolt, contentDescription = null, tint = DarkNavy, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Dynamic Tasks", color = DarkNavy, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = onNavigateToJarvis,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, LuxuryAccent.copy(alpha = 0.7f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = LuxuryAccent)
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = LuxuryAccent, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Talk to JARVIS", color = LuxuryAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
         }
 
-        // 4. SMART DAILY STUDY SECTION
+        // 3. SMART DAILY STUDY SECTION
         item {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -318,7 +438,7 @@ fun BrandHeader(
                     maxLines = 1
                 )
                 Text(
-                    text = "Syllabus Tracker",
+                    text = "Study Dashboard • JARVIS AI",
                     style = MaterialTheme.typography.labelSmall,
                     fontSize = 11.sp,
                     color = IceCyanPrimary,
@@ -380,11 +500,11 @@ fun HeroArcCard(
     dayNumber: Int,
     totalDays: Int,
     disciplineScore: Int,
-    boardExamDaysLeft: Long,
+    boardExamDaysLeft: Long = 0,
     streakDays: Int,
     progressPercentage: Int,
     onWinterArcClick: () -> Unit,
-    onBoardExamClick: () -> Unit,
+    onBoardExamClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     HeroGlassCard(
@@ -554,190 +674,6 @@ fun HeroArcCard(
                     strokeCap = StrokeCap.Round
                 )
             }
-        }
-    }
-}
-
-@Composable
-fun SchoolStatusCard(
-    currentState: SchoolState,
-    travelToSchoolMins: Int,
-    travelHomeMins: Int,
-    onDispatchSchool: () -> Unit,
-    onArrivedSchool: () -> Unit,
-    onDispatchHome: () -> Unit,
-    onArrivedHome: () -> Unit,
-    onViewFullSchool: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    FrostedGlassCard(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("school_status_card")
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.DirectionsBus,
-                        contentDescription = null,
-                        tint = IceCyanPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "School Status Engine",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = GlassWhite
-                    )
-                }
-
-                // Current State Badge
-                val stateText = when (currentState) {
-                    SchoolState.HOME -> "AT HOME"
-                    SchoolState.TRAVELLING_TO_SCHOOL -> "TRAVELLING TO SCHOOL"
-                    SchoolState.IN_SCHOOL -> "IN SCHOOL"
-                    SchoolState.TRAVELLING_HOME -> "TRAVELLING HOME"
-                    SchoolState.ARRIVED_HOME -> "ARRIVED HOME"
-                }
-                val stateColor = when (currentState) {
-                    SchoolState.HOME -> GlassWhiteMuted
-                    SchoolState.TRAVELLING_TO_SCHOOL -> WarningAmber
-                    SchoolState.IN_SCHOOL -> FrostBlueAccent
-                    SchoolState.TRAVELLING_HOME -> PurpleArc
-                    SchoolState.ARRIVED_HOME -> SuccessGreen
-                }
-
-                GlowPill(text = stateText, color = stateColor)
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // 4 ACTION BUTTONS GRID (Single-line clean labels, responsive touch targets)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SchoolActionButton(
-                    text = "Dispatch School",
-                    icon = Icons.Default.DirectionsWalk,
-                    isActive = currentState == SchoolState.TRAVELLING_TO_SCHOOL,
-                    isCompleted = currentState == SchoolState.IN_SCHOOL || currentState == SchoolState.TRAVELLING_HOME || currentState == SchoolState.ARRIVED_HOME,
-                    onClick = onDispatchSchool,
-                    modifier = Modifier.weight(1f)
-                )
-
-                SchoolActionButton(
-                    text = "Arrived School",
-                    icon = Icons.Default.School,
-                    isActive = currentState == SchoolState.IN_SCHOOL,
-                    isCompleted = currentState == SchoolState.TRAVELLING_HOME || currentState == SchoolState.ARRIVED_HOME,
-                    onClick = onArrivedSchool,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SchoolActionButton(
-                    text = "Dispatch Home",
-                    icon = Icons.Default.DirectionsBus,
-                    isActive = currentState == SchoolState.TRAVELLING_HOME,
-                    isCompleted = currentState == SchoolState.ARRIVED_HOME,
-                    onClick = onDispatchHome,
-                    modifier = Modifier.weight(1f)
-                )
-
-                SchoolActionButton(
-                    text = "Arrived Home",
-                    icon = Icons.Default.Home,
-                    isActive = currentState == SchoolState.ARRIVED_HOME,
-                    isCompleted = currentState == SchoolState.ARRIVED_HOME,
-                    onClick = onArrivedHome,
-                    accentColor = SuccessGreen,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            if (travelToSchoolMins > 0 || travelHomeMins > 0) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    if (travelToSchoolMins > 0) {
-                        Text(
-                            text = "To School: ${travelToSchoolMins}m",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = GlassWhiteMuted
-                        )
-                    }
-                    if (travelHomeMins > 0) {
-                        Text(
-                            text = "Return Travel: ${travelHomeMins}m",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = GlassWhiteMuted
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun SchoolActionButton(
-    text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    isActive: Boolean,
-    isCompleted: Boolean,
-    onClick: () -> Unit,
-    accentColor: Color = IceCyanPrimary,
-    modifier: Modifier = Modifier
-) {
-    val bgColor = if (isActive) accentColor.copy(alpha = 0.25f) else Color(0x33102447)
-    val borderColor = if (isActive) accentColor else if (isCompleted) SuccessGreen.copy(alpha = 0.5f) else Color(0x205CE1E6)
-
-    Surface(
-        modifier = modifier
-            .heightIn(min = 48.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        color = bgColor,
-        border = BorderStroke(1.dp, borderColor)
-    ) {
-        Column(
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (isActive) accentColor else if (isCompleted) SuccessGreen else GlassWhiteMuted,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelSmall,
-                fontSize = 11.sp,
-                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-                color = if (isActive) GlassWhite else GlassWhiteMuted,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
         }
     }
 }
@@ -1373,7 +1309,7 @@ fun UnifiedExecutionCockpitCard(
     onCompleteTask: (DailyPlanTaskEntity) -> Unit,
     onGeneratePlan: () -> Unit,
     onWinterArcClick: () -> Unit,
-    onBoardExamClick: () -> Unit,
+    onBoardExamClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedPresetMinutes by remember(currentTask?.id) {

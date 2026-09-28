@@ -82,6 +82,9 @@ interface SubjectDao {
     @Query("SELECT * FROM study_sessions ORDER BY timestamp DESC")
     fun getAllStudySessions(): Flow<List<StudySessionEntity>>
 
+    @Query("SELECT * FROM study_sessions ORDER BY timestamp DESC LIMIT 150")
+    suspend fun getAllStudySessionsDirect(): List<StudySessionEntity>
+
     @Query("SELECT * FROM study_sessions WHERE date = :date ORDER BY timestamp DESC")
     fun getStudySessionsForDate(date: String): Flow<List<StudySessionEntity>>
 

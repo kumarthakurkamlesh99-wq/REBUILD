@@ -39,6 +39,12 @@ import com.example.data.local.entity.SyllabusUnitEntity
 import com.example.data.local.entity.WinterArcObjectiveEntity
 import com.example.data.master.MasterSyllabusProvider
 import com.example.data.model.*
+import com.example.data.scheduler.AlertnessPoint
+import com.example.data.scheduler.DeepWorkPrediction
+import com.example.data.scheduler.DynamicStudyScheduler
+import com.example.data.scheduler.DynamicTaskScheduleItem
+import com.example.data.scheduler.TaskDifficulty
+import com.example.data.scheduler.UserEnergyLevel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
@@ -596,6 +602,63 @@ class RebuildRepository(
             AlarmScheduler.cancelTaskAlarm(context, task.id)
         }
         recalculateDisciplineScore(task.date)
+    }
+
+    // ----------------------------------------------------
+    // DYNAMIC STUDY SCHEDULING SYSTEM
+    // ----------------------------------------------------
+
+    suspend fun getDeepWorkPrediction(): DeepWorkPrediction {
+        val historical = try {
+            db.subjectDao().getAllStudySessionsDirect()
+        } catch (e: Exception) { emptyList() }
+        val completed = try {
+            db.dailyPlanDao().getAllTasksDirect().filter { it.isCompleted }
+        } catch (e: Exception) { emptyList() }
+        val school = db.schoolStatusDao().getStatusForDateDirect(getTodayDateString())
+        val profile = db.userProfileDao().getUserProfileDirect()
+
+        return DynamicStudyScheduler.predictDeepWorkTimes(
+            historicalSessions = historical,
+            completedTasks = completed,
+            schoolStatus = school,
+            userProfile = profile
+        )
+    }
+
+    suspend fun calculateDynamicSchedule(energyLevel: UserEnergyLevel): List<DynamicTaskScheduleItem> {
+        val today = getTodayDateString()
+        val tasks = db.dailyPlanDao().getTasksForDateDirect(today)
+        val historical = try {
+            db.subjectDao().getAllStudySessionsDirect()
+        } catch (e: Exception) { emptyList() }
+        val completed = try {
+            db.dailyPlanDao().getAllTasksDirect().filter { it.isCompleted }
+        } catch (e: Exception) { emptyList() }
+        val subjects = db.subjectDao().getAllSubjectsDirect()
+        val examConfig = db.boardExamDao().getBoardExamConfigDirect()
+        val profile = db.userProfileDao().getUserProfileDirect()
+
+        return DynamicStudyScheduler.adjustDailySchedule(
+            tasks = tasks,
+            energyLevel = energyLevel,
+            historicalSessions = historical,
+            completedTasks = completed,
+            subjects = subjects,
+            examConfig = examConfig,
+            userProfile = profile
+        )
+    }
+
+    suspend fun applyDynamicScheduleOrder(adjustedItems: List<DynamicTaskScheduleItem>) {
+        var newOrder = 0
+        for (item in adjustedItems) {
+            val updated = item.task.copy(
+                orderIndex = newOrder++,
+                targetMinutes = item.task.targetMinutes
+            )
+            db.dailyPlanDao().updateTask(updated)
+        }
     }
 
     // ----------------------------------------------------

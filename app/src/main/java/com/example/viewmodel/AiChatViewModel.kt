@@ -24,12 +24,12 @@ data class AiChatUiState(
     val contextSnapshot: String = "",
     val showContextDialog: Boolean = false,
     val quickPrompts: List<String> = listOf(
-        "What should I study today?",
-        "Create a plan for tomorrow.",
-        "Am I behind schedule?",
+        "Optimize my dynamic study schedule",
+        "Predict my optimal deep work hours",
         "Which chapter should I finish next?",
-        "Analyze my Physics progress.",
-        "Create a workout based on today's schedule."
+        "Explain Physics / Chemistry numericals",
+        "Generate AI flashcards for today's syllabus",
+        "Am I on track for 95% in Board Exam?"
     )
 )
 
@@ -45,10 +45,10 @@ class AiChatViewModel(
         viewModelScope.launch {
             rebuildRepository.getChatMessages().collect { dbMessages ->
                 if (dbMessages.isEmpty()) {
-                    // Seed initial welcome message
+                    // Seed initial welcome message from JARVIS
                     val initialMessage = ChatMessageEntity(
                         role = "model",
-                        content = "Welcome back. I am your REBUILD AI Coach with direct access to your enrolled Class 12 syllabus, countdown, study sessions, school schedule, and habit streaks. How can we optimize your performance today?",
+                        content = "JARVIS online. At your service, sir. Full telemetry synchronized — including your Class 12 syllabus, dynamic study schedule, cognitive energy levels, and countdown to Board Exams. How may I optimize your mission today?",
                         persona = _uiState.value.selectedPersona
                     )
                     rebuildRepository.saveChatMessage(initialMessage)

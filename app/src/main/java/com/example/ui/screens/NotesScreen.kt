@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -83,11 +84,18 @@ import com.example.ui.theme.PurpleArc
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningAmber
 import com.example.viewmodel.NotesViewModel
+import com.example.viewmodel.MistakeNotebookViewModel
+import com.example.data.local.entity.MistakeEntity
+import com.example.data.local.entity.MistakeSeverity
+import com.example.ui.components.FrostedGlassCard
+import androidx.compose.material3.FilterChip
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotesScreen(
     viewModel: NotesViewModel,
+    mistakeViewModel: MistakeNotebookViewModel? = null,
     onOpenDrawer: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -130,15 +138,15 @@ fun NotesScreen(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Notes & Reflection",
+                        text = "Notes, Reflection & Mistakes",
                         style = MaterialTheme.typography.titleLarge,
-                        fontSize = 20.sp,
+                        fontSize = 19.sp,
                         fontWeight = FontWeight.Bold,
                         color = GlassWhite,
                         letterSpacing = 0.5.sp
                     )
                     Text(
-                        text = "Daily audit, high-yield formulas & strategies",
+                        text = "Daily audit, high-yield formulas & mistake analysis",
                         style = MaterialTheme.typography.bodySmall,
                         color = GlassWhiteMuted,
                         fontSize = 12.sp
@@ -169,7 +177,7 @@ fun NotesScreen(
                             text = "Daily Reflection",
                             fontWeight = if (state.activeTab == 0) FontWeight.Bold else FontWeight.Normal,
                             color = if (state.activeTab == 0) IceCyanPrimary else GlassWhiteMuted,
-                            fontSize = 13.sp
+                            fontSize = 12.sp
                         )
                     }
                 )
@@ -178,10 +186,22 @@ fun NotesScreen(
                     onClick = { viewModel.setActiveTab(1) },
                     text = {
                         Text(
-                            text = "Study Notes & Cheats",
+                            text = "Study Notes",
                             fontWeight = if (state.activeTab == 1) FontWeight.Bold else FontWeight.Normal,
                             color = if (state.activeTab == 1) IceCyanPrimary else GlassWhiteMuted,
-                            fontSize = 13.sp
+                            fontSize = 12.sp
+                        )
+                    }
+                )
+                Tab(
+                    selected = state.activeTab == 2,
+                    onClick = { viewModel.setActiveTab(2) },
+                    text = {
+                        Text(
+                            text = "Mistake Notebook",
+                            fontWeight = if (state.activeTab == 2) FontWeight.Bold else FontWeight.Normal,
+                            color = if (state.activeTab == 2) WarningAmber else GlassWhiteMuted,
+                            fontSize = 12.sp
                         )
                     }
                 )
@@ -192,6 +212,15 @@ fun NotesScreen(
             when (state.activeTab) {
                 0 -> DailyReflectionSection(viewModel = viewModel, state = state)
                 1 -> StudyNotesSection(viewModel = viewModel, state = state, onAddNote = { showAddNoteDialog = true })
+                2 -> {
+                    if (mistakeViewModel != null) {
+                        MistakeNotebookTabSection(viewModel = mistakeViewModel)
+                    } else {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Mistake Notebook Initializing...", color = GlassWhiteMuted)
+                        }
+                    }
+                }
             }
         }
 
@@ -757,5 +786,315 @@ fun AddNoteDialog(
             focusedBorderColor = LuxuryAccent,
             testTag = "note_content_input"
         )
+    }
+}
+
+@Composable
+fun MistakeNotebookTabSection(
+    viewModel: MistakeNotebookViewModel
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showAddDialog by remember { mutableStateOf(false) }
+
+    var inputSubject by remember { mutableStateOf("PHYSICS") }
+    var inputChapter by remember { mutableStateOf("") }
+    var inputQuestion by remember { mutableStateOf("") }
+    var inputMistake by remember { mutableStateOf("") }
+    var inputSolution by remember { mutableStateOf("") }
+    var inputConcept by remember { mutableStateOf("") }
+    var inputWhy by remember { mutableStateOf("") }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Overview Banner
+            item {
+                FrostedGlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("TOTAL MISTAKES LOGGED", color = GlassWhiteMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text("${uiState.mistakes.size} Logged", color = GlassWhite, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                        }
+                        val unresolvedCount = uiState.mistakes.count { !it.isResolved }
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (unresolvedCount > 0) Color(0x33FF5252) else Color(0x334CAF50),
+                            border = BorderStroke(1.dp, if (unresolvedCount > 0) Color(0xFFFF5252) else SuccessGreen)
+                        ) {
+                            Text(
+                                "$unresolvedCount Unresolved",
+                                color = if (unresolvedCount > 0) Color(0xFFFF5252) else SuccessGreen,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Filter & Action Row
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = !uiState.showOnlyUnresolved,
+                            onClick = { if (uiState.showOnlyUnresolved) viewModel.toggleShowOnlyUnresolved() },
+                            label = { Text("All (${uiState.mistakes.size})", fontSize = 11.sp) }
+                        )
+                        FilterChip(
+                            selected = uiState.showOnlyUnresolved,
+                            onClick = { if (!uiState.showOnlyUnresolved) viewModel.toggleShowOnlyUnresolved() },
+                            label = { Text("Unresolved", fontSize = 11.sp) }
+                        )
+                    }
+
+                    TextButton(onClick = { showAddDialog = true }) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = IceCyanPrimary, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Log Mistake", color = IceCyanPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            val filteredMistakes = uiState.mistakes.filter {
+                (!uiState.showOnlyUnresolved || !it.isResolved) &&
+                (uiState.filterSubject == null || it.subjectCode.equals(uiState.filterSubject, ignoreCase = true))
+            }
+
+            if (filteredMistakes.isEmpty()) {
+                item {
+                    com.example.ui.components.RebuildEmptyState(
+                        title = "No Mistakes Recorded",
+                        description = if (uiState.showOnlyUnresolved) "All recorded errors have been resolved & mastered!" else "Your notebook is clean. Log questions or derivation errors after mock tests.",
+                        icon = Icons.Default.CheckCircle,
+                        iconTint = SuccessGreen,
+                        actionLabel = "Log Mistake",
+                        onAction = { showAddDialog = true }
+                    )
+                }
+            } else {
+                items(filteredMistakes, key = { it.id }) { mistake ->
+                    MistakeItemCard(
+                        mistake = mistake,
+                        onToggleResolve = { viewModel.toggleResolve(mistake) },
+                        onDelete = { viewModel.deleteMistake(mistake.id) }
+                    )
+                }
+            }
+        }
+
+        // Dialog for logging mistake
+        if (showAddDialog) {
+            RebuildDialog(
+                onDismiss = { showAddDialog = false },
+                title = "Log Test Mistake",
+                subtitle = "Analyze errors and document correct formulas",
+                icon = Icons.Default.Edit,
+                iconTint = IceCyanPrimary,
+                headerAccentColor = IceCyanPrimary,
+                confirmButtonText = "Save Mistake",
+                confirmButtonEnabled = inputQuestion.isNotBlank() && inputMistake.isNotBlank(),
+                onConfirm = {
+                    if (inputQuestion.isNotBlank() && inputMistake.isNotBlank()) {
+                        viewModel.addMistake(
+                            subjectCode = inputSubject.trim(),
+                            chapterTitle = inputChapter.trim(),
+                            questionOrContext = inputQuestion.trim(),
+                            studentMistake = inputMistake.trim(),
+                            correctSolution = inputSolution.trim(),
+                            coreConcept = inputConcept.trim(),
+                            whyMade = inputWhy.trim()
+                        )
+                        showAddDialog = false
+                        inputQuestion = ""
+                        inputMistake = ""
+                        inputSolution = ""
+                        inputConcept = ""
+                        inputWhy = ""
+                    }
+                },
+                testTag = "log_mistake_dialog"
+            ) {
+                RebuildTextField(
+                    value = inputSubject,
+                    onValueChange = { inputSubject = it },
+                    label = "Subject",
+                    placeholder = "e.g. Physics, Chemistry, Biology",
+                    singleLine = true,
+                    focusedBorderColor = IceCyanPrimary,
+                    testTag = "mistake_subject_input"
+                )
+
+                RebuildTextField(
+                    value = inputChapter,
+                    onValueChange = { inputChapter = it },
+                    label = "Chapter Title",
+                    placeholder = "e.g. Electrostatics & Capacitance",
+                    singleLine = true,
+                    focusedBorderColor = IceCyanPrimary,
+                    testTag = "mistake_chapter_input"
+                )
+
+                RebuildTextField(
+                    value = inputQuestion,
+                    onValueChange = { inputQuestion = it },
+                    label = "Question / Problem Statement",
+                    placeholder = "Describe the question or numerical...",
+                    singleLine = false,
+                    minLines = 2,
+                    maxLines = 4,
+                    focusedBorderColor = IceCyanPrimary,
+                    testTag = "mistake_question_input"
+                )
+
+                RebuildTextField(
+                    value = inputMistake,
+                    onValueChange = { inputMistake = it },
+                    label = "What Went Wrong / Mistake Pattern",
+                    placeholder = "e.g. Calculation error in formula substitution",
+                    singleLine = false,
+                    minLines = 2,
+                    maxLines = 4,
+                    focusedBorderColor = WarningAmber,
+                    testTag = "mistake_error_input"
+                )
+
+                RebuildTextField(
+                    value = inputSolution,
+                    onValueChange = { inputSolution = it },
+                    label = "Correct Solution / Formula",
+                    placeholder = "e.g. Correct formula is C = eps0 * A / d",
+                    singleLine = false,
+                    minLines = 2,
+                    maxLines = 4,
+                    focusedBorderColor = SuccessGreen,
+                    testTag = "mistake_solution_input"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun MistakeItemCard(
+    mistake: MistakeEntity,
+    onToggleResolve: () -> Unit,
+    onDelete: () -> Unit
+) {
+    FrostedGlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        borderBrush = androidx.compose.ui.graphics.SolidColor(if (mistake.isResolved) SuccessGreen.copy(alpha = 0.5f) else WarningAmber.copy(alpha = 0.5f))
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0x33102A45),
+                        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = mistake.subjectCode,
+                            color = IceCyanPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    if (mistake.chapterTitle.isNotBlank()) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = mistake.chapterTitle,
+                            color = GlassWhiteMuted,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onToggleResolve) {
+                        Icon(
+                            imageVector = if (mistake.isResolved) Icons.Default.CheckCircle else Icons.Default.Bookmark,
+                            contentDescription = null,
+                            tint = if (mistake.isResolved) SuccessGreen else WarningAmber,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (mistake.isResolved) "Resolved" else "Pending",
+                            color = if (mistake.isResolved) SuccessGreen else WarningAmber,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = GlassWhiteMuted, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = mistake.questionOrContext,
+                color = GlassWhite,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0x22FF5252),
+                border = BorderStroke(0.5.dp, Color(0x66FF5252)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Mistake: ${mistake.studentMistake}",
+                    color = Color(0xFFFF8A80),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
+
+            if (mistake.correctSolution.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0x224CAF50),
+                    border = BorderStroke(0.5.dp, Color(0x664CAF50)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Correct: ${mistake.correctSolution}",
+                        color = Color(0xFFA5D6A7),
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+            }
+        }
     }
 }
