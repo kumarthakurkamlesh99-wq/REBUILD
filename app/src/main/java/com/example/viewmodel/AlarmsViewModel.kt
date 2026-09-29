@@ -13,6 +13,7 @@ import com.example.data.local.entity.AlarmDifficulty
 import com.example.data.local.entity.AlarmEntity
 import com.example.data.local.entity.AlarmLogEntity
 import com.example.data.repository.RebuildRepository
+import com.example.util.RingtoneStorageManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -175,74 +176,45 @@ class AlarmsViewModel(
     fun setInputRingtonePreset(preset: String) = _uiState.update { it.copy(inputRingtonePreset = preset) }
     fun setInputSnoozeRingtonePreset(preset: String) = _uiState.update { it.copy(inputSnoozeRingtonePreset = preset) }
 
+    fun setInputRingtoneFromUri(context: Context, uri: Uri) {
+        val result = RingtoneStorageManager.saveCustomRingtone(context, uri)
+        _uiState.update { it.copy(inputRingtonePreset = result.storedUriOrPath) }
+    }
+
+    fun setInputSnoozeRingtoneFromUri(context: Context, uri: Uri) {
+        val result = RingtoneStorageManager.saveCustomRingtone(context, uri)
+        _uiState.update { it.copy(inputSnoozeRingtonePreset = result.storedUriOrPath) }
+    }
+
     fun setCustomRingtoneUri(context: Context, uri: Uri?) {
         if (uri == null) return
-        val uriString = uri.toString()
-        _uiState.update { it.copy(inputRingtonePreset = uriString) }
+        setInputRingtoneFromUri(context, uri)
     }
 
     fun setCustomSnoozeRingtoneUri(context: Context, uri: Uri?) {
         if (uri == null) return
-        val uriString = uri.toString()
-        _uiState.update { it.copy(inputSnoozeRingtonePreset = uriString) }
+        setInputSnoozeRingtoneFromUri(context, uri)
     }
 
     fun getRingtoneDisplayName(context: Context, presetOrUri: String): String {
-        return when (presetOrUri) {
-            "CYBER_SIREN" -> "Cyber Siren (High Alert)"
-            "APEX_HORNS" -> "Apex Horns (Brass Wake)"
-            "QUANTUM_PULSE" -> "Quantum Pulse (Electronic)"
-            "ZEN_CHIME" -> "Zen Chime (Gentle Acoustic)"
-            "BELL" -> "Classic Alarm Bell"
-            "TICK_TOCK" -> "Urgent Tick-Tock"
-            "SYSTEM_DEFAULT" -> "System Default Alarm"
-            else -> {
-                if (presetOrUri.startsWith("content://") || presetOrUri.startsWith("file://") || presetOrUri.startsWith("android.resource://")) {
-                    try {
-                        val ringtone = RingtoneManager.getRingtone(context, Uri.parse(presetOrUri))
-                        ringtone?.getTitle(context) ?: "Custom Device Ringtone"
-                    } catch (e: Exception) {
-                        "Custom Audio Track"
-                    }
-                } else {
-                    presetOrUri.replace("_", " ")
-                }
-            }
-        }
+        return RingtoneStorageManager.getDisplayName(context, presetOrUri)
     }
 
     fun previewSound(context: Context, presetOrUri: String) {
         stopSoundPreview()
         try {
-            var alertUri: Uri? = null
-            if (presetOrUri.startsWith("content://") || presetOrUri.startsWith("file://") || presetOrUri.startsWith("android.resource://")) {
-                try {
-                    alertUri = Uri.parse(presetOrUri)
-                } catch (e: Exception) {
-                    alertUri = null
-                }
-            }
-            if (alertUri == null) {
-                alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            }
-
-            if (alertUri != null) {
-                previewMediaPlayer = MediaPlayer().apply {
-                    setDataSource(context.applicationContext, alertUri)
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build()
-                    )
-                    isLooping = true
-                    setVolume(0.85f, 0.85f)
-                    prepare()
-                    start()
-                }
+            previewMediaPlayer = MediaPlayer()
+            val started = RingtoneStorageManager.setupAndPlayAudio(
+                context = context,
+                mediaPlayer = previewMediaPlayer!!,
+                presetOrPathOrUri = presetOrUri,
+                volumePercent = 85,
+                isLooping = true
+            )
+            if (started) {
                 _uiState.update { it.copy(isPreviewingSound = true, previewingToneName = presetOrUri) }
+            } else {
+                stopSoundPreview()
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -253,6 +225,7 @@ class AlarmsViewModel(
     fun stopSoundPreview() {
         try {
             previewMediaPlayer?.stop()
+            previewMediaPlayer?.reset()
             previewMediaPlayer?.release()
             previewMediaPlayer = null
         } catch (e: Exception) {

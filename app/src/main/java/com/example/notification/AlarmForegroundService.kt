@@ -21,6 +21,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.R
+import com.example.util.RingtoneStorageManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -316,67 +317,37 @@ class AlarmForegroundService : Service() {
         try {
             stopMediaPlayer()
 
-            // Resolve Tone Uri based on whether this is a snooze trigger or primary alarm
-            val chosenUriString = if (isSnoozeTrigger && snoozeRingtoneUriString.isNotBlank() && snoozeRingtoneUriString != "TICK_TOCK") {
+            // Resolve Tone Uri/Preset based on whether this is a snooze trigger or primary alarm
+            val chosenTone = if (isSnoozeTrigger && snoozeRingtoneUriString.isNotBlank() && snoozeRingtoneUriString != "TICK_TOCK") {
                 snoozeRingtoneUriString
             } else {
                 ringtoneUriString
             }
 
-            var alertUri: Uri? = null
-            if (chosenUriString.startsWith("content://") || chosenUriString.startsWith("file://") || chosenUriString.startsWith("android.resource://")) {
-                try {
-                    alertUri = Uri.parse(chosenUriString)
-                } catch (e: Exception) {
-                    alertUri = null
-                }
-            }
-
-            if (alertUri == null) {
-                alertUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            }
-
-            mediaPlayer = MediaPlayer().apply {
-                setDataSource(applicationContext, alertUri!!)
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
-                        .build()
-                )
-                setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
+            mediaPlayer = MediaPlayer()
+            val success = RingtoneStorageManager.setupAndPlayAudio(
+                context = applicationContext,
+                mediaPlayer = mediaPlayer!!,
+                presetOrPathOrUri = chosenTone,
+                volumePercent = currentVolume,
                 isLooping = true
+            )
 
-                val volumeFactor = (currentVolume.coerceIn(10, 100)) / 100f
-                setVolume(volumeFactor, volumeFactor)
-
-                prepare()
-                start()
-            }
-            Log.d(TAG, "Playing alarm audio uri: $alertUri, looping=true, volume=$currentVolume")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start media player with primary uri, falling back to default ringtone", e)
-            try {
-                val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                mediaPlayer = MediaPlayer().apply {
-                    setDataSource(applicationContext, fallbackUri)
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_ALARM)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build()
-                    )
-                    isLooping = true
-                    prepare()
-                    start()
+            if (!success) {
+                Log.e(TAG, "RingtoneStorageManager could not start playback for $chosenTone, attempting emergency fallback")
+                try {
+                    val fallbackUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                        ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                    mediaPlayer?.reset()
+                    mediaPlayer?.setDataSource(applicationContext, fallbackUri)
+                    mediaPlayer?.prepare()
+                    mediaPlayer?.start()
+                } catch (fallbackEx: Exception) {
+                    Log.e(TAG, "Critical emergency fallback media player error", fallbackEx)
                 }
-            } catch (fallbackEx: Exception) {
-                Log.e(TAG, "Critical fallback media player error", fallbackEx)
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Critical error starting sound playback", e)
         }
     }
 

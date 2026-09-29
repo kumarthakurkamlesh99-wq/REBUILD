@@ -679,8 +679,16 @@ fun AlarmEditDialog(
                 result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             }
             if (uri != null) {
-                viewModel.setInputRingtonePreset(uri.toString())
+                viewModel.setInputRingtoneFromUri(context, uri)
             }
+        }
+    }
+
+    val audioFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.setInputRingtoneFromUri(context, uri)
         }
     }
 
@@ -695,8 +703,16 @@ fun AlarmEditDialog(
                 result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             }
             if (uri != null) {
-                viewModel.setInputSnoozeRingtonePreset(uri.toString())
+                viewModel.setInputSnoozeRingtoneFromUri(context, uri)
             }
+        }
+    }
+
+    val snoozeAudioFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.setInputSnoozeRingtoneFromUri(context, uri)
         }
     }
 
@@ -870,6 +886,13 @@ fun AlarmEditDialog(
                                     ringtonePickerLauncher.launch(intent)
                                 }
                             )
+                            DropdownMenuItem(
+                                text = { Text("Choose Music / Audio File (MP3, WAV)...", color = IceCyanPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                                onClick = {
+                                    soundMenuExpanded = false
+                                    audioFilePickerLauncher.launch("audio/*")
+                                }
+                            )
                         }
                     }
 
@@ -973,6 +996,13 @@ fun AlarmEditDialog(
                                         putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
                                     }
                                     snoozeRingtonePickerLauncher.launch(intent)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Choose Audio File for Snooze...", color = WarningAmber, fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                                onClick = {
+                                    snoozeSoundMenuExpanded = false
+                                    snoozeAudioFilePickerLauncher.launch("audio/*")
                                 }
                             )
                         }

@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Snooze
@@ -102,6 +103,7 @@ import com.example.data.local.entity.AlarmChallengeType
 import com.example.data.local.entity.AlarmDifficulty
 import com.example.data.local.entity.AlarmEntity
 import com.example.data.local.entity.AlarmLogEntity
+import com.example.util.RingtoneStorageManager
 import com.example.ui.theme.DarkNavy
 import com.example.ui.theme.ElectricBlue
 import com.example.ui.theme.FireOrange
@@ -238,6 +240,7 @@ open class AlarmDismissActivity : ComponentActivity(), SensorEventListener {
                         snoozeDurationMinutes = snoozeDurationMinutes,
                         shakeCount = shakeCountState.intValue,
                         targetShakes = targetShakes,
+                        ringtonePreset = ringtonePreset,
                         onSnoozeClicked = { updatedSnoozeCount ->
                             handleSmartSnooze(updatedSnoozeCount)
                         },
@@ -359,6 +362,7 @@ fun AlarmDismissScreen(
     snoozeDurationMinutes: Int = 5,
     shakeCount: Int,
     targetShakes: Int,
+    ringtonePreset: String = "CYBER_SIREN",
     onSnoozeClicked: (Int) -> Unit,
     onChallengeSolved: (Int) -> Unit
 ) {
@@ -494,6 +498,31 @@ fun AlarmDismissScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 4.dp)
                 )
+
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val ringtoneTitle = remember(ringtonePreset) {
+                    RingtoneStorageManager.getDisplayName(context, ringtonePreset)
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(top = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = null,
+                        tint = IceCyanPrimary,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = ringtoneTitle,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = IceCyanPrimary
+                    )
+                }
             }
 
             // Challenge Interactive Card
