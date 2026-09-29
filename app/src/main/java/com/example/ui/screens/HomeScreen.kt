@@ -75,7 +75,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
 import com.example.data.local.entity.DailyPlanTaskEntity
-import com.example.data.local.entity.SchoolState
 import com.example.data.local.entity.TaskType
 import com.example.ui.components.CompactLevelXpBadge
 import com.example.ui.components.FrostedGlassCard

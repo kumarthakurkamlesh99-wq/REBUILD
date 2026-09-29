@@ -167,25 +167,6 @@ fun PlannerScreen(
                 }
             }
 
-            // Monthly School Attendance Analytics Card
-            item {
-                SchoolMonthlyAnalyticsCard(analytics = uiState.analytics)
-            }
-
-            // Interactive School Flow Tracker
-            item {
-                SchoolStatusCard(
-                    currentState = uiState.schoolStatus.currentState,
-                    travelToSchoolMins = uiState.schoolStatus.travelToSchoolMinutes,
-                    travelHomeMins = uiState.schoolStatus.travelHomeMinutes,
-                    onDispatchSchool = { viewModel.dispatchSchool() },
-                    onArrivedSchool = { viewModel.arrivedSchool() },
-                    onDispatchHome = { viewModel.dispatchHome() },
-                    onArrivedHome = { viewModel.arrivedHome() },
-                    onViewFullSchool = {}
-                )
-            }
-
             // Daily Deep Work Goal Progress
             item {
                 FrostedGlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -265,88 +246,6 @@ fun PlannerScreen(
                 showAddTaskDialog = false
             }
         )
-    }
-}
-
-@Composable
-fun SchoolMonthlyAnalyticsCard(
-    analytics: com.example.viewmodel.SchoolAnalyticsState,
-    modifier: Modifier = Modifier
-) {
-    HeroGlassCard(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarMonth,
-                        contentDescription = null,
-                        tint = IceCyanPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Monthly Attendance Analytics",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = GlassWhite
-                    )
-                }
-
-                val presentPerc = ((analytics.presentDays.toFloat() / analytics.totalSchoolDays) * 100).toInt()
-                GlowPill(text = "$presentPerc% Present", color = SuccessGreen)
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // 4 Analytics Metric Boxes
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                AnalyticsMetricBox(
-                    label = "Total Days",
-                    value = "${analytics.totalSchoolDays}",
-                    accentColor = FrostBlueAccent,
-                    modifier = Modifier.weight(1f)
-                )
-                AnalyticsMetricBox(
-                    label = "Present",
-                    value = "${analytics.presentDays}",
-                    accentColor = SuccessGreen,
-                    modifier = Modifier.weight(1f)
-                )
-                AnalyticsMetricBox(
-                    label = "Absent",
-                    value = "${analytics.absentDays}",
-                    accentColor = WarningAmber,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                AnalyticsMetricBox(
-                    label = "Avg Arrival Time",
-                    value = analytics.avgArrivalTime,
-                    accentColor = IceCyanPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-                AnalyticsMetricBox(
-                    label = "Avg Return Time",
-                    value = analytics.avgReturnTime,
-                    accentColor = PurpleArc,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
     }
 }
 

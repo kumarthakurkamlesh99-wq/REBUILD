@@ -123,8 +123,6 @@ import com.example.viewmodel.AlarmsViewModel
 import com.example.viewmodel.AlarmsViewModelFactory
 import com.example.viewmodel.AnalyticsViewModel
 import com.example.viewmodel.AnalyticsViewModelFactory
-import com.example.viewmodel.BoardExamViewModel
-import com.example.viewmodel.BoardExamViewModelFactory
 import com.example.viewmodel.FitnessViewModel
 import com.example.viewmodel.FitnessViewModelFactory
 import com.example.viewmodel.GoalsViewModel
@@ -165,7 +163,6 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector,
     object Focus : Screen("focus", "Focus Timer", Icons.Default.Timer, "Study")
     object Fitness : Screen("fitness", "Fitness & Calisthenics", Icons.Default.FitnessCenter)
     object Habits : Screen("habits", "Habits & Discipline", Icons.Default.CheckCircle)
-    object BoardExam : Screen("board_exam", "Board Exam Blueprint", Icons.Default.School)
     object Alarms : Screen("alarms", "Smart Alarm Engine", Icons.Default.NotificationsActive, "Challenges")
     object Notes : Screen("notes", "Notes & Mistakes", Icons.Default.Notes)
     object Analytics : Screen("analytics", "Analytics", Icons.Default.Analytics)
@@ -355,7 +352,6 @@ fun RebuildAppScaffold(
                     HomeScreen(
                         viewModel = homeViewModel,
                         onOpenDrawer = openDrawer,
-                        onNavigateToSchool = { navController.navigate(Screen.Schedule.route) },
                         onNavigateToPlanner = { navController.navigate(Screen.Tasks.route) },
                         onNavigateToPomodoro = { navController.navigate(Screen.Focus.route) },
                         onStartFocusWithPreset = { subject, chapter, durationMins ->
@@ -373,7 +369,6 @@ fun RebuildAppScaffold(
                         onNavigateToMistakeNotebook = { navController.navigate(Screen.MistakeNotebook.route) },
                         onNavigateToFlashcards = { navController.navigate(Screen.Flashcards.route) },
                         onNavigateToWinterArc = { navController.navigate(Screen.Syllabus.route) },
-                        onNavigateToBoardExam = { navController.navigate(Screen.BoardExam.route) },
                         onNavigateToRankReport = { navController.navigate(Screen.Syllabus.route) },
                         onNavigateToSyllabus = { navController.navigate(Screen.Syllabus.route) },
                         onNavigateToJarvis = { navController.navigate(Screen.AiChat.route) }
@@ -540,17 +535,6 @@ fun RebuildAppScaffold(
                     )
                     HabitsScreen(
                         viewModel = habitsVm,
-                        onOpenDrawer = openDrawer
-                    )
-                }
-
-                // 10. Board Exam (Lazy Loaded)
-                composable(Screen.BoardExam.route) {
-                    val boardExamVm: BoardExamViewModel = viewModel(
-                        factory = BoardExamViewModelFactory(application.repository)
-                    )
-                    BoardExamScreen(
-                        viewModel = boardExamVm,
                         onOpenDrawer = openDrawer
                     )
                 }
@@ -941,15 +925,6 @@ fun RebuildDrawerContent(
                 isSelected = currentRoute == Screen.Syllabus.route || currentRoute == Screen.Subjects.route,
                 highlightColor = IceCyanPrimary,
                 onClick = { onNavigate(Screen.Syllabus.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.BoardExam,
-                isSelected = currentRoute == Screen.BoardExam.route,
-                highlightColor = WarningAmber,
-                onClick = { onNavigate(Screen.BoardExam.route) }
             )
         }
 
