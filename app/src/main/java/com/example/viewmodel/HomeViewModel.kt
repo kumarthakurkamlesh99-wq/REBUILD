@@ -6,8 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.local.entity.BoardExamConfigEntity
 import com.example.data.local.entity.DailyDisciplineEntity
 import com.example.data.local.entity.DailyPlanTaskEntity
+import com.example.data.local.entity.HabitEntity
+import com.example.data.local.entity.SchoolState
 import com.example.data.local.entity.SchoolStatusEntity
 import com.example.data.local.entity.SyllabusStatus
+import com.example.data.local.entity.TaskType
 import com.example.data.local.entity.UserProfileEntity
 import com.example.data.local.entity.WinterArcStateEntity
 import com.example.data.repository.RebuildRepository
@@ -16,6 +19,30 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlin.math.max
+import kotlin.math.min
+
+data class HabitWithStatus(
+    val habit: HabitEntity,
+    val isCompletedToday: Boolean
+)
+
+data class DashboardScheduleItem(
+    val id: String,
+    val timeDisplay: String,
+    val title: String,
+    val subtitle: String = "",
+    val isCompleted: Boolean = false,
+    val isCurrent: Boolean = false,
+    val category: String = "Study"
+)
+
+data class DashboardAiRecommendation(
+    val headline: String,
+    val recommendation: String,
+    val subject: String? = null,
+    val chapter: String? = null
+)
 
 data class HomeUiState(
     val userProfile: UserProfileEntity? = null,
@@ -26,15 +53,24 @@ data class HomeUiState(
     val todayTasks: List<DailyPlanTaskEntity> = emptyList(),
     val daysUntilExam: Long = 0,
     val todayStudyMinutes: Int = 0,
+    val targetStudyMinutes: Int = 480, // 8 hours default
     val completedTasksCount: Int = 0,
     val totalTasksCount: Int = 0,
     val progressPercentage: Int = 0,
     val realStreak: Int = 0,
+    val winterArcCurrentDay: Int = 1,
+    val winterArcTotalDays: Int = 90,
     val winterArcDaysRemaining: Int = 0,
+    val readinessScore: Int = 0,
+    val habits: List<HabitWithStatus> = emptyList(),
+    val completedHabitsCount: Int = 0,
+    val totalHabitsCount: Int = 0,
+    val scheduleTimeline: List<DashboardScheduleItem> = emptyList(),
     val subjectSummaries: List<SyllabusSubjectSummary> = emptyList(),
     val overallSyllabusPercentage: Int = 0,
     val totalSyllabusChapters: Int = 0,
-    val completedSyllabusChapters: Int = 0
+    val completedSyllabusChapters: Int = 0,
+    val aiRecommendation: DashboardAiRecommendation? = null
 )
 
 class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
@@ -99,6 +135,21 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
         SyllabusBundle(summaries, overallPct, totalCh, compCh)
     }
 
+    private val habitsFlow = combine(
+        repository.getAllHabits(),
+        repository.getTodayHabitLogs()
+    ) { habits, logs ->
+        val logMap = logs.associateBy { it.habitId }
+        val habitsWithStatus = habits.filter { !it.isArchived }.map { habit ->
+            HabitWithStatus(
+                habit = habit,
+                isCompletedToday = logMap[habit.id]?.isCompleted ?: false
+            )
+        }
+        val completedCount = habitsWithStatus.count { it.isCompletedToday }
+        HabitsBundle(habitsWithStatus, completedCount, habitsWithStatus.size)
+    }
+
     private data class DailyStatusBundle(
         val discipline: DailyDisciplineEntity?,
         val school: SchoolStatusEntity?,
@@ -113,6 +164,12 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
         val compCh: Int
     )
 
+    private data class HabitsBundle(
+        val habits: List<HabitWithStatus>,
+        val completedCount: Int,
+        val totalCount: Int
+    )
+
     private val statusFlow = combine(
         repository.getTodayDiscipline(),
         repository.getTodaySchoolStatus(),
@@ -125,8 +182,9 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
     val uiState: StateFlow<HomeUiState> = combine(
         baseProfileFlow,
         statusFlow,
-        syllabusFlow
-    ) { (profile, safeWinterArc, safeExamConfig), statusBundle, syllabusBundle ->
+        syllabusFlow,
+        habitsFlow
+    ) { (profile, safeWinterArc, safeExamConfig), statusBundle, syllabusBundle, habitsBundle ->
         val safeDiscipline = statusBundle.discipline ?: DailyDisciplineEntity(
             date = repository.getTodayDateString(),
             totalScore = 0
@@ -148,6 +206,131 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
             transformationScore = score
         )
 
+        // Calculate student readiness score:
+        // 40% syllabus completion + 35% daily task completion + 25% streak consistency
+        val syllabusPart = (syllabusBundle.overallPct * 0.40f).toInt()
+        val taskPart = if (totalCount > 0) ((completedCount.toFloat() / totalCount) * 35).toInt() else (score * 0.35f).toInt()
+        val streakPart = (min(realStreak, 30) * (25f / 30f)).toInt()
+        val readinessScore = (syllabusPart + taskPart + streakPart).coerceIn(10, 100)
+
+        // Build dynamic schedule timeline
+        val timeline = mutableListOf<DashboardScheduleItem>()
+
+        val wakeTime = profile?.wakeUpTime?.ifBlank { "05:00 AM" } ?: "05:00 AM"
+        timeline.add(
+            DashboardScheduleItem(
+                id = "wake_routine",
+                timeDisplay = wakeTime,
+                title = "Morning Awakening & Routine",
+                subtitle = "Hydration & Physical Readiness",
+                isCompleted = habitsBundle.habits.firstOrNull { it.habit.name.contains("Running", true) || it.habit.name.contains("Workout", true) }?.isCompletedToday ?: (statusBundle.studyMins > 0),
+                category = "Routine"
+            )
+        )
+
+        if (!profile?.schoolStartTime.isNullOrBlank()) {
+            timeline.add(
+                DashboardScheduleItem(
+                    id = "school_transit",
+                    timeDisplay = profile!!.schoolStartTime,
+                    title = "Academic School Hours",
+                    subtitle = "Classes & syllabus coverage",
+                    isCompleted = safeSchool.currentState == SchoolState.ARRIVED_HOME || safeSchool.currentState == SchoolState.TRAVELLING_HOME,
+                    category = "School"
+                )
+            )
+        }
+
+        if (statusBundle.tasks.isEmpty()) {
+            // Default placeholder slots if no tasks yet
+            timeline.add(
+                DashboardScheduleItem(
+                    id = "study_slot_1",
+                    timeDisplay = "03:30 PM",
+                    title = "Deep Study Block 1",
+                    subtitle = "Numericals & Core Science",
+                    isCompleted = false,
+                    category = "Study"
+                )
+            )
+            timeline.add(
+                DashboardScheduleItem(
+                    id = "study_slot_2",
+                    timeDisplay = "06:00 PM",
+                    title = "Practice & Question Solving",
+                    subtitle = "PYQs & Derivations",
+                    isCompleted = false,
+                    category = "Study"
+                )
+            )
+        } else {
+            statusBundle.tasks.sortedBy { it.orderIndex }.forEachIndexed { index, task ->
+                val timeStr = if (task.reminderHour != null && task.reminderMinute != null) {
+                    val ampm = if (task.reminderHour >= 12) "PM" else "AM"
+                    val h = if (task.reminderHour % 12 == 0) 12 else task.reminderHour % 12
+                    String.format("%02d:%02d %s", h, task.reminderMinute, ampm)
+                } else {
+                    val hour = (15 + (index * 1.5).toInt()) % 24
+                    val ampm = if (hour >= 12) "PM" else "AM"
+                    val h = if (hour % 12 == 0) 12 else hour % 12
+                    String.format("%02d:00 %s", h, ampm)
+                }
+                timeline.add(
+                    DashboardScheduleItem(
+                        id = "task_${task.id}",
+                        timeDisplay = timeStr,
+                        title = "${task.subject}: ${task.title}",
+                        subtitle = "${task.targetMinutes}m • ${task.type.name}",
+                        isCompleted = task.isCompleted,
+                        category = "Study"
+                    )
+                )
+            }
+        }
+
+        val sleepTime = profile?.sleepTime?.ifBlank { "10:30 PM" } ?: "10:30 PM"
+        timeline.add(
+            DashboardScheduleItem(
+                id = "night_revision",
+                timeDisplay = "09:00 PM",
+                title = "Evening Formula & Concept Revision",
+                subtitle = "Sleep prep before $sleepTime",
+                isCompleted = habitsBundle.habits.firstOrNull { it.habit.name.contains("Revision", true) }?.isCompletedToday ?: false,
+                category = "Revision"
+            )
+        )
+
+        // Single high-priority AI Coach recommendation
+        val lowestSubject = syllabusBundle.summaries.filter { it.percentage < 100 }.minByOrNull { it.percentage }
+        val pendingTasks = statusBundle.tasks.filter { !it.isCompleted }
+        val aiRec = when {
+            pendingTasks.isNotEmpty() -> {
+                val nextTask = pendingTasks.first()
+                DashboardAiRecommendation(
+                    headline = "${nextTask.subject} is your immediate mission.",
+                    recommendation = "Complete \"${nextTask.title}\" (${nextTask.targetMinutes} mins) now to lock in today's discipline.",
+                    subject = nextTask.subject,
+                    chapter = nextTask.title
+                )
+            }
+            lowestSubject != null -> {
+                DashboardAiRecommendation(
+                    headline = "${lowestSubject.name} is behind schedule (${lowestSubject.percentage}% done).",
+                    recommendation = "Recommended: Complete high-yield chapters & numerical revision today.",
+                    subject = lowestSubject.name
+                )
+            }
+            else -> {
+                DashboardAiRecommendation(
+                    headline = "Today's missions completed!",
+                    recommendation = "Maintain your momentum with light 20-min formula recall or evening rest.",
+                    subject = "Revision"
+                )
+            }
+        }
+
+        val targetStudy = (profile?.dailyStudyGoalHours?.times(60)?.toInt() ?: 480)
+
         HomeUiState(
             userProfile = profile,
             winterArcState = dynamicArc,
@@ -157,15 +340,24 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
             todayTasks = statusBundle.tasks,
             daysUntilExam = daysLeft,
             todayStudyMinutes = statusBundle.studyMins,
+            targetStudyMinutes = targetStudy,
             completedTasksCount = completedCount,
             totalTasksCount = totalCount,
             progressPercentage = progress,
             realStreak = realStreak,
+            winterArcCurrentDay = dayNum,
+            winterArcTotalDays = safeWinterArc.targetDays,
             winterArcDaysRemaining = arcDaysLeft,
+            readinessScore = readinessScore,
+            habits = habitsBundle.habits,
+            completedHabitsCount = habitsBundle.completedCount,
+            totalHabitsCount = habitsBundle.totalCount,
+            scheduleTimeline = timeline,
             subjectSummaries = syllabusBundle.summaries,
             overallSyllabusPercentage = syllabusBundle.overallPct,
             totalSyllabusChapters = syllabusBundle.totalCh,
-            completedSyllabusChapters = syllabusBundle.compCh
+            completedSyllabusChapters = syllabusBundle.compCh,
+            aiRecommendation = aiRec
         )
     }.stateIn(
         scope = viewModelScope,
@@ -173,39 +365,35 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
         initialValue = HomeUiState()
     )
 
-    fun onDispatchSchool() {
-        viewModelScope.launch {
-            repository.dispatchSchool()
-        }
-    }
-
-    fun onArrivedSchool() {
-        viewModelScope.launch {
-            repository.arrivedSchool()
-        }
-    }
-
-    fun onDispatchHome() {
-        viewModelScope.launch {
-            repository.dispatchHome()
-        }
-    }
-
-    fun onArrivedHome() {
-        viewModelScope.launch {
-            repository.arrivedHome()
-        }
-    }
-
     fun toggleTask(task: DailyPlanTaskEntity) {
         viewModelScope.launch {
             repository.toggleTaskCompleted(task)
         }
     }
 
+    fun toggleHabit(habit: HabitEntity) {
+        viewModelScope.launch {
+            repository.toggleHabit(habit)
+        }
+    }
+
     fun generateTodayPlan() {
         viewModelScope.launch {
             repository.generateSmartDailyPlan(repository.getTodayDateString())
+        }
+    }
+
+    fun addNewTask(title: String, subject: String, targetMins: Int) {
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            val task = DailyPlanTaskEntity(
+                date = repository.getTodayDateString(),
+                title = title.trim(),
+                subject = subject.trim().ifBlank { "General" },
+                targetMinutes = targetMins.coerceIn(15, 180),
+                type = TaskType.LECTURE
+            )
+            repository.addTask(task)
         }
     }
 }

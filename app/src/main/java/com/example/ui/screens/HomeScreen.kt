@@ -1,10 +1,10 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,46 +17,49 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.DirectionsBus
-import androidx.compose.material.icons.filled.DirectionsWalk
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -66,41 +69,36 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.R
 import com.example.data.local.entity.DailyPlanTaskEntity
 import com.example.data.local.entity.TaskType
-import com.example.ui.components.CompactLevelXpBadge
 import com.example.ui.components.FrostedGlassCard
-import com.example.ui.components.GlowPill
-import com.example.ui.components.HeroGlassCard
-import com.example.ui.components.StatBadge
+import com.example.ui.components.RebuildDialog
+import com.example.ui.components.RebuildSelectorChip
 import com.example.ui.theme.DarkNavy
 import com.example.ui.theme.ElectricBlue
 import com.example.ui.theme.FireOrange
 import com.example.ui.theme.FrostBlueAccent
 import com.example.ui.theme.FrostedNavyCard
-import com.example.ui.theme.GlassHighlight
 import com.example.ui.theme.GlassWhite
 import com.example.ui.theme.GlassWhiteMuted
-import com.example.ui.theme.GlowBorderBrush
 import com.example.ui.theme.IceCyanGlow
 import com.example.ui.theme.IceCyanPrimary
 import com.example.ui.theme.LuxuryAccent
 import com.example.ui.theme.LuxuryCard
-import com.example.ui.theme.PurpleArc
 import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.WarningAmber
+import com.example.viewmodel.DashboardAiRecommendation
+import com.example.viewmodel.DashboardScheduleItem
+import com.example.viewmodel.HabitWithStatus
+import com.example.viewmodel.HomeUiState
 import com.example.viewmodel.HomeViewModel
-
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.IconButton
+import com.example.viewmodel.SyllabusSubjectSummary
 
 @Composable
 fun HomeScreen(
@@ -108,710 +106,767 @@ fun HomeScreen(
     onOpenDrawer: () -> Unit = {},
     onNavigateToPlanner: () -> Unit,
     onNavigateToPomodoro: () -> Unit,
-    onNavigateToWinterArc: () -> Unit,
+    onNavigateToWinterArc: () -> Unit = {},
     onNavigateToRankReport: () -> Unit = {},
     onStartFocusWithPreset: (subject: String, chapter: String, durationMins: Int) -> Unit = { _, _, _ -> onNavigateToPomodoro() },
     onNavigateToMistakeNotebook: () -> Unit = {},
     onNavigateToFlashcards: () -> Unit = {},
     onNavigateToSyllabus: () -> Unit = {},
     onNavigateToJarvis: () -> Unit = {},
+    onNavigateToNotes: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showAddTaskDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .background(DarkNavy)
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(top = 10.dp, bottom = 36.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. BRAND HEADER (Clean study branding, no hardcore XP badges)
+        // TOP APP BAR / BRAND HEADER
         item {
-            BrandHeader(
+            CommandCenterHeader(
+                currentDay = uiState.winterArcCurrentDay,
                 daysUntilExam = uiState.daysUntilExam,
                 onOpenDrawer = onOpenDrawer,
+                onNavigateToJarvis = onNavigateToJarvis
+            )
+        }
+
+        // SECTION 1: HERO STATUS CARD
+        item {
+            HeroStatusCard(
+                uiState = uiState,
                 onSyllabusClick = onNavigateToSyllabus
             )
         }
 
-        // 2. SYLLABUS STUDY HUB (Replaces hardcore Winter Arc cockpit)
+        // SECTION 3: CONTINUE BUTTON (Top priority action)
         val nextMissionTask = uiState.todayTasks.firstOrNull { !it.isCompleted }
         item {
-            SyllabusStudyHubCard(
+            ContinueActionButton(
                 currentTask = nextMissionTask,
-                daysUntilExam = uiState.daysUntilExam,
-                totalTasksCount = uiState.totalTasksCount,
-                completedTasksCount = uiState.completedTasksCount,
-                onStartFocusPreset = { subject, chapter, durationMins ->
-                    onStartFocusWithPreset(subject, chapter, durationMins)
+                onStartTask = { task ->
+                    onStartFocusWithPreset(task.subject, task.title, task.targetMinutes)
                 },
-                onCompleteTask = { task ->
-                    viewModel.toggleTask(task)
-                },
-                onGeneratePlan = { viewModel.generateTodayPlan() },
-                onSyllabusClick = onNavigateToSyllabus
+                onStartGeneralFocus = onNavigateToPomodoro
             )
         }
 
-        // 2.5. JARVIS DYNAMIC SCHEDULER & DEEP WORK CARD
+        // SECTION 2: TODAY'S MISSION
         item {
-            FrostedGlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                borderBrush = Brush.horizontalGradient(
-                    listOf(
-                        IceCyanPrimary.copy(alpha = 0.7f),
-                        PurpleArc.copy(alpha = 0.5f),
-                        LuxuryAccent.copy(alpha = 0.6f)
-                    )
+            TodaysMissionSection(
+                tasks = uiState.todayTasks,
+                completedCount = uiState.completedTasksCount,
+                totalCount = uiState.totalTasksCount,
+                onToggleTask = { viewModel.toggleTask(it) },
+                onStartTaskFocus = { task ->
+                    onStartFocusWithPreset(task.subject, task.title, task.targetMinutes)
+                },
+                onGeneratePlan = { viewModel.generateTodayPlan() },
+                onAddTaskClick = { showAddTaskDialog = true },
+                onNavigateToPlanner = onNavigateToPlanner
+            )
+        }
+
+        // SECTION 4: STUDY PROGRESS
+        item {
+            StudyProgressSection(
+                studyMinutes = uiState.todayStudyMinutes,
+                targetStudyMinutes = uiState.targetStudyMinutes,
+                completedTasks = uiState.completedTasksCount,
+                totalTasks = uiState.totalTasksCount,
+                completedHabits = uiState.completedHabitsCount,
+                totalHabits = uiState.totalHabitsCount
+            )
+        }
+
+        // SECTION 5: TODAY'S SCHEDULE
+        if (uiState.scheduleTimeline.isNotEmpty()) {
+            item {
+                TodayScheduleTimelineSection(
+                    timeline = uiState.scheduleTimeline
                 )
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = IceCyanPrimary.copy(alpha = 0.15f),
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Psychology,
-                                        contentDescription = "JARVIS",
-                                        tint = IceCyanPrimary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = "JARVIS Dynamic Scheduler",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = GlassWhite
-                                )
-                                Text(
-                                    text = "AI Predictive Deep Work & Energy Adapted",
-                                    fontSize = 11.sp,
-                                    color = FrostBlueAccent
-                                )
-                            }
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = LuxuryAccent.copy(alpha = 0.2f),
-                            border = BorderStroke(1.dp, LuxuryAccent.copy(alpha = 0.5f))
-                        ) {
-                            Text(
-                                text = "ONLINE",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = LuxuryAccent,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                            )
-                        }
-                    }
-
-                    // Telemetry Snapshot
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0x33102A45),
-                            border = BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.25f)),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text("PREDICTED DEEP WORK", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = GlassWhiteMuted)
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text("05:30 - 07:30 AM", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = IceCyanPrimary)
-                                Text("Historical Peak (94%)", fontSize = 10.sp, color = GlassWhiteMuted)
-                            }
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0x33102A45),
-                            border = BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.25f)),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text("URGENCY WEIGHT", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = GlassWhiteMuted)
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text("Physics / Chemistry", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WarningAmber)
-                                Text("Aligned with Board Exam", fontSize = 10.sp, color = GlassWhiteMuted)
-                            }
-                        }
-                    }
-
-                    // Action Buttons
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = onNavigateToPlanner,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary)
-                        ) {
-                            Icon(Icons.Default.Bolt, contentDescription = null, tint = DarkNavy, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Dynamic Tasks", color = DarkNavy, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
-
-                        OutlinedButton(
-                            onClick = onNavigateToJarvis,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, LuxuryAccent.copy(alpha = 0.7f)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = LuxuryAccent)
-                        ) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = LuxuryAccent, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Talk to JARVIS", color = LuxuryAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
-                    }
-                }
             }
         }
 
-        // 3. SMART DAILY STUDY SECTION
+        // SECTION 6: HABITS
+        if (uiState.habits.isNotEmpty()) {
+            item {
+                HabitsQuickCompletionSection(
+                    habits = uiState.habits,
+                    onToggleHabit = { viewModel.toggleHabit(it.habit) }
+                )
+            }
+        }
+
+        // SECTION 7: SUBJECT PROGRESS
+        if (uiState.subjectSummaries.isNotEmpty()) {
+            item {
+                SubjectProgressSection(
+                    summaries = uiState.subjectSummaries,
+                    onSubjectClick = onNavigateToSyllabus
+                )
+            }
+        }
+
+        // SECTION 8: AI COACH
+        if (uiState.aiRecommendation != null) {
+            item {
+                AiCoachSingleCard(
+                    recommendation = uiState.aiRecommendation!!,
+                    onExecuteRecommendation = {
+                        val sub = uiState.aiRecommendation?.subject ?: "Physics"
+                        val ch = uiState.aiRecommendation?.chapter ?: "Revision"
+                        onStartFocusWithPreset(sub, ch, 45)
+                    },
+                    onOpenJarvis = onNavigateToJarvis
+                )
+            }
+        }
+
+        // SECTION 9: QUICK ACTIONS
         item {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            QuickActionsSection(
+                onAddTask = { showAddTaskDialog = true },
+                onAddNote = onNavigateToNotes,
+                onGeneratePlan = { viewModel.generateTodayPlan() },
+                onStartFocus = onNavigateToPomodoro
+            )
+        }
+    }
+
+    if (showAddTaskDialog) {
+        QuickAddTaskDialog(
+            onDismiss = { showAddTaskDialog = false },
+            onAddTask = { title, subject, mins ->
+                viewModel.addNewTask(title, subject, mins)
+                showAddTaskDialog = false
+            }
+        )
+    }
+}
+
+// =========================================================================
+// HEADER
+// =========================================================================
+
+@Composable
+private fun CommandCenterHeader(
+    currentDay: Int,
+    daysUntilExam: Long,
+    onOpenDrawer: () -> Unit,
+    onNavigateToJarvis: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = onOpenDrawer,
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(FrostedNavyCard.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+                    .testTag("drawer_menu_button")
             ) {
+                Icon(
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "Open Drawer",
+                    tint = IceCyanPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column {
+                Text(
+                    text = "REBUILD",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = GlassWhite,
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    text = "STUDENT COMMAND CENTER",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = IceCyanPrimary,
+                    letterSpacing = 0.5.sp
+                )
+            }
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Live Target Pill
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = FrostedNavyCard,
+                border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.4f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarToday,
+                        contentDescription = null,
+                        tint = WarningAmber,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = "${daysUntilExam}d Left",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GlassWhite
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            IconButton(
+                onClick = onNavigateToJarvis,
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(FrostedNavyCard.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+                    .testTag("open_jarvis_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = "JARVIS AI",
+                    tint = LuxuryAccent,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+// =========================================================================
+// SECTION 1: HERO STATUS CARD
+// =========================================================================
+
+@Composable
+private fun HeroStatusCard(
+    uiState: HomeUiState,
+    onSyllabusClick: () -> Unit
+) {
+    FrostedGlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("hero_status_card")
+            .clickable { onSyllabusClick() },
+        borderBrush = Brush.linearGradient(
+            listOf(IceCyanPrimary.copy(alpha = 0.5f), ElectricBlue.copy(alpha = 0.2f))
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp)
+        ) {
+            // Top Primary Target Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(SuccessGreen, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "WINTER ARC",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GlassWhiteMuted,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                    Text(
+                        text = "Day ${uiState.winterArcCurrentDay} / ${uiState.winterArcTotalDays}",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = GlassWhite
+                    )
+                }
+
+                // Countdown Badge
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = IceCyanPrimary.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.35f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "BOARD EXAM",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = IceCyanPrimary,
+                            letterSpacing = 0.5.sp
+                        )
+                        Text(
+                            text = "${uiState.daysUntilExam} Days Left",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GlassWhite
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3-Metric Bottom Bar: Streak, Discipline, Readiness
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Streak
+                MetricPill(
+                    icon = Icons.Default.LocalFireDepartment,
+                    iconTint = FireOrange,
+                    label = "STREAK",
+                    value = "${uiState.realStreak} Days",
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Discipline
+                MetricPill(
+                    icon = Icons.Default.Bolt,
+                    iconTint = WarningAmber,
+                    label = "DISCIPLINE",
+                    value = "${uiState.disciplineScore.totalScore}%",
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Readiness
+                MetricPill(
+                    icon = Icons.Default.Star,
+                    iconTint = SuccessGreen,
+                    label = "READINESS",
+                    value = "${uiState.readinessScore}%",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricPill(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = DarkNavy.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, GlassWhite.copy(alpha = 0.08f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(13.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = label,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GlassWhiteMuted,
+                    letterSpacing = 0.5.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = value,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = GlassWhite
+            )
+        }
+    }
+}
+
+// =========================================================================
+// SECTION 3: CONTINUE BUTTON (Top Execution Action)
+// =========================================================================
+
+@Composable
+private fun ContinueActionButton(
+    currentTask: DailyPlanTaskEntity?,
+    onStartTask: (DailyPlanTaskEntity) -> Unit,
+    onStartGeneralFocus: () -> Unit
+) {
+    if (currentTask != null) {
+        Button(
+            onClick = { onStartTask(currentTask) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .testTag("continue_studying_button"),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = IceCyanPrimary,
+                contentColor = DarkNavy
+            ),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(DarkNavy.copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = DarkNavy,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "START FOCUS SESSION",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "${currentTask.subject}: ${currentTask.title}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = DarkNavy.copy(alpha = 0.2f)
+                ) {
+                    Text(
+                        text = "${currentTask.targetMinutes}m",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = DarkNavy,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+    } else {
+        Button(
+            onClick = onStartGeneralFocus,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp)
+                .testTag("continue_studying_button"),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = FrostedNavyCard,
+                contentColor = IceCyanPrimary
+            ),
+            border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.4f))
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = SuccessGreen,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "ALL MISSIONS DONE • START FREE FOCUS",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GlassWhite,
+                    letterSpacing = 0.5.sp
+                )
+            }
+        }
+    }
+}
+
+// =========================================================================
+// SECTION 2: TODAY'S MISSION
+// =========================================================================
+
+@Composable
+private fun TodaysMissionSection(
+    tasks: List<DailyPlanTaskEntity>,
+    completedCount: Int,
+    totalCount: Int,
+    onToggleTask: (DailyPlanTaskEntity) -> Unit,
+    onStartTaskFocus: (DailyPlanTaskEntity) -> Unit,
+    onGeneratePlan: () -> Unit,
+    onAddTaskClick: () -> Unit,
+    onNavigateToPlanner: () -> Unit
+) {
+    FrostedGlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("todays_mission_card")
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp)
+        ) {
+            // Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "TODAY'S MISSION",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = GlassWhite,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        text = "Core Daily Execution Queue",
+                        fontSize = 11.sp,
+                        color = GlassWhiteMuted
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (totalCount > 0 && completedCount == totalCount) SuccessGreen.copy(alpha = 0.15f) else IceCyanPrimary.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, if (totalCount > 0 && completedCount == totalCount) SuccessGreen.copy(alpha = 0.4f) else IceCyanPrimary.copy(alpha = 0.3f))
+                ) {
+                    Text(
+                        text = "$completedCount / $totalCount Completed",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (totalCount > 0 && completedCount == totalCount) SuccessGreen else IceCyanPrimary,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Progress bar
+            val progressFraction = if (totalCount > 0) completedCount.toFloat() / totalCount else 0f
+            LinearProgressIndicator(
+                progress = { progressFraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = IceCyanPrimary,
+                trackColor = DarkNavy.copy(alpha = 0.6f),
+                strokeCap = StrokeCap.Round
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            if (tasks.isEmpty()) {
+                // Empty state design (as strictly requested)
+                MissionEmptyState(
+                    onGeneratePlan = onGeneratePlan,
+                    onAddTask = onAddTaskClick
+                )
+            } else {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    tasks.forEach { task ->
+                        MissionTaskRow(
+                            task = task,
+                            onToggle = { onToggleTask(task) },
+                            onStartFocus = { onStartTaskFocus(task) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = IceCyanPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Today's Study Plan",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = GlassWhite
-                        )
-                    }
-
-                    Surface(
+                    OutlinedButton(
+                        onClick = onAddTaskClick,
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0x33102A45),
-                        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.4f)),
-                        modifier = Modifier.clickable { viewModel.generateTodayPlan() }
+                        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.3f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = IceCyanPrimary)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${uiState.completedTasksCount}/${uiState.totalTasksCount} Completed (${uiState.progressPercentage}%)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = IceCyanPrimary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add Task", fontSize = 11.sp)
                     }
-                }
 
-                // Mini Progress Bar for Today's tasks
-                LinearProgressIndicator(
-                    progress = { uiState.progressPercentage / 100f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = IceCyanPrimary,
-                    trackColor = Color(0x2238E1FF),
-                    strokeCap = StrokeCap.Round
-                )
-            }
-        }
-
-        // Tasks items
-        if (uiState.todayTasks.isEmpty()) {
-            item {
-                com.example.ui.components.RebuildEmptyState(
-                    title = "No Tasks Active Yet",
-                    description = "Press 'ARRIVED HOME' above or tap Generate to launch today's timetable protocol.",
-                    icon = Icons.Default.School,
-                    actionLabel = "Generate Protocol",
-                    onAction = { viewModel.generateTodayPlan() }
-                )
-            }
-        } else {
-            items(uiState.todayTasks, key = { it.id }) { task ->
-                TaskItemCard(
-                    task = task,
-                    onToggle = { viewModel.toggleTask(task) },
-                    onStartFocus = {
-                        onStartFocusWithPreset(task.subject, task.title, task.targetMinutes)
-                    }
-                )
-            }
-        }
-
-        // 5. STUDY LAB ACTIONS (Focus, Mistake Notebook, Flashcards, Full Timetable)
-        item {
-            TacticalQuickActionsRow(
-                onStartPomodoro = onNavigateToPomodoro,
-                onNavigateToMistakeNotebook = onNavigateToMistakeNotebook,
-                onNavigateToFlashcards = onNavigateToFlashcards,
-                onViewFullPlanner = onNavigateToPlanner
-            )
-        }
-    }
-}
-
-@Composable
-fun BrandHeader(
-    daysUntilExam: Long = 120,
-    onOpenDrawer: () -> Unit = {},
-    onSyllabusClick: () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f, fill = false)
-        ) {
-            IconButton(
-                onClick = onOpenDrawer,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(FrostedNavyCard)
-                    .testTag("menu_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Menu,
-                    contentDescription = "Open Navigation Menu",
-                    tint = GlassWhite,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(10.dp))
-            Image(
-                painter = painterResource(id = R.drawable.rebuild_logo),
-                contentDescription = "REBUILD Logo",
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .border(1.dp, IceCyanPrimary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
-                Text(
-                    text = "REBUILD",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    color = GlassWhite,
-                    fontSize = 17.sp,
-                    maxLines = 1
-                )
-                Text(
-                    text = "Study Dashboard • JARVIS AI",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = 11.sp,
-                    color = IceCyanPrimary,
-                    maxLines = 1
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.width(8.dp))
-
-        Surface(
-            modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .clickable { onSyllabusClick() }
-                .background(Color(0x33102A45))
-                .border(1.dp, IceCyanPrimary.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                .padding(horizontal = 10.dp, vertical = 6.dp)
-                .testTag("dashboard_exam_badge")
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.MenuBook,
-                    contentDescription = null,
-                    tint = IceCyanPrimary,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "$daysUntilExam Days to Exam",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = GlassWhite,
-                    fontSize = 11.sp
-                )
-            }
-        }
-    }
-}
-
-// Overload for backward compatibility
-@Composable
-fun BrandHeader(
-    xp: Int,
-    level: Int,
-    onOpenDrawer: () -> Unit = {},
-    onBadgeClick: () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    BrandHeader(
-        daysUntilExam = 120,
-        onOpenDrawer = onOpenDrawer,
-        onSyllabusClick = onBadgeClick,
-        modifier = modifier
-    )
-}
-
-@Composable
-fun HeroArcCard(
-    dayNumber: Int,
-    totalDays: Int,
-    disciplineScore: Int,
-    boardExamDaysLeft: Long = 0,
-    streakDays: Int,
-    progressPercentage: Int,
-    onWinterArcClick: () -> Unit,
-    onBoardExamClick: () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    HeroGlassCard(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("hero_card"),
-        onClick = onWinterArcClick
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column {
                     Text(
-                        text = "ARC PROTOCOL",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = FrostBlueAccent,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.2.sp
-                    )
-                    Text(
-                        text = "Day $dayNumber / $totalDays",
-                        style = MaterialTheme.typography.displayMedium,
-                        fontWeight = FontWeight.Black,
-                        color = GlassWhite
-                    )
-                }
-
-                // Progress Ring with Discipline Score
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(68.dp)
-                ) {
-                    CircularProgressIndicator(
-                        progress = { disciplineScore / 100f },
-                        modifier = Modifier.fillMaxSize(),
-                        color = IceCyanPrimary,
-                        trackColor = Color(0x3338E1FF),
-                        strokeWidth = 6.dp,
-                        strokeCap = StrokeCap.Round
-                    )
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "$disciplineScore",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            color = GlassWhite
-                        )
-                        Text(
-                            text = "SCORE",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = IceCyanPrimary
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Sub Hero Metrics
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Board Exam Metric
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { onBoardExamClick() },
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0x40102142),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.3f))
-                ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.MenuBook,
-                                contentDescription = null,
-                                tint = FrostBlueAccent,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Board Exam",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = GlassWhiteMuted,
-                                fontSize = 10.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "$boardExamDaysLeft Days Left",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = GlassWhite
-                        )
-                    }
-                }
-
-                // Streak Metric
-                Surface(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0x40102142),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, FireOrange.copy(alpha = 0.3f))
-                ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.LocalFireDepartment,
-                                contentDescription = null,
-                                tint = FireOrange,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Current Streak",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = GlassWhiteMuted,
-                                fontSize = 10.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "$streakDays Days",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = FireOrange
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Day Progress Bar
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Today's Protocol Progress",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = GlassWhiteMuted
-                    )
-                    Text(
-                        text = "$progressPercentage%",
-                        style = MaterialTheme.typography.labelSmall,
+                        text = "View Planner →",
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = IceCyanPrimary
+                        color = IceCyanPrimary,
+                        modifier = Modifier
+                            .clickable { onNavigateToPlanner() }
+                            .padding(8.dp)
                     )
                 }
-                Spacer(modifier = Modifier.height(6.dp))
-                LinearProgressIndicator(
-                    progress = { progressPercentage / 100f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(CircleShape),
-                    color = IceCyanPrimary,
-                    trackColor = Color(0x331F3A60),
-                    strokeCap = StrokeCap.Round
-                )
             }
         }
     }
 }
 
 @Composable
-fun TaskItemCard(
+private fun MissionTaskRow(
     task: DailyPlanTaskEntity,
     onToggle: () -> Unit,
-    onStartFocus: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onStartFocus: () -> Unit
 ) {
-    val subjectColor = when (task.subject) {
-        "Physics" -> IceCyanPrimary
-        "Chemistry" -> FrostBlueAccent
-        "Biology" -> SuccessGreen
-        "English" -> WarningAmber
-        "Hindi" -> PurpleArc
-        "Workout" -> FireOrange
-        else -> IceCyanPrimary
+    val priority = when {
+        task.type == TaskType.PYQ || task.targetMinutes >= 60 -> "HIGH"
+        task.type == TaskType.REVISION -> "NORMAL"
+        else -> "MEDIUM"
     }
 
-    val typeIcon = when (task.type) {
-        TaskType.LECTURE -> Icons.Default.School
-        TaskType.NOTES -> Icons.Default.MenuBook
-        TaskType.REVISION -> Icons.Default.AutoAwesome
-        TaskType.PYQ -> Icons.Default.Science
-        TaskType.WORKOUT -> Icons.Default.FitnessCenter
-        TaskType.CUSTOM -> Icons.Default.CheckCircle
+    val priorityColor = when (priority) {
+        "HIGH" -> FireOrange
+        "MEDIUM" -> WarningAmber
+        else -> FrostBlueAccent
     }
 
     Surface(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
             .clickable { onToggle() },
-        shape = RoundedCornerShape(16.dp),
-        color = if (task.isCompleted) Color(0x2015305B) else FrostedNavyCard,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (task.isCompleted) SuccessGreen.copy(alpha = 0.5f) else Color(0x304B93D8)
-        )
+        shape = RoundedCornerShape(12.dp),
+        color = if (task.isCompleted) DarkNavy.copy(alpha = 0.35f) else FrostedNavyCard.copy(alpha = 0.8f),
+        border = BorderStroke(1.dp, if (task.isCompleted) SuccessGreen.copy(alpha = 0.25f) else GlassWhite.copy(alpha = 0.08f))
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Checkbox icon
-            Icon(
-                imageVector = if (task.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                contentDescription = if (task.isCompleted) "Completed" else "Incomplete",
-                tint = if (task.isCompleted) SuccessGreen else GlassWhiteMuted,
-                modifier = Modifier.size(24.dp)
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = subjectColor.copy(alpha = 0.2f),
-                        border = androidx.compose.foundation.BorderStroke(0.5.dp, subjectColor.copy(alpha = 0.6f))
-                    ) {
-                        Text(
-                            text = task.subject.uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = subjectColor,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    Text(
-                        text = "${task.targetMinutes} min",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontSize = 11.sp,
-                        color = GlassWhiteMuted
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Checkbox toggle
+                IconButton(
+                    onClick = onToggle,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = if (task.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                        contentDescription = "Toggle Task",
+                        tint = if (task.isCompleted) SuccessGreen else GlassWhiteMuted,
+                        modifier = Modifier.size(20.dp)
                     )
-
-                    if (task.movedFromDate != null) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "• Rolled Over",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 9.sp,
-                            color = WarningAmber
-                        )
-                    }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.width(8.dp))
 
-                Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (task.isCompleted) GlassWhiteMuted else GlassWhite,
-                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Subject tag
+                        Text(
+                            text = task.subject.uppercase(),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = IceCyanPrimary,
+                            letterSpacing = 0.5.sp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        // Priority Badge
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = priorityColor.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = priority,
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = priorityColor,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
 
-                if (task.details.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+
                     Text(
-                        text = task.details,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontSize = 11.sp,
-                        color = GlassWhiteMuted.copy(alpha = 0.8f),
-                        maxLines = 1
+                        text = task.title,
+                        fontSize = 13.sp,
+                        fontWeight = if (task.isCompleted) FontWeight.Normal else FontWeight.SemiBold,
+                        color = if (task.isCompleted) GlassWhiteMuted else GlassWhite,
+                        textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "${task.targetMinutes}m",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GlassWhiteMuted
+                )
 
-            // XP badge
-            GlowPill(
-                text = "+${task.xpReward} XP",
-                color = if (task.isCompleted) SuccessGreen else IceCyanPrimary
-            )
-
-            if (!task.isCompleted && onStartFocus != null) {
-                Spacer(modifier = Modifier.width(6.dp))
-                Surface(
-                    shape = CircleShape,
-                    color = IceCyanPrimary.copy(alpha = 0.2f),
-                    border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.6f)),
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .clickable { onStartFocus() }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
+                if (!task.isCompleted) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    IconButton(
+                        onClick = onStartFocus,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(IceCyanPrimary.copy(alpha = 0.15f), CircleShape)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = "Start Focus",
                             tint = IceCyanPrimary,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                     }
                 }
@@ -821,118 +876,300 @@ fun TaskItemCard(
 }
 
 @Composable
-fun TacticalQuickActionsRow(
-    onStartPomodoro: () -> Unit,
-    onNavigateToMistakeNotebook: () -> Unit,
-    onNavigateToFlashcards: () -> Unit,
-    onViewFullPlanner: () -> Unit,
-    modifier: Modifier = Modifier
+private fun MissionEmptyState(
+    onGeneratePlan: () -> Unit,
+    onAddTask: () -> Unit
 ) {
     Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "TACTICAL LAB TOOLS",
-            style = MaterialTheme.typography.labelSmall,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 1.2.sp,
-            color = IceCyanPrimary.copy(alpha = 0.8f)
+        Icon(
+            imageVector = Icons.Default.TaskAlt,
+            contentDescription = null,
+            tint = IceCyanPrimary.copy(alpha = 0.6f),
+            modifier = Modifier.size(36.dp)
         )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TacticalToolCard(
-                title = "Focus Cockpit",
-                subtitle = "Deep Timer",
-                icon = Icons.Default.Timer,
-                iconTint = IceCyanPrimary,
-                onClick = onStartPomodoro,
-                modifier = Modifier.weight(1f)
-            )
-
-            TacticalToolCard(
-                title = "Mistake Audit",
-                subtitle = "Error Traps",
-                icon = Icons.Default.Edit,
-                iconTint = WarningAmber,
-                onClick = onNavigateToMistakeNotebook,
-                modifier = Modifier.weight(1f)
-            )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "No tasks available.",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = GlassWhite
+        )
+        Text(
+            text = "Generate today's exam plan or create custom tasks.",
+            fontSize = 11.sp,
+            color = GlassWhiteMuted
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = onGeneratePlan,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary, contentColor = DarkNavy)
+            ) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Generate Today's Plan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+            OutlinedButton(
+                onClick = onAddTask,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = GlassWhite)
+            ) {
+                Text("Create Task", fontSize = 11.sp)
+            }
         }
+    }
+}
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TacticalToolCard(
-                title = "SM-2 Recall",
-                subtitle = "AI Flashcards",
-                icon = Icons.Default.MenuBook,
-                iconTint = FrostBlueAccent,
-                onClick = onNavigateToFlashcards,
-                modifier = Modifier.weight(1f)
+// =========================================================================
+// SECTION 4: STUDY PROGRESS
+// =========================================================================
+
+@Composable
+private fun StudyProgressSection(
+    studyMinutes: Int,
+    targetStudyMinutes: Int,
+    completedTasks: Int,
+    totalTasks: Int,
+    completedHabits: Int,
+    totalHabits: Int
+) {
+    FrostedGlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("study_progress_section")
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Text(
+                text = "STUDY PROGRESS",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = GlassWhite,
+                letterSpacing = 0.5.sp
+            )
+            Text(
+                text = "Execution Metrics for Today",
+                fontSize = 11.sp,
+                color = GlassWhiteMuted
             )
 
-            TacticalToolCard(
-                title = "Timetable",
-                subtitle = "Task Protocol",
-                icon = Icons.Default.AutoAwesome,
-                iconTint = PurpleArc,
-                onClick = onViewFullPlanner,
-                modifier = Modifier.weight(1f)
-            )
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Study Time
+                val hours = studyMinutes / 60
+                val mins = studyMinutes % 60
+                val targetHours = targetStudyMinutes / 60
+                val studyFraction = if (targetStudyMinutes > 0) (studyMinutes.toFloat() / targetStudyMinutes).coerceIn(0f, 1f) else 0f
+
+                ProgressMetricCard(
+                    title = "Study Time",
+                    primaryValue = "${hours}h ${mins}m",
+                    targetValue = "/ ${targetHours}h",
+                    fraction = studyFraction,
+                    barColor = IceCyanPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Tasks
+                val taskFraction = if (totalTasks > 0) (completedTasks.toFloat() / totalTasks).coerceIn(0f, 1f) else 0f
+                ProgressMetricCard(
+                    title = "Tasks",
+                    primaryValue = "$completedTasks",
+                    targetValue = "/ $totalTasks",
+                    fraction = taskFraction,
+                    barColor = ElectricBlue,
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Habits
+                val habitFraction = if (totalHabits > 0) (completedHabits.toFloat() / totalHabits).coerceIn(0f, 1f) else 0f
+                ProgressMetricCard(
+                    title = "Habits",
+                    primaryValue = "$completedHabits",
+                    targetValue = "/ $totalHabits",
+                    fraction = habitFraction,
+                    barColor = SuccessGreen,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun TacticalToolCard(
+private fun ProgressMetricCard(
     title: String,
-    subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconTint: Color,
-    onClick: () -> Unit,
+    primaryValue: String,
+    targetValue: String,
+    fraction: Float,
+    barColor: Color,
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier
-            .height(60.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() },
+        modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        color = Color(0x28122A4E),
-        border = BorderStroke(1.dp, iconTint.copy(alpha = 0.35f))
+        color = DarkNavy.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, GlassWhite.copy(alpha = 0.08f))
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(10.dp)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(20.dp)
+            Text(
+                text = title,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = GlassWhiteMuted
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = GlassWhite,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = primaryValue,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = GlassWhite
                 )
+                Spacer(modifier = Modifier.width(3.dp))
                 Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
+                    text = targetValue,
+                    fontSize = 10.sp,
+                    color = GlassWhiteMuted,
+                    modifier = Modifier.padding(bottom = 1.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { fraction },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = barColor,
+                trackColor = DarkNavy,
+                strokeCap = StrokeCap.Round
+            )
+        }
+    }
+}
+
+// =========================================================================
+// SECTION 5: TODAY'S SCHEDULE (Timeline)
+// =========================================================================
+
+@Composable
+private fun TodayScheduleTimelineSection(
+    timeline: List<DashboardScheduleItem>
+) {
+    FrostedGlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("today_schedule_section")
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "TODAY'S SCHEDULE",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = GlassWhite,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        text = "Automated Day Timeline",
+                        fontSize = 11.sp,
+                        color = GlassWhiteMuted
+                    )
+                }
+
+                Icon(
+                    imageVector = Icons.Default.CalendarToday,
+                    contentDescription = null,
+                    tint = IceCyanPrimary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                timeline.forEachIndexed { index, item ->
+                    ScheduleTimelineRow(
+                        item = item,
+                        isLast = index == timeline.lastIndex
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleTimelineRow(
+    item: DashboardScheduleItem,
+    isLast: Boolean
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Time badge
+        Surface(
+            modifier = Modifier.width(68.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = DarkNavy.copy(alpha = 0.6f),
+            border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.2f))
+        ) {
+            Text(
+                text = item.timeDisplay,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = IceCyanPrimary,
+                modifier = Modifier.padding(vertical = 4.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        // Dot
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(
+                    if (item.isCompleted) SuccessGreen else IceCyanPrimary.copy(alpha = 0.5f),
+                    CircleShape
+                )
+        )
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        // Title and Subtitle
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.title,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (item.isCompleted) GlassWhiteMuted else GlassWhite,
+                textDecoration = if (item.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (item.subtitle.isNotBlank()) {
+                Text(
+                    text = item.subtitle,
                     fontSize = 10.sp,
                     color = GlassWhiteMuted,
                     maxLines = 1,
@@ -940,817 +1177,518 @@ private fun TacticalToolCard(
                 )
             }
         }
+
+        // Category Tag
+        Surface(
+            shape = RoundedCornerShape(6.dp),
+            color = FrostedNavyCard.copy(alpha = 0.7f)
+        ) {
+            Text(
+                text = item.category,
+                fontSize = 9.sp,
+                color = GlassWhiteMuted,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+    }
+}
+
+// =========================================================================
+// SECTION 6: HABITS
+// =========================================================================
+
+@Composable
+private fun HabitsQuickCompletionSection(
+    habits: List<HabitWithStatus>,
+    onToggleHabit: (HabitWithStatus) -> Unit
+) {
+    FrostedGlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("habits_section")
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "HABITS",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = GlassWhite,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        text = "One-Tap Daily Consistency",
+                        fontSize = 11.sp,
+                        color = GlassWhiteMuted
+                    )
+                }
+
+                val completed = habits.count { it.isCompletedToday }
+                Text(
+                    text = "$completed / ${habits.size} Done",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (completed == habits.size) SuccessGreen else IceCyanPrimary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                habits.forEach { habitStatus ->
+                    HabitQuickRow(
+                        habitStatus = habitStatus,
+                        onToggle = { onToggleHabit(habitStatus) }
+                    )
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun FocusPresetChip(
+private fun HabitQuickRow(
+    habitStatus: HabitWithStatus,
+    onToggle: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() },
+        shape = RoundedCornerShape(10.dp),
+        color = if (habitStatus.isCompletedToday) DarkNavy.copy(alpha = 0.4f) else FrostedNavyCard.copy(alpha = 0.7f),
+        border = BorderStroke(
+            1.dp,
+            if (habitStatus.isCompletedToday) SuccessGreen.copy(alpha = 0.35f) else GlassWhite.copy(alpha = 0.08f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (habitStatus.isCompletedToday) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                    contentDescription = null,
+                    tint = if (habitStatus.isCompletedToday) SuccessGreen else GlassWhiteMuted,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = habitStatus.habit.name,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (habitStatus.isCompletedToday) GlassWhite else GlassWhiteMuted,
+                    textDecoration = if (habitStatus.isCompletedToday) TextDecoration.None else TextDecoration.None
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (habitStatus.habit.streak > 0) {
+                    Icon(
+                        imageVector = Icons.Default.LocalFireDepartment,
+                        contentDescription = null,
+                        tint = FireOrange,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "${habitStatus.habit.streak}d",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = FireOrange
+                    )
+                }
+            }
+        }
+    }
+}
+
+// =========================================================================
+// SECTION 7: SUBJECT PROGRESS
+// =========================================================================
+
+@Composable
+private fun SubjectProgressSection(
+    summaries: List<SyllabusSubjectSummary>,
+    onSubjectClick: () -> Unit
+) {
+    FrostedGlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("subject_progress_section")
+            .clickable { onSubjectClick() }
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "SUBJECT PROGRESS",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = GlassWhite,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        text = "Class 12 Curriculum Tracking",
+                        fontSize = 11.sp,
+                        color = GlassWhiteMuted
+                    )
+                }
+
+                Text(
+                    text = "Full Syllabus →",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = IceCyanPrimary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                summaries.take(4).forEach { sub ->
+                    val color = when (sub.code) {
+                        "PHYSICS" -> ElectricBlue
+                        "CHEMISTRY" -> LuxuryAccent
+                        "BIOLOGY" -> SuccessGreen
+                        "HINDI" -> WarningAmber
+                        else -> FrostBlueAccent
+                    }
+
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = sub.name,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = GlassWhite
+                            )
+                            Text(
+                                text = "${sub.percentage}% (${sub.completedChapters}/${sub.totalChapters} ch)",
+                                fontSize = 11.sp,
+                                color = color,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LinearProgressIndicator(
+                            progress = { (sub.percentage / 100f).coerceIn(0f, 1f) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(5.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = color,
+                            trackColor = DarkNavy.copy(alpha = 0.6f),
+                            strokeCap = StrokeCap.Round
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// =========================================================================
+// SECTION 8: AI COACH (Only One Recommendation)
+// =========================================================================
+
+@Composable
+private fun AiCoachSingleCard(
+    recommendation: DashboardAiRecommendation,
+    onExecuteRecommendation: () -> Unit,
+    onOpenJarvis: () -> Unit
+) {
+    FrostedGlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("ai_coach_card"),
+        borderBrush = Brush.linearGradient(
+            listOf(LuxuryAccent.copy(alpha = 0.45f), IceCyanPrimary.copy(alpha = 0.2f))
+        )
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(LuxuryAccent.copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = null,
+                            tint = LuxuryAccent,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "AI COACH",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = LuxuryAccent,
+                        letterSpacing = 1.sp
+                    )
+                }
+
+                Text(
+                    text = "Open JARVIS",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = IceCyanPrimary,
+                    modifier = Modifier.clickable { onOpenJarvis() }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = recommendation.headline,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = GlassWhite
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = recommendation.recommendation,
+                fontSize = 12.sp,
+                color = GlassWhiteMuted,
+                lineHeight = 17.sp
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = onExecuteRecommendation,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = LuxuryAccent.copy(alpha = 0.2f),
+                    contentColor = LuxuryAccent
+                ),
+                border = BorderStroke(1.dp, LuxuryAccent.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(15.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Execute Recommended Focus Block",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+// =========================================================================
+// SECTION 9: QUICK ACTIONS
+// =========================================================================
+
+@Composable
+private fun QuickActionsSection(
+    onAddTask: () -> Unit,
+    onAddNote: () -> Unit,
+    onGeneratePlan: () -> Unit,
+    onStartFocus: () -> Unit
+) {
+    FrostedGlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("quick_actions_section")
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Text(
+                text = "QUICK ACTIONS",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = GlassWhite,
+                letterSpacing = 0.5.sp
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                QuickActionButton(
+                    icon = Icons.Default.Add,
+                    label = "Add Task",
+                    onClick = onAddTask,
+                    modifier = Modifier.weight(1f)
+                )
+                QuickActionButton(
+                    icon = Icons.Default.NoteAdd,
+                    label = "Add Note",
+                    onClick = onAddNote,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                QuickActionButton(
+                    icon = Icons.Default.AutoAwesome,
+                    label = "Gen Plan",
+                    onClick = onGeneratePlan,
+                    modifier = Modifier.weight(1f)
+                )
+                QuickActionButton(
+                    icon = Icons.Default.Timer,
+                    label = "Start Focus",
+                    onClick = onStartFocus,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    minutes: Int,
-    isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier
-            .height(34.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .height(44.dp)
             .clickable { onClick() },
-        shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) IceCyanPrimary.copy(alpha = 0.25f) else Color(0x22102142),
-        border = BorderStroke(
-            1.dp,
-            if (isSelected) IceCyanPrimary else Color(0x2038E1FF)
-        )
+        shape = RoundedCornerShape(10.dp),
+        color = DarkNavy.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.2f))
     ) {
-        Box(
+        Row(
             modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = IceCyanPrimary,
+                modifier = Modifier.size(15.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
-                fontSize = 10.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) GlassWhite else GlassWhiteMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = GlassWhite
             )
         }
     }
 }
 
-@Composable
-fun SyllabusStudyHubCard(
-    currentTask: DailyPlanTaskEntity?,
-    daysUntilExam: Long,
-    totalTasksCount: Int,
-    completedTasksCount: Int,
-    onStartFocusPreset: (subject: String, chapter: String, durationMins: Int) -> Unit,
-    onCompleteTask: (DailyPlanTaskEntity) -> Unit,
-    onGeneratePlan: () -> Unit,
-    onSyllabusClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var selectedPresetMinutes by remember(currentTask?.id) {
-        mutableIntStateOf(currentTask?.targetMinutes?.coerceIn(15, 120) ?: 45)
-    }
+// =========================================================================
+// QUICK ADD TASK DIALOG
+// =========================================================================
 
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("syllabus_study_hub"),
-        shape = RoundedCornerShape(20.dp),
-        color = LuxuryCard,
-        border = BorderStroke(
-            1.5.dp,
-            Brush.linearGradient(
-                listOf(
-                    IceCyanPrimary.copy(alpha = 0.8f),
-                    ElectricBlue.copy(alpha = 0.5f),
-                    Color(0x334B93D8)
-                )
-            )
-        )
+@Composable
+private fun QuickAddTaskDialog(
+    onDismiss: () -> Unit,
+    onAddTask: (title: String, subject: String, targetMins: Int) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var selectedSubject by remember { mutableStateOf("Physics") }
+    var selectedMinutes by remember { mutableIntStateOf(45) }
+
+    val subjects = listOf("Physics", "Chemistry", "Biology", "English", "Hindi", "Revision")
+    val minutePresets = listOf(15, 30, 45, 60, 90)
+
+    RebuildDialog(
+        onDismiss = onDismiss,
+        title = "Create Today's Task",
+        confirmButtonText = "Schedule Task",
+        onConfirm = {
+            if (title.isNotBlank()) {
+                onAddTask(title, selectedSubject, selectedMinutes)
+            }
+        }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // 1. SYLLABUS HEADER STRIP (Tappable header)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { onSyllabusClick() }
-                    .background(Color(0x330B172E))
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.MenuBook,
-                        contentDescription = null,
-                        tint = IceCyanPrimary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = "CLASS 12 SYLLABUS TRACKER",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp,
-                            color = IceCyanPrimary,
-                            fontSize = 11.sp
-                        )
-                        Text(
-                            text = "Physics • Chemistry • Biology • Hindi • English",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 10.sp,
-                            color = GlassWhiteMuted
-                        )
-                    }
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = WarningAmber.copy(alpha = 0.2f),
-                    border = BorderStroke(0.5.dp, WarningAmber.copy(alpha = 0.5f))
-                ) {
-                    Text(
-                        text = "$daysUntilExam Days to Exam",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = WarningAmber,
-                        fontSize = 10.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-            }
-
-            // 2. IMMEDIATE STUDY TASK / WHAT TO STUDY NEXT
-            Row(
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("Task Title / Topic") },
+                placeholder = { Text("e.g. Electromagnetic Induction Numericals") },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = ElectricBlue,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "NEXT STUDY TOPIC",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        color = FrostBlueAccent
-                    )
-                }
-
-                Surface(
-                    modifier = Modifier.clickable { onSyllabusClick() },
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color(0x2238E1FF)
-                ) {
-                    Text(
-                        text = "Open Syllabus →",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = IceCyanPrimary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
-                }
-            }
-
-            if (currentTask != null) {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(0x350F223D),
-                    border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.4f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = ElectricBlue.copy(alpha = 0.25f),
-                                border = BorderStroke(0.5.dp, ElectricBlue)
-                            ) {
-                                Text(
-                                    text = currentTask.subject.uppercase(),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = IceCyanPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 10.sp,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                )
-                            }
-
-                            Text(
-                                text = "${currentTask.targetMinutes} mins target",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = GlassWhiteMuted,
-                                fontSize = 11.sp
-                            )
-                        }
-
-                        Text(
-                            text = currentTask.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = GlassWhite,
-                            fontSize = 15.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            } else {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0x250F223D),
-                    border = BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.25f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "All Scheduled Topics Done!",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = SuccessGreen
-                            )
-                            Text(
-                                text = "Explore the Syllabus Tracker to pick your next chapter.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = GlassWhiteMuted,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 3. STUDY TIMER TRIGGER
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "QUICK STUDY TIMER",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = FrostBlueAccent,
-                    fontSize = 10.sp
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(
-                        "25m Sprint" to 25,
-                        "45m Session" to 45,
-                        "60m Deep" to 60
-                    ).forEach { (label, mins) ->
-                        FocusPresetChip(
-                            label = label,
-                            minutes = mins,
-                            isSelected = selectedPresetMinutes == mins,
-                            onClick = { selectedPresetMinutes = mins },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Button(
-                        onClick = {
-                            val subj = currentTask?.subject ?: "Physics"
-                            val ch = currentTask?.title ?: "Syllabus Study"
-                            onStartFocusPreset(subj, ch, selectedPresetMinutes)
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp)
-                            .testTag("launch_study_timer"),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = IceCyanPrimary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Timer,
-                            contentDescription = null,
-                            tint = DarkNavy,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "START FOCUS (${selectedPresetMinutes}M)",
-                            color = DarkNavy,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 12.sp,
-                            letterSpacing = 0.5.sp
-                        )
-                    }
-
-                    if (currentTask != null) {
-                        OutlinedButton(
-                            onClick = { onCompleteTask(currentTask) },
-                            modifier = Modifier
-                                .height(44.dp)
-                                .testTag("primary_directive_done_button"),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.7f)),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = SuccessGreen
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = "Complete Task",
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Done",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun UnifiedExecutionCockpitCard(
-    currentTask: DailyPlanTaskEntity?,
-    arcDay: Int,
-    arcTargetDays: Int,
-    streakDays: Int,
-    disciplineScore: Int,
-    daysUntilExam: Long,
-    totalTasksCount: Int,
-    completedTasksCount: Int,
-    onStartFocusPreset: (subject: String, chapter: String, durationMins: Int) -> Unit,
-    onCompleteTask: (DailyPlanTaskEntity) -> Unit,
-    onGeneratePlan: () -> Unit,
-    onWinterArcClick: () -> Unit,
-    onBoardExamClick: () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    var selectedPresetMinutes by remember(currentTask?.id) {
-        mutableIntStateOf(currentTask?.targetMinutes?.coerceIn(15, 120) ?: 45)
-    }
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("unified_execution_cockpit"),
-        shape = RoundedCornerShape(20.dp),
-        color = LuxuryCard,
-        border = BorderStroke(
-            1.5.dp,
-            Brush.linearGradient(
-                listOf(
-                    IceCyanPrimary.copy(alpha = 0.8f),
-                    PurpleArc.copy(alpha = 0.5f),
-                    Color(0x334B93D8)
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = IceCyanPrimary,
+                    unfocusedBorderColor = GlassWhite.copy(alpha = 0.2f),
+                    focusedTextColor = GlassWhite,
+                    unfocusedTextColor = GlassWhite
                 )
             )
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // 1. INTEGRATED WINTER ARC TELEMETRY STRIP (Tappable header)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable { onWinterArcClick() }
-                    .background(Color(0x330B172E))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.TrendingUp,
-                        contentDescription = null,
-                        tint = PurpleArc,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Column {
-                        Text(
-                            text = "WINTER ARC • DAY $arcDay OF $arcTargetDays",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp,
-                            color = FrostBlueAccent,
-                            fontSize = 11.sp
-                        )
-                        Text(
-                            text = "Discipline Lock-In • Tap to View",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 10.sp,
-                            color = GlassWhiteMuted
-                        )
-                    }
-                }
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Streak Pill
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = FireOrange.copy(alpha = 0.2f),
-                        border = BorderStroke(0.5.dp, FireOrange.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.LocalFireDepartment,
-                                contentDescription = null,
-                                tint = FireOrange,
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = "${streakDays}D",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = FireOrange,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-
-                    // Exam Countdown Pill
-                    Surface(
-                        modifier = Modifier.clickable { onBoardExamClick() },
-                        shape = RoundedCornerShape(8.dp),
-                        color = WarningAmber.copy(alpha = 0.2f),
-                        border = BorderStroke(0.5.dp, WarningAmber.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Bolt,
-                                contentDescription = null,
-                                tint = WarningAmber,
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text(
-                                text = "${daysUntilExam}D EXAM",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = WarningAmber,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-
-                    // Score Gauge
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = IceCyanPrimary.copy(alpha = 0.2f),
-                        border = BorderStroke(0.5.dp, IceCyanPrimary.copy(alpha = 0.5f))
-                    ) {
-                        Text(
-                            text = "$disciplineScore%",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = IceCyanPrimary,
-                            fontSize = 11.sp,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                        )
-                    }
-                }
-            }
-
-            // 2. CORE DIRECTIVE: "WHAT SHOULD I DO RIGHT NOW?"
+            Text("Subject", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GlassWhiteMuted)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Bolt,
-                        contentDescription = null,
-                        tint = IceCyanPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "WHAT TO DO RIGHT NOW",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.2.sp,
-                        color = IceCyanPrimary
+                subjects.take(3).forEach { sub ->
+                    RebuildSelectorChip(
+                        text = sub,
+                        isSelected = selectedSubject == sub,
+                        onClick = { selectedSubject = sub }
                     )
                 }
-
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = if (currentTask != null) Color(0x33FFA726) else Color(0x334CAF50)
-                ) {
-                    Text(
-                        text = if (currentTask != null) "MISSION ACTIVE" else "RUNWAY CLEAR",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (currentTask != null) WarningAmber else SuccessGreen,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                subjects.drop(3).forEach { sub ->
+                    RebuildSelectorChip(
+                        text = sub,
+                        isSelected = selectedSubject == sub,
+                        onClick = { selectedSubject = sub }
                     )
                 }
             }
 
-            if (currentTask != null) {
-                val subjectColor = when (currentTask.subject) {
-                    "Physics" -> IceCyanPrimary
-                    "Chemistry" -> FrostBlueAccent
-                    "Biology" -> SuccessGreen
-                    "English" -> WarningAmber
-                    "Hindi" -> PurpleArc
-                    "Workout" -> FireOrange
-                    else -> IceCyanPrimary
-                }
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = subjectColor.copy(alpha = 0.2f),
-                            border = BorderStroke(0.5.dp, subjectColor.copy(alpha = 0.7f))
-                        ) {
-                            Text(
-                                text = currentTask.subject.uppercase(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = subjectColor,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-
-                        Text(
-                            text = "Target: ${currentTask.targetMinutes}m • +${currentTask.xpReward} XP",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = GlassWhiteMuted,
-                            fontSize = 11.sp
-                        )
-                    }
-
-                    Text(
-                        text = currentTask.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = GlassWhite,
-                        fontSize = 18.sp
+            Text("Target Minutes", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GlassWhiteMuted)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                minutePresets.forEach { mins ->
+                    RebuildSelectorChip(
+                        text = "${mins}m",
+                        isSelected = selectedMinutes == mins,
+                        onClick = { selectedMinutes = mins }
                     )
-
-                    if (currentTask.details.isNotBlank()) {
-                        Text(
-                            text = currentTask.details,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = GlassWhiteMuted,
-                            fontSize = 12.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                // 3. QUICK-ACTION POMODORO PRESETS & TRIGGER
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "FOCUS PRESET TRIGGER",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GlassWhiteMuted,
-                        letterSpacing = 1.sp
-                    )
-
-                    // Preset duration selection pills
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        FocusPresetChip(
-                            label = "25m Sprint",
-                            minutes = 25,
-                            isSelected = selectedPresetMinutes == 25,
-                            onClick = { selectedPresetMinutes = 25 },
-                            modifier = Modifier.weight(1f)
-                        )
-                        FocusPresetChip(
-                            label = "${currentTask.targetMinutes}m Target",
-                            minutes = currentTask.targetMinutes,
-                            isSelected = selectedPresetMinutes == currentTask.targetMinutes,
-                            onClick = { selectedPresetMinutes = currentTask.targetMinutes },
-                            modifier = Modifier.weight(1f)
-                        )
-                        FocusPresetChip(
-                            label = "50m Deep",
-                            minutes = 50,
-                            isSelected = selectedPresetMinutes == 50,
-                            onClick = { selectedPresetMinutes = 50 },
-                            modifier = Modifier.weight(1f)
-                        )
-                        FocusPresetChip(
-                            label = "90m Exam",
-                            minutes = 90,
-                            isSelected = selectedPresetMinutes == 90,
-                            onClick = { selectedPresetMinutes = 90 },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    // Main Action Launchers
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(
-                            onClick = {
-                                onStartFocusPreset(
-                                    currentTask.subject,
-                                    currentTask.title,
-                                    selectedPresetMinutes
-                                )
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .testTag("primary_directive_focus_button"),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = IceCyanPrimary,
-                                contentColor = Color(0xFF050816)
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "LAUNCH FOCUS (${selectedPresetMinutes}M)",
-                                fontWeight = FontWeight.Black,
-                                fontSize = 13.sp,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-
-                        OutlinedButton(
-                            onClick = { onCompleteTask(currentTask) },
-                            modifier = Modifier
-                                .height(48.dp)
-                                .testTag("primary_directive_done_button"),
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.7f)),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = SuccessGreen
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = "Complete Directive",
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Done",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-                }
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "All scheduled directives completed for today! Your runway is clear. Review mock errors in the Mistake Notebook or calibrate tomorrow's blueprint.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = GlassWhiteMuted,
-                        fontSize = 13.sp
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = onGeneratePlan,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(44.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0x331E3A68))
-                        ) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = IceCyanPrimary, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("CALIBRATE PLAN", fontWeight = FontWeight.Bold, color = IceCyanPrimary, fontSize = 12.sp)
-                        }
-
-                        Button(
-                            onClick = { onStartFocusPreset("General Focus", "Deep Work Session", 45) },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(44.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary, contentColor = Color(0xFF050816))
-                        ) {
-                            Icon(Icons.Default.Timer, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("FREE FOCUS", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
-                    }
                 }
             }
         }
     }
-}
-
-// Backward-compatibility alias
-@Composable
-fun PrimaryDirectiveCard(
-    currentTask: DailyPlanTaskEntity?,
-    onStartFocus: () -> Unit,
-    onCompleteTask: () -> Unit,
-    onGeneratePlan: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    UnifiedExecutionCockpitCard(
-        currentTask = currentTask,
-        arcDay = 1,
-        arcTargetDays = 90,
-        streakDays = 1,
-        disciplineScore = 80,
-        daysUntilExam = 90,
-        totalTasksCount = 1,
-        completedTasksCount = 0,
-        onStartFocusPreset = { _, _, _ -> onStartFocus() },
-        onCompleteTask = { onCompleteTask() },
-        onGeneratePlan = onGeneratePlan,
-        onWinterArcClick = {},
-        onBoardExamClick = {},
-        modifier = modifier
-    )
-}
-
-// Backward-compatibility alias
-@Composable
-fun QuickActionsRow(
-    onStartPomodoro: () -> Unit,
-    onViewFullPlanner: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    TacticalQuickActionsRow(
-        onStartPomodoro = onStartPomodoro,
-        onNavigateToMistakeNotebook = {},
-        onNavigateToFlashcards = {},
-        onViewFullPlanner = onViewFullPlanner,
-        modifier = modifier
-    )
 }

@@ -24,8 +24,11 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.ui.text.style.TextDecoration
+import com.example.ui.theme.SuccessGreen
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -275,6 +278,44 @@ fun AnalyticsMetricBox(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = GlassWhite
+            )
+        }
+    }
+}
+
+@Composable
+fun TaskItemCard(
+    task: com.example.data.local.entity.DailyPlanTaskEntity,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onToggle() }
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onToggle) {
+            Icon(
+                imageVector = if (task.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                contentDescription = null,
+                tint = if (task.isCompleted) SuccessGreen else GlassWhiteMuted
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "${task.subject}: ${task.title}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (task.isCompleted) GlassWhiteMuted else GlassWhite,
+                textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null
+            )
+            Text(
+                text = "${task.targetMinutes} mins • ${task.type.name}",
+                style = MaterialTheme.typography.labelSmall,
+                color = GlassWhiteMuted
             )
         }
     }

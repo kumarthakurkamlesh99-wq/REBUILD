@@ -371,7 +371,8 @@ fun RebuildAppScaffold(
                         onNavigateToWinterArc = { navController.navigate(Screen.Syllabus.route) },
                         onNavigateToRankReport = { navController.navigate(Screen.Syllabus.route) },
                         onNavigateToSyllabus = { navController.navigate(Screen.Syllabus.route) },
-                        onNavigateToJarvis = { navController.navigate(Screen.AiChat.route) }
+                        onNavigateToJarvis = { navController.navigate(Screen.AiChat.route) },
+                        onNavigateToNotes = { navController.navigate(Screen.Notes.route) }
                     )
                 }
 
