@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Button
@@ -114,6 +115,7 @@ fun HomeScreen(
     onNavigateToSyllabus: () -> Unit = {},
     onNavigateToJarvis: () -> Unit = {},
     onNavigateToNotes: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -168,6 +170,7 @@ fun HomeScreen(
                     onStartFocusWithPreset(task.subject, task.title, task.targetMinutes)
                 },
                 onGeneratePlan = { viewModel.generateTodayPlan() },
+                onImportPlan = onNavigateToSettings,
                 onAddTaskClick = { showAddTaskDialog = true },
                 onNavigateToPlanner = onNavigateToPlanner
             )
@@ -235,6 +238,7 @@ fun HomeScreen(
                 onAddTask = { showAddTaskDialog = true },
                 onAddNote = onNavigateToNotes,
                 onGeneratePlan = { viewModel.generateTodayPlan() },
+                onImportPlan = onNavigateToSettings,
                 onStartFocus = onNavigateToPomodoro
             )
         }
@@ -638,6 +642,7 @@ private fun TodaysMissionSection(
     onToggleTask: (DailyPlanTaskEntity) -> Unit,
     onStartTaskFocus: (DailyPlanTaskEntity) -> Unit,
     onGeneratePlan: () -> Unit,
+    onImportPlan: () -> Unit = {},
     onAddTaskClick: () -> Unit,
     onNavigateToPlanner: () -> Unit
 ) {
@@ -703,9 +708,10 @@ private fun TodaysMissionSection(
             Spacer(modifier = Modifier.height(14.dp))
 
             if (tasks.isEmpty()) {
-                // Empty state design (as strictly requested)
+                // Empty state design (as strictly requested: No tasks available, Generate Today's Plan, Import Plan, Create Task)
                 MissionEmptyState(
                     onGeneratePlan = onGeneratePlan,
+                    onImportPlan = onImportPlan,
                     onAddTask = onAddTaskClick
                 )
             } else {
@@ -878,6 +884,7 @@ private fun MissionTaskRow(
 @Composable
 private fun MissionEmptyState(
     onGeneratePlan: () -> Unit,
+    onImportPlan: () -> Unit = {},
     onAddTask: () -> Unit
 ) {
     Column(
@@ -900,27 +907,44 @@ private fun MissionEmptyState(
             color = GlassWhite
         )
         Text(
-            text = "Generate today's exam plan or create custom tasks.",
+            text = "Generate today's exam plan, import JSON, or create custom tasks.",
             fontSize = 11.sp,
             color = GlassWhiteMuted
         )
         Spacer(modifier = Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Button(
                 onClick = onGeneratePlan,
+                modifier = Modifier.weight(1.3f),
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary, contentColor = DarkNavy)
             ) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Generate Today's Plan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(13.dp))
+                Spacer(modifier = Modifier.width(3.dp))
+                Text("Generate Plan", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+            OutlinedButton(
+                onClick = onImportPlan,
+                modifier = Modifier.weight(1.1f),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, FrostBlueAccent.copy(alpha = 0.5f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = FrostBlueAccent)
+            ) {
+                Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(13.dp))
+                Spacer(modifier = Modifier.width(3.dp))
+                Text("Import Plan", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
             OutlinedButton(
                 onClick = onAddTask,
+                modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = GlassWhite)
             ) {
-                Text("Create Task", fontSize = 11.sp)
+                Text("Create Task", fontSize = 11.sp, maxLines = 1)
             }
         }
     }
@@ -1512,6 +1536,7 @@ private fun QuickActionsSection(
     onAddTask: () -> Unit,
     onAddNote: () -> Unit,
     onGeneratePlan: () -> Unit,
+    onImportPlan: () -> Unit = {},
     onStartFocus: () -> Unit
 ) {
     FrostedGlassCard(
@@ -1546,6 +1571,12 @@ private fun QuickActionsSection(
                     onClick = onAddNote,
                     modifier = Modifier.weight(1f)
                 )
+                QuickActionButton(
+                    icon = Icons.Default.Timer,
+                    label = "Start Focus",
+                    onClick = onStartFocus,
+                    modifier = Modifier.weight(1f)
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -1556,14 +1587,14 @@ private fun QuickActionsSection(
             ) {
                 QuickActionButton(
                     icon = Icons.Default.AutoAwesome,
-                    label = "Gen Plan",
+                    label = "Generate Plan",
                     onClick = onGeneratePlan,
                     modifier = Modifier.weight(1f)
                 )
                 QuickActionButton(
-                    icon = Icons.Default.Timer,
-                    label = "Start Focus",
-                    onClick = onStartFocus,
+                    icon = Icons.Default.Sync,
+                    label = "Import Plan",
+                    onClick = onImportPlan,
                     modifier = Modifier.weight(1f)
                 )
             }

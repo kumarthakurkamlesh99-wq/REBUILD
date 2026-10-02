@@ -512,6 +512,20 @@ fun SettingsScreen(
                                 fontSize = 14.sp
                             )
                         }
+                        if ((plan.schedule?.size ?: 0) > 0) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Schedule Slots", color = GlassWhiteMuted, fontSize = 13.sp)
+                                Text(
+                                    text = "${plan.schedule?.size ?: 0}",
+                                    color = IceCyanPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -726,6 +740,12 @@ fun SettingsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("✓ ", color = SuccessGreen, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             Text("${report.tasksCount} Tasks Imported", color = GlassWhite, fontSize = 14.sp)
+                        }
+                        if (report.scheduleCount > 0) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("✓ ", color = SuccessGreen, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("${report.scheduleCount} Schedule Blocks Imported", color = GlassWhite, fontSize = 14.sp)
+                            }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("✓ ", color = SuccessGreen, fontWeight = FontWeight.Bold, fontSize = 15.sp)

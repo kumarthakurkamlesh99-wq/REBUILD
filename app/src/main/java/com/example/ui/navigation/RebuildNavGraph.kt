@@ -372,7 +372,8 @@ fun RebuildAppScaffold(
                         onNavigateToRankReport = { navController.navigate(Screen.Syllabus.route) },
                         onNavigateToSyllabus = { navController.navigate(Screen.Syllabus.route) },
                         onNavigateToJarvis = { navController.navigate(Screen.AiChat.route) },
-                        onNavigateToNotes = { navController.navigate(Screen.Notes.route) }
+                        onNavigateToNotes = { navController.navigate(Screen.Notes.route) },
+                        onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
                     )
                 }
 
@@ -912,29 +913,12 @@ fun RebuildDrawerContent(
             )
         }
 
-        // Section 1: SYLLABUS & CURRICULUM
+        // Section 1: DAILY ROUTINE & DISCIPLINE
         item {
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = Color(0x11FFFFFF), thickness = 0.5.dp)
             Spacer(modifier = Modifier.height(4.dp))
-            DrawerSectionHeader(title = "SYLLABUS & CURRICULUM")
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Syllabus,
-                isSelected = currentRoute == Screen.Syllabus.route || currentRoute == Screen.Subjects.route,
-                highlightColor = IceCyanPrimary,
-                onClick = { onNavigate(Screen.Syllabus.route) }
-            )
-        }
-
-        // Section 2: STUDY TOOLS & RETENTION
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = Color(0x11FFFFFF), thickness = 0.5.dp)
-            Spacer(modifier = Modifier.height(4.dp))
-            DrawerSectionHeader(title = "STUDY TOOLS & RETENTION")
+            DrawerSectionHeader(title = "DAILY ROUTINE & DISCIPLINE")
         }
 
         item {
@@ -948,10 +932,72 @@ fun RebuildDrawerContent(
 
         item {
             DrawerNavigationItem(
+                screen = Screen.Schedule,
+                isSelected = currentRoute == Screen.Schedule.route,
+                highlightColor = WarningAmber,
+                onClick = { onNavigate(Screen.Schedule.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Alarms,
+                isSelected = currentRoute == Screen.Alarms.route,
+                highlightColor = FireOrange,
+                onClick = { onNavigate(Screen.Alarms.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Habits,
+                isSelected = currentRoute == Screen.Habits.route,
+                highlightColor = SuccessGreen,
+                onClick = { onNavigate(Screen.Habits.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
                 screen = Screen.Focus,
                 isSelected = currentRoute == Screen.Focus.route,
                 highlightColor = IceCyanPrimary,
                 onClick = { onNavigate(Screen.Focus.route) }
+            )
+        }
+
+        // Section 2: EXAM PREPARATION & TARGETS
+        item {
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = Color(0x11FFFFFF), thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(4.dp))
+            DrawerSectionHeader(title = "EXAM PREPARATION & TARGETS")
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Syllabus,
+                isSelected = currentRoute == Screen.Syllabus.route || currentRoute == Screen.Subjects.route,
+                highlightColor = IceCyanPrimary,
+                onClick = { onNavigate(Screen.Syllabus.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Goals,
+                isSelected = currentRoute == Screen.Goals.route,
+                highlightColor = WarningAmber,
+                onClick = { onNavigate(Screen.Goals.route) }
+            )
+        }
+
+        item {
+            DrawerNavigationItem(
+                screen = Screen.WinterArc,
+                isSelected = currentRoute == Screen.WinterArc.route,
+                highlightColor = LuxuryAccent,
+                onClick = { onNavigate(Screen.WinterArc.route) }
             )
         }
 
@@ -964,21 +1010,21 @@ fun RebuildDrawerContent(
             )
         }
 
-        // Section 3: ASSISTANT & SETTINGS
+        item {
+            DrawerNavigationItem(
+                screen = Screen.Analytics,
+                isSelected = currentRoute == Screen.Analytics.route,
+                highlightColor = FrostBlueAccent,
+                onClick = { onNavigate(Screen.Analytics.route) }
+            )
+        }
+
+        // Section 3: SYSTEM & PREFERENCES
         item {
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = Color(0x11FFFFFF), thickness = 0.5.dp)
             Spacer(modifier = Modifier.height(4.dp))
-            DrawerSectionHeader(title = "ASSISTANT & SETTINGS")
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.AiChat,
-                isSelected = currentRoute == Screen.AiChat.route,
-                highlightColor = IceCyanPrimary,
-                onClick = { onNavigate(Screen.AiChat.route) }
-            )
+            DrawerSectionHeader(title = "SYSTEM & PREFERENCES")
         }
 
         item {

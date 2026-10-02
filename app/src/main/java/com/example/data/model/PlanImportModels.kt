@@ -7,6 +7,8 @@ import com.squareup.moshi.JsonClass
 data class PlanImport(
     @Json(name = "plan_name") val planName: String? = null,
     val version: Int? = 1,
+    @Json(name = "exam_date") val examDate: String? = null,
+    val schedule: List<PlanScheduleItem>? = emptyList(),
     val goals: List<PlanGoal>? = emptyList(),
     val tasks: List<PlanTask>? = emptyList(),
     val habits: List<PlanHabit>? = emptyList(),
@@ -14,6 +16,16 @@ data class PlanImport(
     @Json(name = "focus_sessions") val focusSessions: List<PlanFocusSession>? = emptyList(),
     val milestones: List<PlanMilestone>? = emptyList(),
     @Json(name = "xp_rules") val xpRules: PlanXpRules? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class PlanScheduleItem(
+    val time: String, // HH:mm or e.g. "04:00"
+    val title: String, // e.g. "Running", "School", "Physics"
+    val category: String? = "Study", // "Workout", "School", "Study", "Revision", "Routine"
+    @Json(name = "target_minutes") val targetMinutes: Int? = 45,
+    val type: String? = "LECTURE",
+    val details: String? = ""
 )
 
 @JsonClass(generateAdapter = true)
@@ -32,7 +44,8 @@ data class PlanTask(
     val details: String? = "",
     @Json(name = "target_minutes") val targetMinutes: Int? = 45,
     val date: String? = null, // yyyy-MM-dd
-    val xp: Int? = 0
+    val xp: Int? = 0,
+    val time: String? = null // HH:mm or "15:00"
 )
 
 @JsonClass(generateAdapter = true)
@@ -91,6 +104,7 @@ data class ImportReport(
     val planName: String,
     val goalsCount: Int,
     val tasksCount: Int,
+    val scheduleCount: Int = 0,
     val habitsCount: Int,
     val alarmsCount: Int
 )

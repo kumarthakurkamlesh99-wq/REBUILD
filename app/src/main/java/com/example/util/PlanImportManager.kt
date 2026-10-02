@@ -7,6 +7,9 @@ import com.example.data.local.AppDatabase
 import com.example.data.local.entity.*
 import com.example.data.model.*
 import com.example.notification.AlarmScheduler
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -108,6 +111,7 @@ class PlanImportManager(
         // Graceful default if missing
         val planName = root.findString("plan_name", "plan_title", "title", "name") ?: "Imported Plan"
         val version = root.findInt("version", default = 1)
+        val examDate = root.findString("exam_date", "board_exam_date", "examDate", "target_date")
 
         // 2. Goals Validation & Extraction (Strict required: Goal.title)
         val goals = mutableListOf<PlanGoal>()
@@ -202,6 +206,7 @@ class PlanImportManager(
                     val targetMinutes = tObj.findInt("target_minutes", "targetMinutes", "duration", "minutes", default = 45)
                     val date = tObj.findString("date", "target_date")
                     val xp = tObj.findInt("xp", "task_xp", default = 0)
+                    val time = tObj.findString("time", "start_time", "schedule_time")
                     tasks.add(
                         PlanTask(
                             title = title,
@@ -210,10 +215,36 @@ class PlanImportManager(
                             details = details,
                             targetMinutes = targetMinutes,
                             date = date,
-                            xp = xp
+                            xp = xp,
+                            time = time
                         )
                     )
                 }
+            }
+        }
+
+        // 3.5 Schedule / Timetable Validation & Extraction
+        val schedule = mutableListOf<PlanScheduleItem>()
+        val scheduleArray = root.findArray("schedule", "timetable", "time_table", "daily_schedule", "routine", "slots")
+        if (scheduleArray != null) {
+            for (i in 0 until scheduleArray.length()) {
+                val sObj = scheduleArray.optJSONObject(i) ?: continue
+                val time = sObj.findString("time", "slot_time", "start_time") ?: "09:00"
+                val title = sObj.findString("title", "name", "activity", "task") ?: "Study Block #${i + 1}"
+                val category = sObj.findString("category", "subject", "type") ?: "Study"
+                val targetMinutes = sObj.findInt("target_minutes", "duration", "minutes", default = 45)
+                val type = sObj.findString("type", "task_type") ?: "LECTURE"
+                val details = sObj.findString("details", "description", "desc", "notes") ?: ""
+                schedule.add(
+                    PlanScheduleItem(
+                        time = time,
+                        title = title,
+                        category = category,
+                        targetMinutes = targetMinutes,
+                        type = type,
+                        details = details
+                    )
+                )
             }
         }
 
@@ -352,7 +383,7 @@ class PlanImportManager(
 
         // 6. Optional Focus Sessions
         val focusSessions = mutableListOf<PlanFocusSession>()
-        val focusArray = root.findArray("focus_sessions", "focusSessions", "schedules")
+        val focusArray = root.findArray("focus_sessions", "focusSessions")
         if (focusArray != null) {
             for (i in 0 until focusArray.length()) {
                 val fObj = focusArray.optJSONObject(i) ?: continue
@@ -396,6 +427,8 @@ class PlanImportManager(
             val validatedPlan = PlanImport(
                 planName = planName,
                 version = version,
+                examDate = examDate,
+                schedule = schedule,
                 goals = goals,
                 tasks = tasks,
                 habits = habits,
@@ -433,8 +466,11 @@ class PlanImportManager(
     suspend fun importPlan(plan: PlanImport, replaceMode: Boolean): ImportReport = withContext(Dispatchers.IO) {
         createBackup()
 
+        val todayDateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
         var goalsImported = 0
         var tasksImported = 0
+        var scheduleImported = 0
         var habitsImported = 0
         var alarmsImported = 0
 
@@ -447,9 +483,21 @@ class PlanImportManager(
                 database.winterArcObjectivesDao().clearAllArcGoals()
             }
 
+            // Update Board Exam date if present
+            plan.examDate?.let { eDate ->
+                if (eDate.isNotBlank()) {
+                    val current = database.boardExamDao().getBoardExamConfigDirect()
+                    if (current != null) {
+                        database.boardExamDao().insertOrUpdate(current.copy(examDate = eDate))
+                    } else {
+                        database.boardExamDao().insertOrUpdate(BoardExamConfigEntity(examDate = eDate))
+                    }
+                }
+            }
+
             // Import Goals
             plan.goals?.forEach { g ->
-                val category = runCatching { GoalCategory.valueOf(g.category ?: "ACADEMIC") }
+                val category = runCatching { GoalCategory.valueOf(g.category?.uppercase() ?: "ACADEMIC") }
                     .getOrDefault(GoalCategory.ACADEMIC)
                 database.goalDao().insertGoal(
                     GoalEntity(
@@ -463,40 +511,110 @@ class PlanImportManager(
             }
 
             // Import Tasks
-            plan.tasks?.forEach { t ->
-                val type = runCatching { TaskType.valueOf(t.type ?: "LECTURE") }
-                    .getOrDefault(TaskType.LECTURE)
+            plan.tasks?.forEachIndexed { index, t ->
+                val type = when (t.type?.uppercase()) {
+                    "LECTURE" -> TaskType.LECTURE
+                    "NOTES" -> TaskType.NOTES
+                    "REVISION" -> TaskType.REVISION
+                    "PYQ" -> TaskType.PYQ
+                    "WORKOUT" -> TaskType.WORKOUT
+                    else -> TaskType.LECTURE
+                }
+
+                val taskDate = if (t.date.isNullOrBlank() || 
+                    t.date.equals("today", ignoreCase = true) || 
+                    t.date.equals("current", ignoreCase = true) || 
+                    t.date < todayDateStr
+                ) {
+                    todayDateStr
+                } else {
+                    t.date
+                }
+
+                val parsedTime = if (!t.time.isNullOrBlank()) parseTimeHourMinute(t.time) else null
+
                 database.dailyPlanDao().insertTask(
                     DailyPlanTaskEntity(
-                        date = t.date ?: "2026-09-11",
+                        date = taskDate,
                         subject = t.subject ?: "General",
                         title = t.title,
                         type = type,
                         details = t.details ?: "",
-                        targetMinutes = t.targetMinutes ?: 45
+                        targetMinutes = t.targetMinutes ?: 45,
+                        isCompleted = false,
+                        orderIndex = tasksImported,
+                        xpReward = if (t.xp != null && t.xp > 0) t.xp else 50,
+                        reminderHour = parsedTime?.first,
+                        reminderMinute = parsedTime?.second
                     )
                 )
                 tasksImported++
             }
 
-            // Import Focus Sessions
-            plan.focusSessions?.forEach { f ->
+            // Import Schedule Timeline Items as today's tasks
+            plan.schedule?.forEachIndexed { index, s ->
+                val parsedTime = parseTimeHourMinute(s.time)
+                val type = when (s.type?.uppercase()) {
+                    "WORKOUT" -> TaskType.WORKOUT
+                    "REVISION" -> TaskType.REVISION
+                    "PYQ" -> TaskType.PYQ
+                    "NOTES" -> TaskType.NOTES
+                    "LECTURE" -> TaskType.LECTURE
+                    else -> {
+                        if (s.category?.contains("workout", ignoreCase = true) == true || s.category?.contains("run", ignoreCase = true) == true) TaskType.WORKOUT
+                        else if (s.category?.contains("revision", ignoreCase = true) == true) TaskType.REVISION
+                        else TaskType.LECTURE
+                    }
+                }
+
                 database.dailyPlanDao().insertTask(
                     DailyPlanTaskEntity(
-                        date = "2026-09-11",
+                        date = todayDateStr,
+                        subject = s.category ?: "Schedule",
+                        title = s.title,
+                        type = type,
+                        details = s.details ?: "Scheduled at ${s.time}",
+                        targetMinutes = s.targetMinutes ?: 45,
+                        isCompleted = false,
+                        orderIndex = tasksImported + scheduleImported,
+                        xpReward = 50,
+                        reminderHour = parsedTime?.first,
+                        reminderMinute = parsedTime?.second
+                    )
+                )
+                scheduleImported++
+            }
+
+            // Import Focus Sessions
+            plan.focusSessions?.forEachIndexed { index, f ->
+                database.dailyPlanDao().insertTask(
+                    DailyPlanTaskEntity(
+                        date = todayDateStr,
                         subject = "Focus Session",
                         title = f.title,
                         type = TaskType.REVISION,
                         details = "Duration: ${f.duration ?: 25} minutes",
-                        targetMinutes = f.duration ?: 25
+                        targetMinutes = f.duration ?: 25,
+                        orderIndex = tasksImported + scheduleImported + index,
+                        xpReward = 40
                     )
                 )
+                tasksImported++
             }
 
             // Import Habits
             plan.habits?.forEach { h ->
-                val habitType = runCatching { HabitType.valueOf(h.habitType ?: "CUSTOM") }
-                    .getOrDefault(HabitType.CUSTOM)
+                val habitType = when (h.habitType?.uppercase()?.replace(" ", "_")?.replace("-", "_")) {
+                    "SLEEP", "WAKE", "WAKE_UP", "EARLY_WAKE" -> HabitType.SLEEP
+                    "WORKOUT", "FITNESS", "EXERCISE", "RUNNING", "GYM" -> HabitType.WORKOUT
+                    "DEEP_STUDY", "STUDY", "DEEPWORK", "8H_STUDY" -> HabitType.DEEP_STUDY
+                    "READING", "BOOK" -> HabitType.READING
+                    "NO_PORN", "NOFAP" -> HabitType.NO_PORN
+                    "NO_REELS", "NO_DOOMSCROLL", "SCREEN_TIME" -> HabitType.NO_REELS
+                    "MEDITATION", "MINDFULNESS" -> HabitType.MEDITATION
+                    "HYDRATION", "WATER" -> HabitType.HYDRATION
+                    else -> runCatching { HabitType.valueOf(h.habitType ?: "CUSTOM") }.getOrDefault(HabitType.CUSTOM)
+                }
                 database.habitDao().insertHabit(
                     HabitEntity(
                         name = h.name,
@@ -504,7 +622,8 @@ class PlanImportManager(
                         isNegativeHabit = h.isNegative ?: false,
                         targetUnit = h.targetUnit ?: "Completed",
                         targetNumeric = h.targetNumeric ?: 1,
-                        isDefault = false
+                        isDefault = false,
+                        isArchived = false
                     )
                 )
                 habitsImported++
@@ -524,32 +643,87 @@ class PlanImportManager(
                 )
             }
 
-            // Import Alarms - only user specified in plan
-            plan.alarms?.forEach { a ->
-                val parts = a.time.split(":")
-                val h = parts[0].toInt()
-                val m = parts[1].toInt()
+            // Import Alarms
+            val importedAlarms = plan.alarms ?: emptyList()
+            if (importedAlarms.isNotEmpty()) {
+                importedAlarms.forEach { a ->
+                    val parsedTime = parseTimeHourMinute(a.time) ?: Pair(6, 0)
+                    val challengeType = when (a.challengeType?.uppercase()) {
+                        "MATH" -> AlarmChallengeType.MATH
+                        "SHAKE", "PHYSICAL_SHAKE" -> AlarmChallengeType.PHYSICAL_SHAKE
+                        "CAPTCHA", "TYPING" -> AlarmChallengeType.CAPTCHA
+                        "WALK", "STEPS", "PHYSICAL_STEPS" -> AlarmChallengeType.PHYSICAL_STEPS
+                        else -> AlarmChallengeType.MATH
+                    }
 
-                val challengeType = runCatching { AlarmChallengeType.valueOf(a.challengeType ?: "MATH") }
-                    .getOrDefault(AlarmChallengeType.MATH)
+                    val difficulty = when (a.difficulty?.uppercase()) {
+                        "EASY" -> AlarmDifficulty.EASY
+                        "MEDIUM" -> AlarmDifficulty.MEDIUM
+                        "HARD", "EXTREME" -> AlarmDifficulty.HARD
+                        else -> AlarmDifficulty.MEDIUM
+                    }
 
-                val difficulty = runCatching { AlarmDifficulty.valueOf(a.difficulty ?: "MEDIUM") }
-                    .getOrDefault(AlarmDifficulty.MEDIUM)
-
-                val id = database.alarmDao().insertAlarm(
+                    val id = database.alarmDao().insertAlarm(
+                        AlarmEntity(
+                            title = a.title,
+                            hour = parsedTime.first,
+                            minute = parsedTime.second,
+                            isEnabled = true,
+                            challengeType = challengeType,
+                            challengeDifficulty = difficulty
+                        )
+                    )
+                    val entity = database.alarmDao().getAlarmById(id)
+                    if (entity != null) {
+                        AlarmScheduler.scheduleCustomAlarm(context, entity)
+                    }
+                    alarmsImported++
+                }
+            } else if (replaceMode) {
+                // Re-seed default essential alarms if replaceMode was selected and plan had no alarms
+                val defaultAlarms = listOf(
                     AlarmEntity(
-                        title = a.title,
-                        hour = h,
-                        minute = m,
-                        challengeType = challengeType,
-                        challengeDifficulty = difficulty
+                        title = "Apex Wake-Up Protocol",
+                        hour = 6,
+                        minute = 0,
+                        isEnabled = true,
+                        challengeType = AlarmChallengeType.MATH,
+                        challengeDifficulty = AlarmDifficulty.MEDIUM,
+                        volumePercent = 95,
+                        isVibrationEnabled = true,
+                        ringtonePreset = "CYBER_SIREN"
+                    ),
+                    AlarmEntity(
+                        title = "School Departure Call",
+                        hour = 9,
+                        minute = 15,
+                        isEnabled = true,
+                        challengeType = AlarmChallengeType.CAPTCHA,
+                        challengeDifficulty = AlarmDifficulty.EASY,
+                        volumePercent = 85,
+                        isVibrationEnabled = true,
+                        ringtonePreset = "ZEN_CHIME"
+                    ),
+                    AlarmEntity(
+                        title = "Evening Deep Focus Session",
+                        hour = 17,
+                        minute = 30,
+                        isEnabled = true,
+                        challengeType = AlarmChallengeType.PHYSICAL_SHAKE,
+                        challengeDifficulty = AlarmDifficulty.MEDIUM,
+                        volumePercent = 90,
+                        isVibrationEnabled = true,
+                        ringtonePreset = "APEX_HORNS"
                     )
                 )
-                val entity = database.alarmDao().getAlarmById(id)
-                if (entity != null) {
-                    AlarmScheduler.scheduleCustomAlarm(context, entity)
+                defaultAlarms.forEach {
+                    val id = database.alarmDao().insertAlarm(it)
+                    val entity = database.alarmDao().getAlarmById(id)
+                    if (entity != null) {
+                        AlarmScheduler.scheduleCustomAlarm(context, entity)
+                    }
                 }
-                alarmsImported++
+                alarmsImported = defaultAlarms.size
             }
         }
 
@@ -567,6 +741,7 @@ class PlanImportManager(
             planName = plan.planName ?: "Imported Plan",
             goalsCount = goalsImported,
             tasksCount = tasksImported,
+            scheduleCount = scheduleImported,
             habitsCount = habitsImported,
             alarmsCount = alarmsImported
         )
@@ -715,5 +890,22 @@ class PlanImportManager(
             }
         }
         return null
+    }
+
+    private fun parseTimeHourMinute(timeStr: String): Pair<Int, Int>? {
+        val clean = timeStr.trim()
+        return try {
+            val isPm = clean.contains("pm", ignoreCase = true)
+            val isAm = clean.contains("am", ignoreCase = true)
+            val timeWithoutAmPm = clean.replace(Regex("(?i)[apm\\s]"), "")
+            val parts = timeWithoutAmPm.split(":")
+            var hour = parts.getOrNull(0)?.toIntOrNull() ?: return null
+            val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+            if (isPm && hour < 12) hour += 12
+            if (isAm && hour == 12) hour = 0
+            Pair(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
+        } catch (e: Exception) {
+            null
+        }
     }
 }
