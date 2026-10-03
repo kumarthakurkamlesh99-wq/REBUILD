@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -761,50 +762,150 @@ fun AlarmEditDialog(
             testTag = "alarm_label_input"
         )
 
-                // Time Pickers (Hour & Minute)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // 12-Hour Time Picker (Hour 1-12, Minute 0-59, AM/PM)
+                val currentHour24 = uiState.inputHour
+                val isPm = currentHour24 >= 12
+                val currentHour12 = if (currentHour24 == 0) 12 else if (currentHour24 > 12) currentHour24 - 12 else currentHour24
+                val timePreview = String.format("%02d:%02d %s", currentHour12, uiState.inputMinute, if (isPm) "PM" else "AM")
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(FrostedNavyCard, RoundedCornerShape(12.dp))
+                        .padding(12.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Hour (0-23)", fontSize = 12.sp, color = GlassWhiteMuted)
-                        OutlinedTextField(
-                            value = "${uiState.inputHour}",
-                            onValueChange = {
-                                val h = it.toIntOrNull()?.coerceIn(0, 23) ?: 0
-                                viewModel.setInputTime(h, uiState.inputMinute)
-                            },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = GlassWhite,
-                                unfocusedTextColor = GlassWhite,
-                                focusedBorderColor = IceCyanPrimary,
-                                unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.4f),
-                                focusedContainerColor = DarkNavy,
-                                unfocusedContainerColor = DarkNavy
-                            )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Alarm Time (12-Hour Clock)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GlassWhiteMuted
+                        )
+                        Text(
+                            text = timePreview,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black,
+                            color = IceCyanPrimary
                         )
                     }
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Minute (0-59)", fontSize = 12.sp, color = GlassWhiteMuted)
-                        OutlinedTextField(
-                            value = "${uiState.inputMinute}",
-                            onValueChange = {
-                                val m = it.toIntOrNull()?.coerceIn(0, 59) ?: 0
-                                viewModel.setInputTime(uiState.inputHour, m)
-                            },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = GlassWhite,
-                                unfocusedTextColor = GlassWhite,
-                                focusedBorderColor = IceCyanPrimary,
-                                unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.4f),
-                                focusedContainerColor = DarkNavy,
-                                unfocusedContainerColor = DarkNavy
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Hour (1-12)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Hour (1-12)", fontSize = 11.sp, color = GlassWhiteMuted)
+                            OutlinedTextField(
+                                value = "$currentHour12",
+                                onValueChange = {
+                                    val h12 = it.filter { ch -> ch.isDigit() }.toIntOrNull()?.coerceIn(1, 12) ?: 12
+                                    val h24 = if (isPm) {
+                                        if (h12 == 12) 12 else h12 + 12
+                                    } else {
+                                        if (h12 == 12) 0 else h12
+                                    }
+                                    viewModel.setInputTime(h24, uiState.inputMinute)
+                                },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = GlassWhite,
+                                    unfocusedTextColor = GlassWhite,
+                                    focusedBorderColor = IceCyanPrimary,
+                                    unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.4f),
+                                    focusedContainerColor = DarkNavy,
+                                    unfocusedContainerColor = DarkNavy
+                                )
                             )
-                        )
+                        }
+
+                        // Minute (0-59)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Minute (0-59)", fontSize = 11.sp, color = GlassWhiteMuted)
+                            OutlinedTextField(
+                                value = String.format("%02d", uiState.inputMinute),
+                                onValueChange = {
+                                    val m = it.filter { ch -> ch.isDigit() }.toIntOrNull()?.coerceIn(0, 59) ?: 0
+                                    viewModel.setInputTime(uiState.inputHour, m)
+                                },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = GlassWhite,
+                                    unfocusedTextColor = GlassWhite,
+                                    focusedBorderColor = IceCyanPrimary,
+                                    unfocusedBorderColor = FrostBlueAccent.copy(alpha = 0.4f),
+                                    focusedContainerColor = DarkNavy,
+                                    unfocusedContainerColor = DarkNavy
+                                )
+                            )
+                        }
+
+                        // AM / PM Segmented Toggle
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Period", fontSize = 11.sp, color = GlassWhiteMuted)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(DarkNavy)
+                                    .padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clickable {
+                                            if (isPm) {
+                                                val newH = (uiState.inputHour - 12).coerceAtLeast(0)
+                                                viewModel.setInputTime(newH, uiState.inputMinute)
+                                            }
+                                        },
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (!isPm) IceCyanPrimary else Color.Transparent
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "AM",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = if (!isPm) DarkNavy else GlassWhiteMuted
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clickable {
+                                            if (!isPm) {
+                                                val newH = (uiState.inputHour + 12).coerceAtMost(23)
+                                                viewModel.setInputTime(newH, uiState.inputMinute)
+                                            }
+                                        },
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (isPm) IceCyanPrimary else Color.Transparent
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "PM",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = if (isPm) DarkNavy else GlassWhiteMuted
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 

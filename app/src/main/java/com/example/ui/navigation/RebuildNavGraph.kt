@@ -256,8 +256,8 @@ fun RebuildAppScaffold(
                     level = homeUiState.winterArcState.level,
                     arcDay = homeUiState.winterArcState.currentDay,
                     daysUntilExam = homeUiState.daysUntilExam,
-                    userName = userProfile?.name ?: "Kamlesh Kumar Thakur",
-                    userClass = "${userProfile?.studentClass ?: "Class 12"} • ${userProfile?.stream ?: "Science (PCM)"}",
+                    userName = userProfile?.name?.ifBlank { "User" } ?: "User",
+                    userClass = if (userProfile?.studentClass.isNullOrBlank()) "Student" else "${userProfile?.studentClass}${if (!userProfile?.stream.isNullOrBlank()) " • " + userProfile?.stream else ""}",
                     avatarUri = userProfile?.avatarUri ?: "",
                     onNavigate = closeDrawerAndNavigate
                 )
@@ -792,7 +792,7 @@ fun RebuildDrawerContent(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = userName.ifBlank { "Kamlesh Kumar Thakur" },
+                            text = userName.ifBlank { "User" },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp,
@@ -980,15 +980,6 @@ fun RebuildDrawerContent(
                 isSelected = currentRoute == Screen.Syllabus.route || currentRoute == Screen.Subjects.route,
                 highlightColor = IceCyanPrimary,
                 onClick = { onNavigate(Screen.Syllabus.route) }
-            )
-        }
-
-        item {
-            DrawerNavigationItem(
-                screen = Screen.Goals,
-                isSelected = currentRoute == Screen.Goals.route,
-                highlightColor = WarningAmber,
-                onClick = { onNavigate(Screen.Goals.route) }
             )
         }
 

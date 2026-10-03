@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Update
+import com.example.util.DateTimeUtils
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -434,7 +436,8 @@ fun TasksScreen(
                         task = task,
                         dynamicInfo = dynamicInfo,
                         onToggle = { viewModel.toggleTask(task) },
-                        onDelete = { viewModel.deleteTask(task) }
+                        onDelete = { viewModel.deleteTask(task) },
+                        onDelay = { mins -> viewModel.delayTask(task, mins) }
                     )
                 }
                 item {
@@ -480,7 +483,8 @@ fun DynamicTaskItemRow(
     task: DailyPlanTaskEntity,
     dynamicInfo: DynamicTaskScheduleItem?,
     onToggle: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onDelay: (mins: Int) -> Unit
 ) {
     val difficulty = dynamicInfo?.difficulty ?: DynamicStudyScheduler.evaluateDifficulty(task)
     val timeSlot = dynamicInfo?.predictedTimeSlot
@@ -499,6 +503,29 @@ fun DynamicTaskItemRow(
         else -> FrostBlueAccent
     }
 
+    val formattedTimeRange = remember(task.startTime, task.endTime, task.reminderHour, task.reminderMinute, task.targetMinutes, task.delayMinutes) {
+        DateTimeUtils.formatTaskTimeRange(
+            startTime = task.startTime,
+            endTime = task.endTime,
+            reminderHour = task.reminderHour,
+            reminderMinute = task.reminderMinute,
+            durationMinutes = task.targetMinutes,
+            delayMinutes = task.delayMinutes
+        )
+    }.ifBlank { timeSlot ?: "${task.targetMinutes}m" }
+
+    val isOverdue = remember(task.date, task.startTime, task.endTime, task.reminderHour, task.reminderMinute, task.targetMinutes, task.delayMinutes, task.isCompleted) {
+        !task.isCompleted && DateTimeUtils.isTaskOverdue(
+            taskDate = task.date,
+            startTime = task.startTime,
+            endTime = task.endTime,
+            reminderHour = task.reminderHour,
+            reminderMinute = task.reminderMinute,
+            durationMinutes = task.targetMinutes,
+            delayMinutes = task.delayMinutes
+        )
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -507,127 +534,255 @@ fun DynamicTaskItemRow(
         color = LuxuryCard,
         border = BorderStroke(
             1.dp,
-            if (task.isCompleted) SuccessGreen.copy(alpha = 0.5f) else accentColor.copy(alpha = 0.3f)
+            when {
+                task.isCompleted -> SuccessGreen.copy(alpha = 0.5f)
+                isOverdue -> WarningAmber.copy(alpha = 0.7f)
+                task.isDelayed -> IceCyanPrimary.copy(alpha = 0.5f)
+                else -> accentColor.copy(alpha = 0.3f)
+            }
         )
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = task.isCompleted,
-                onCheckedChange = { onToggle() },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = SuccessGreen,
-                    checkmarkColor = DarkNavy,
-                    uncheckedColor = GlassWhiteMuted
-                ),
-                modifier = Modifier.testTag("task_checkbox_${task.id}")
-            )
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = task.isCompleted,
+                    onCheckedChange = { onToggle() },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = SuccessGreen,
+                        checkmarkColor = DarkNavy,
+                        uncheckedColor = GlassWhiteMuted
+                    ),
+                    modifier = Modifier.testTag("task_checkbox_${task.id}")
+                )
 
-            Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                // Top Meta: Subject, Difficulty badge, Time slot
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = accentColor.copy(alpha = 0.2f)
+                Column(modifier = Modifier.weight(1f)) {
+                    // Top Meta: Subject, Difficulty badge, Time slot / Start-End range, Overdue badge
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = task.subject.uppercase(),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = accentColor,
-                            fontSize = 9.sp
-                        )
-                    }
-
-                    // Difficulty Tag
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = diffColor.copy(alpha = 0.15f),
-                        border = BorderStroke(0.5.dp, diffColor.copy(alpha = 0.6f))
-                    ) {
-                        Text(
-                            text = difficulty.label,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = diffColor,
-                            fontSize = 8.sp
-                        )
-                    }
-
-                    // Dynamic Time Slot
-                    if (!timeSlot.isNullOrBlank()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Schedule,
-                                contentDescription = "Time slot",
-                                tint = GlassWhiteMuted,
-                                modifier = Modifier.size(10.dp)
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = accentColor.copy(alpha = 0.2f)
+                        ) {
                             Text(
-                                text = timeSlot,
+                                text = task.subject.uppercase(),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = GlassWhiteMuted,
+                                fontWeight = FontWeight.Bold,
+                                color = accentColor,
                                 fontSize = 9.sp
                             )
                         }
+
+                        // Difficulty Tag
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = diffColor.copy(alpha = 0.15f),
+                            border = BorderStroke(0.5.dp, diffColor.copy(alpha = 0.6f))
+                        ) {
+                            Text(
+                                text = difficulty.label,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = diffColor,
+                                fontSize = 8.sp
+                            )
+                        }
+
+                        // Time Range Badge (12-hour format: e.g. 09:00 AM – 10:30 AM)
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = if (isOverdue) WarningAmber.copy(alpha = 0.2f) else IceCyanPrimary.copy(alpha = 0.15f),
+                            border = BorderStroke(0.5.dp, if (isOverdue) WarningAmber.copy(alpha = 0.6f) else IceCyanPrimary.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Schedule,
+                                    contentDescription = "Time slot",
+                                    tint = if (isOverdue) WarningAmber else IceCyanPrimary,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = formattedTimeRange,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isOverdue) WarningAmber else IceCyanPrimary,
+                                    fontSize = 9.sp
+                                )
+                            }
+                        }
+
+                        // Overdue or Delayed Badge
+                        if (isOverdue) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = WarningAmber.copy(alpha = 0.25f),
+                                border = BorderStroke(0.5.dp, WarningAmber)
+                            ) {
+                                Text(
+                                    text = "NOT PERFORMED",
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Black,
+                                    color = WarningAmber,
+                                    fontSize = 8.sp
+                                )
+                            }
+                        } else if (task.isDelayed) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = FrostBlueAccent.copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    text = "DELAYED (+${task.delayMinutes}m)",
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = FrostBlueAccent,
+                                    fontSize = 8.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = task.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (task.isCompleted) GlassWhiteMuted else GlassWhite,
+                        textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                        fontSize = 14.sp
+                    )
+
+                    if (task.details.isNotBlank()) {
+                        Text(
+                            text = task.details,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = GlassWhiteMuted,
+                            fontSize = 11.sp,
+                            maxLines = 2
+                        )
+                    }
+
+                    // Dynamic Adjustment Reason
+                    dynamicInfo?.adjustmentReason?.let { reason ->
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = "• $reason",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = IceCyanPrimary.copy(alpha = 0.8f),
+                            fontSize = 9.sp
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (task.isCompleted) GlassWhiteMuted else GlassWhite,
-                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
-                    fontSize = 14.sp
-                )
-
-                if (task.details.isNotBlank()) {
-                    Text(
-                        text = task.details,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = GlassWhiteMuted,
-                        fontSize = 11.sp,
-                        maxLines = 2
-                    )
-                }
-
-                // Dynamic Adjustment Reason
-                dynamicInfo?.adjustmentReason?.let { reason ->
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = "• $reason",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = IceCyanPrimary.copy(alpha = 0.8f),
-                        fontSize = 9.sp
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .testTag("delete_task_${task.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete Task",
+                        tint = GlassWhiteMuted.copy(alpha = 0.6f),
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier
-                    .size(32.dp)
-                    .testTag("delete_task_${task.id}")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete Task",
-                    tint = GlassWhiteMuted.copy(alpha = 0.6f),
-                    modifier = Modifier.size(16.dp)
-                )
+            // Delay / Postpone Actions for Uncompleted or Overdue Tasks
+            if (!task.isCompleted) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFF142B47),
+                            border = BorderStroke(0.5.dp, IceCyanPrimary.copy(alpha = 0.5f)),
+                            modifier = Modifier.clickable { onDelay(15) }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Update,
+                                    contentDescription = "Delay 15 mins",
+                                    tint = IceCyanPrimary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "+15m Delay",
+                                    color = IceCyanPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFF142B47),
+                            border = BorderStroke(0.5.dp, IceCyanPrimary.copy(alpha = 0.5f)),
+                            modifier = Modifier.clickable { onDelay(30) }
+                        ) {
+                            Text(
+                                text = "+30m",
+                                color = GlassWhite,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFF142B47),
+                            border = BorderStroke(0.5.dp, IceCyanPrimary.copy(alpha = 0.5f)),
+                            modifier = Modifier.clickable { onDelay(60) }
+                        ) {
+                            Text(
+                                text = "+1h",
+                                color = GlassWhite,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    if (isOverdue) {
+                        Text(
+                            text = "Unperformed • Delay Now",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = WarningAmber,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
             }
         }
     }

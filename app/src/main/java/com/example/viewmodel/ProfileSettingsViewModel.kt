@@ -14,17 +14,17 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class ProfileSettingsUiState(
-    val name: String = "Kamlesh Kumar Thakur",
-    val studentClass: String = "Class 12",
-    val board: String = "Bihar Board",
-    val stream: String = "Science (PCM)",
-    val targetPercentage: Int = 95,
+    val name: String = "",
+    val studentClass: String = "",
+    val board: String = "",
+    val stream: String = "",
+    val targetPercentage: Int = 90,
     val wakeUpTime: String = "06:00",
     val sleepTime: String = "22:30",
     val avatarUri: String = "",
-    val winterArcStartDate: String = "2026-08-01",
-    val targetExamDate: String = "2027-02-15",
-    val goal: String = "Crack Bihar Board Class 12 with 95%+ and build elite discipline",
+    val winterArcStartDate: String = "",
+    val targetExamDate: String = "",
+    val goal: String = "",
     val isSaving: Boolean = false,
     val isLoading: Boolean = true,
     val originalProfile: UserProfileEntity? = null
@@ -86,7 +86,7 @@ class ProfileSettingsViewModel(
         viewModelScope.launch {
             val base = s.originalProfile ?: UserProfileEntity()
             val updated = base.copy(
-                name = if (s.name.isBlank()) "Kamlesh Kumar Thakur" else s.name.trim(),
+                name = s.name.trim().ifBlank { base.name.ifBlank { "User" } },
                 studentClass = s.studentClass,
                 board = s.board,
                 stream = s.stream,

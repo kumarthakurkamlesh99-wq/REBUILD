@@ -192,8 +192,8 @@ class CertificateViewModel(
             val userProfile = repository.getUserProfile().firstOrNull()
             val winterArc = repository.getWinterArcState().firstOrNull()
 
-            val studentName = userProfile?.name?.ifBlank { "Kamlesh Kumar Thakur" } ?: "Kamlesh Kumar Thakur"
-            val studentClass = "${userProfile?.studentClass ?: "Class 12"} • ${userProfile?.stream ?: "Science (PCM)"}"
+            val studentName = userProfile?.name?.ifBlank { "Student" } ?: "Student"
+            val studentClass = if (userProfile?.studentClass.isNullOrBlank()) "" else "${userProfile?.studentClass}${if (!userProfile?.stream.isNullOrBlank()) " • " + userProfile?.stream else ""}"
             val xpVal = winterArc?.xp ?: 0
             val rank = RankLevelSystem.getRankForXp(xpVal)
             val currentLevel = rank.level

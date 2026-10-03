@@ -55,56 +55,7 @@ class AlarmsViewModel(
     init {
         viewModelScope.launch {
             rebuildRepository.getAllAlarms().collect { alarmsList ->
-                if (alarmsList.isEmpty()) {
-                    // Seed initial primary alarms
-                    val defaultAlarms = listOf(
-                        AlarmEntity(
-                            title = "Apex Wake-Up Protocol",
-                            hour = 6,
-                            minute = 0,
-                            isEnabled = true,
-                            challengeType = AlarmChallengeType.MATH,
-                            challengeDifficulty = AlarmDifficulty.MEDIUM,
-                            volumePercent = 95,
-                            isVibrationEnabled = true,
-                            maxSnoozes = 3,
-                            snoozeDurationMinutes = 5,
-                            ringtonePreset = "CYBER_SIREN",
-                            snoozeRingtonePreset = "TICK_TOCK"
-                        ),
-                        AlarmEntity(
-                            title = "School Departure Call",
-                            hour = 9,
-                            minute = 15,
-                            isEnabled = true,
-                            challengeType = AlarmChallengeType.CAPTCHA,
-                            challengeDifficulty = AlarmDifficulty.EASY,
-                            volumePercent = 85,
-                            isVibrationEnabled = true,
-                            maxSnoozes = 2,
-                            snoozeDurationMinutes = 5,
-                            ringtonePreset = "ZEN_CHIME",
-                            snoozeRingtonePreset = "BELL"
-                        ),
-                        AlarmEntity(
-                            title = "Evening Deep Focus Session",
-                            hour = 17,
-                            minute = 30,
-                            isEnabled = true,
-                            challengeType = AlarmChallengeType.PHYSICAL_SHAKE,
-                            challengeDifficulty = AlarmDifficulty.MEDIUM,
-                            volumePercent = 90,
-                            isVibrationEnabled = true,
-                            maxSnoozes = 2,
-                            snoozeDurationMinutes = 5,
-                            ringtonePreset = "APEX_HORNS",
-                            snoozeRingtonePreset = "TICK_TOCK"
-                        )
-                    )
-                    defaultAlarms.forEach { rebuildRepository.saveAlarm(it) }
-                } else {
-                    _uiState.update { it.copy(alarms = alarmsList) }
-                }
+                _uiState.update { it.copy(alarms = alarmsList) }
             }
         }
 

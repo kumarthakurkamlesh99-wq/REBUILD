@@ -36,5 +36,9 @@ data class DailyPlanTaskEntity(
     val movedFromDate: String? = null,
     val xpReward: Int = 50,
     val reminderHour: Int? = null,
-    val reminderMinute: Int? = null
+    val reminderMinute: Int? = null,
+    val startTime: String? = null,
+    val endTime: String? = null,
+    val isDelayed: Boolean = false,
+    val delayMinutes: Int = 0
 )

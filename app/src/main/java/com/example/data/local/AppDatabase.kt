@@ -115,7 +115,7 @@ import java.util.Locale
         RoadmapMilestoneEntity::class,
         CustomTrackerEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -238,6 +238,15 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `daily_plan_tasks` ADD COLUMN `startTime` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `daily_plan_tasks` ADD COLUMN `endTime` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `daily_plan_tasks` ADD COLUMN `isDelayed` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `daily_plan_tasks` ADD COLUMN `delayMinutes` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -245,7 +254,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "rebuild_os_database"
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_10_11)
                 .fallbackToDestructiveMigration()
                 .addCallback(DatabasePrepopulationCallback(scope))
                 .build()

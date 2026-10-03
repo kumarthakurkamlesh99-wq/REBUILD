@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,15 +19,22 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Update
+import androidx.compose.material.icons.filled.Schedule
+import com.example.util.DateTimeUtils
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -38,7 +46,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,9 +56,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.local.entity.DailyPlanTaskEntity
+import com.example.data.local.entity.TaskType
 import com.example.data.local.entity.UserProfileEntity
+import com.example.ui.components.RebuildSelectorChip
 import com.example.ui.components.RebuildTopAppBar
 import com.example.ui.theme.DarkNavy
 import com.example.ui.theme.ElectricBlue
@@ -80,6 +94,7 @@ fun ScheduleScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val profile = state.userProfile
+    var selectedTab by remember { mutableStateOf(0) } // 0 = Today's Plan, 1 = Master Routine
 
     val scheduleBlocks = remember(profile) {
         buildDynamicSchedule(profile)
@@ -96,68 +111,351 @@ fun ScheduleScreen(
             subtitle = if (profile != null) "${profile.studentClass} • ${profile.stream}" else "Time-blocked daily routine"
         )
 
+        // Schedule Mode Toggle Chips
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            RebuildSelectorChip(
+                text = "Today's Plan (${state.todayTasks.size})",
+                isSelected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                selectedColor = IceCyanPrimary
+            )
+            RebuildSelectorChip(
+                text = "Master Routine",
+                isSelected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                selectedColor = WarningAmber
+            )
+        }
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Timetable Blocks
-            items(scheduleBlocks) { block ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = LuxuryCard,
-                    border = BorderStroke(0.5.dp, block.accentColor.copy(alpha = 0.3f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+            if (selectedTab == 0) {
+                // Today's Plan Tasks / Imported schedule items
+                if (state.todayTasks.isEmpty()) {
+                    item {
                         Surface(
-                            shape = CircleShape,
-                            color = block.accentColor.copy(alpha = 0.15f),
-                            modifier = Modifier.size(42.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = LuxuryCard,
+                            border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.3f))
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
                                 Icon(
-                                    imageVector = block.icon,
+                                    imageVector = Icons.Default.AutoAwesome,
                                     contentDescription = null,
-                                    tint = block.accentColor,
-                                    modifier = Modifier.size(22.dp)
+                                    tint = IceCyanPrimary,
+                                    modifier = Modifier.size(40.dp)
                                 )
+                                Text(
+                                    text = "No Schedule Tasks For Today",
+                                    color = GlassWhite,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Text(
+                                    text = "Import a study plan JSON from Settings or generate your daily smart schedule below.",
+                                    color = GlassWhiteMuted,
+                                    fontSize = 13.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Button(
+                                    onClick = { viewModel.regeneratePlan() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = IceCyanPrimary),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.testTag("schedule_generate_plan_btn")
+                                ) {
+                                    Text("Generate Smart Plan", color = DarkNavy, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
+                    }
+                } else {
+                    items(state.todayTasks, key = { "schedule_task_${it.id}" }) { task ->
+                        val timeDisplay = remember(task.startTime, task.endTime, task.reminderHour, task.reminderMinute, task.targetMinutes, task.delayMinutes) {
+                            DateTimeUtils.formatTaskTimeRange(
+                                startTime = task.startTime,
+                                endTime = task.endTime,
+                                reminderHour = task.reminderHour,
+                                reminderMinute = task.reminderMinute,
+                                durationMinutes = task.targetMinutes,
+                                delayMinutes = task.delayMinutes
+                            )
+                        }.ifBlank { "${task.targetMinutes} mins" }
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                        val isOverdue = remember(task.date, task.startTime, task.endTime, task.reminderHour, task.reminderMinute, task.targetMinutes, task.delayMinutes, task.isCompleted) {
+                            !task.isCompleted && DateTimeUtils.isTaskOverdue(
+                                taskDate = task.date,
+                                startTime = task.startTime,
+                                endTime = task.endTime,
+                                reminderHour = task.reminderHour,
+                                reminderMinute = task.reminderMinute,
+                                durationMinutes = task.targetMinutes,
+                                delayMinutes = task.delayMinutes
+                            )
+                        }
 
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                        val accentColor = when (task.type) {
+                            TaskType.LECTURE -> IceCyanPrimary
+                            TaskType.NOTES -> FrostBlueAccent
+                            TaskType.REVISION -> WarningAmber
+                            TaskType.PYQ -> FireOrange
+                            TaskType.WORKOUT -> SuccessGreen
+                            else -> LuxuryAccent
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.toggleTask(task) },
+                            shape = RoundedCornerShape(16.dp),
+                            color = LuxuryCard,
+                            border = BorderStroke(
+                                0.5.dp,
+                                when {
+                                    task.isCompleted -> SuccessGreen.copy(alpha = 0.4f)
+                                    isOverdue -> WarningAmber.copy(alpha = 0.7f)
+                                    task.isDelayed -> IceCyanPrimary.copy(alpha = 0.5f)
+                                    else -> accentColor.copy(alpha = 0.3f)
+                                }
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = { viewModel.toggleTask(task) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (task.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                            contentDescription = "Toggle task completion",
+                                            tint = if (task.isCompleted) SuccessGreen else GlassWhiteMuted,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(10.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = task.title,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (task.isCompleted) GlassWhiteMuted else GlassWhite,
+                                                textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = if (isOverdue) WarningAmber.copy(alpha = 0.2f) else accentColor.copy(alpha = 0.15f),
+                                                border = BorderStroke(0.5.dp, if (isOverdue) WarningAmber else accentColor.copy(alpha = 0.5f))
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Schedule,
+                                                        contentDescription = null,
+                                                        tint = if (isOverdue) WarningAmber else accentColor,
+                                                        modifier = Modifier.size(10.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Text(
+                                                        text = timeDisplay,
+                                                        color = if (isOverdue) WarningAmber else accentColor,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 10.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = Color(0x22FFFFFF)
+                                            ) {
+                                                Text(
+                                                    text = task.subject,
+                                                    color = GlassWhiteMuted,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                )
+                                            }
+
+                                            if (isOverdue) {
+                                                Text(
+                                                    text = "NOT PERFORMED",
+                                                    color = WarningAmber,
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Black
+                                                )
+                                            } else if (task.isDelayed) {
+                                                Text(
+                                                    text = "DELAYED (+${task.delayMinutes}m)",
+                                                    color = FrostBlueAccent,
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+
+                                            if (task.details.isNotBlank()) {
+                                                Text(
+                                                    text = task.details,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = GlassWhiteMuted,
+                                                    fontSize = 11.sp,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Quick Delay Bar for uncompleted tasks
+                                if (!task.isCompleted) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFF142B47),
+                                            border = BorderStroke(0.5.dp, IceCyanPrimary.copy(alpha = 0.5f)),
+                                            modifier = Modifier.clickable { viewModel.delayTask(task, 15) }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Update,
+                                                    contentDescription = "Delay 15m",
+                                                    tint = IceCyanPrimary,
+                                                    modifier = Modifier.size(11.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(3.dp))
+                                                Text(
+                                                    text = "+15m Delay",
+                                                    color = IceCyanPrimary,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.width(6.dp))
+
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFF142B47),
+                                            border = BorderStroke(0.5.dp, IceCyanPrimary.copy(alpha = 0.5f)),
+                                            modifier = Modifier.clickable { viewModel.delayTask(task, 30) }
+                                        ) {
+                                            Text(
+                                                text = "+30m",
+                                                color = GlassWhite,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Timetable Blocks (Master Routine)
+                items(scheduleBlocks) { block ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = LuxuryCard,
+                        border = BorderStroke(0.5.dp, block.accentColor.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = block.accentColor.copy(alpha = 0.15f),
+                                modifier = Modifier.size(42.dp)
                             ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = block.icon,
+                                        contentDescription = null,
+                                        tint = block.accentColor,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = block.title,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = GlassWhite
+                                    )
+                                    Text(
+                                        text = block.timeSlot,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = block.accentColor,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = block.title,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = GlassWhite
-                                )
-                                Text(
-                                    text = block.timeSlot,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = block.accentColor,
-                                    fontSize = 10.sp
+                                    text = block.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = GlassWhiteMuted,
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp
                                 )
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = block.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = GlassWhiteMuted,
-                                fontSize = 12.sp,
-                                lineHeight = 16.sp
-                            )
                         }
                     }
                 }
@@ -171,13 +469,13 @@ fun ScheduleScreen(
 }
 
 private fun buildDynamicSchedule(profile: UserProfileEntity?): List<ScheduleTimeBlock> {
-    val wake = profile?.wakeUpTime ?: "06:00"
-    val sleep = profile?.sleepTime ?: "22:30"
+    val wake = DateTimeUtils.formatTo12Hour(profile?.wakeUpTime?.ifBlank { "06:00" } ?: "06:00")
+    val sleep = DateTimeUtils.formatTo12Hour(profile?.sleepTime?.ifBlank { "22:30" } ?: "22:30")
     val hasSchool = profile?.hasSchool ?: true
-    val schoolStart = profile?.schoolStartTime ?: "09:45"
-    val schoolEnd = profile?.schoolEndTime ?: "13:00"
+    val schoolStart = DateTimeUtils.formatTo12Hour(profile?.schoolStartTime?.ifBlank { "09:45" } ?: "09:45")
+    val schoolEnd = DateTimeUtils.formatTo12Hour(profile?.schoolEndTime?.ifBlank { "13:00" } ?: "13:00")
     val workoutType = profile?.workoutType ?: "Calisthenics"
-    val workoutTime = profile?.workoutTime ?: "17:00"
+    val workoutTime = DateTimeUtils.formatTo12Hour(profile?.workoutTime?.ifBlank { "17:00" } ?: "17:00")
     val workoutDur = profile?.workoutDurationMinutes ?: 30
     val stream = profile?.stream ?: "Science (PCM)"
 

@@ -10,6 +10,7 @@ import com.example.data.local.entity.SessionType
 import com.example.data.local.entity.StudySessionEntity
 import com.example.data.local.entity.SubjectEntity
 import com.example.data.repository.RebuildRepository
+import com.example.notification.NotificationHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -218,6 +219,24 @@ class PomodoroViewModel(private val repository: RebuildRepository) : ViewModel()
         val xp = if (currentState.isBreak) 0 else completedDurationMins * 2
 
         viewModelScope.launch {
+            // Trigger high-priority notification when focus mode completes
+            repository.context?.let { ctx ->
+                val notifTitle = if (currentState.isBreak) "Break Complete! ⚡" else "Focus Mode Finished! 🎯"
+                val notifMessage = if (currentState.isBreak) {
+                    "Break time is up. Ready for your next deep focus block?"
+                } else {
+                    "Great job! You completed ${completedDurationMins}m on ${currentState.selectedSubject}. +$xp XP earned!"
+                }
+                NotificationHelper.showNotification(
+                    context = ctx,
+                    notificationId = 88001,
+                    channelId = NotificationHelper.CHANNEL_POMODORO,
+                    title = notifTitle,
+                    message = notifMessage,
+                    priorityHigh = true
+                )
+            }
+
             if (!currentState.isBreak) {
                 repository.recordStudySession(
                     subjectName = currentState.selectedSubject,

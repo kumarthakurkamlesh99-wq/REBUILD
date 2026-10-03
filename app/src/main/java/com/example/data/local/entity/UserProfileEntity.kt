@@ -10,32 +10,32 @@ data class UserProfileEntity(
     val isCompleted: Boolean = false,
 
     // 1. Personal Details
-    val name: String = "Kamlesh Kumar Thakur",
-    val studentClass: String = "Class 12", // "Class 10", "Class 11", "Class 12", "Dropper / JEE / NEET", "College"
-    val board: String = "Bihar Board", // "Bihar Board", "CBSE", "ICSE", "State Board", "Other"
-    val stream: String = "Science (PCM)", // "Science (PCM)", "Science (PCB)", "Science (PCMB)", "Commerce", "Arts / Humanities", "General"
-    val targetPercentage: Int = 95,
-    val targetExamName: String = "Class 12 Board Exam 2027",
-    val targetExamDate: String = "2027-02-15", // "yyyy-MM-dd"
+    val name: String = "",
+    val studentClass: String = "", // "Class 10", "Class 11", "Class 12", "Dropper / JEE / NEET", "College"
+    val board: String = "", // "Bihar Board", "CBSE", "ICSE", "State Board", "Other"
+    val stream: String = "", // "Science (PCM)", "Science (PCB)", "Science (PCMB)", "Commerce", "Arts / Humanities", "General"
+    val targetPercentage: Int = 0,
+    val targetExamName: String = "",
+    val targetExamDate: String = "", // "yyyy-MM-dd"
     val avatarUri: String = "",
-    val winterArcStartDate: String = "2026-08-01", // "yyyy-MM-dd"
-    val goal: String = "Crack Bihar Board Class 12 with 95%+ and build elite discipline",
-    val primaryGoalsJson: String = "[\"Board Exams\"]", // Universal goals e.g. ["Coding", "Fitness", "NEET", "UPSC"]
+    val winterArcStartDate: String = "", // "yyyy-MM-dd"
+    val goal: String = "",
+    val primaryGoalsJson: String = "[]", // Universal goals e.g. ["Coding", "Fitness", "NEET", "UPSC"]
     val personaType: String = "Student", // "Student", "College", "Aspirant", "Coder", "Fitness", "Professional", "Entrepreneur"
     val customGoalStatement: String = "",
 
     // 2. Academic Details
-    val selectedSubjectsJson: String = "[\"Physics\", \"Chemistry\", \"Mathematics\", \"English\"]",
+    val selectedSubjectsJson: String = "[]",
     val strongSubjectsJson: String = "[]",
     val weakSubjectsJson: String = "[]",
-    val preparationLevel: String = "Intermediate (30-70%)", // "Beginner (<30%)", "Intermediate (30-70%)", "Advanced (>70%)"
+    val preparationLevel: String = "Beginner (<30%)", // "Beginner (<30%)", "Intermediate (30-70%)", "Advanced (>70%)"
 
     // 3. School Routine
-    val hasSchool: Boolean = true,
-    val schoolStartTime: String = "09:45", // "HH:mm" (Departure/Start)
-    val schoolEndTime: String = "13:00", // "HH:mm" (Return/Dispersal)
-    val travelTimeMinutes: Int = 25,
-    val weeklyOffDaysJson: String = "[\"Sunday\"]", // List of weekly off days e.g. ["Sunday"]
+    val hasSchool: Boolean = false,
+    val schoolStartTime: String = "", // "HH:mm" (Departure/Start)
+    val schoolEndTime: String = "", // "HH:mm" (Return/Dispersal)
+    val travelTimeMinutes: Int = 0,
+    val weeklyOffDaysJson: String = "[]", // List of weekly off days e.g. ["Sunday"]
 
     // 4. Study Preferences
     val wakeUpTime: String = "06:00", // "HH:mm"

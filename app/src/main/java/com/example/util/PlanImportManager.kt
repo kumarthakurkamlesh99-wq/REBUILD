@@ -206,7 +206,20 @@ class PlanImportManager(
                     val targetMinutes = tObj.findInt("target_minutes", "targetMinutes", "duration", "minutes", default = 45)
                     val date = tObj.findString("date", "target_date")
                     val xp = tObj.findInt("xp", "task_xp", default = 0)
-                    val time = tObj.findString("time", "start_time", "schedule_time")
+                    val rawTime = tObj.findString("time", "start_time", "schedule_time", "slot_time", "timing")
+                    var startTime = tObj.findString("start_time", "startTime", "from", "start") ?: rawTime
+                    var endTime = tObj.findString("end_time", "endTime", "to", "end")
+                    if (!rawTime.isNullOrBlank() && (rawTime.contains(" - ") || rawTime.contains(" – "))) {
+                        val delim = if (rawTime.contains(" – ")) " – " else " - "
+                        val parts = rawTime.split(delim)
+                        if (parts.size >= 2) {
+                            startTime = parts[0].trim()
+                            if (endTime.isNullOrBlank()) {
+                                endTime = parts[1].trim()
+                            }
+                        }
+                    }
+
                     tasks.add(
                         PlanTask(
                             title = title,
@@ -216,7 +229,9 @@ class PlanImportManager(
                             targetMinutes = targetMinutes,
                             date = date,
                             xp = xp,
-                            time = time
+                            time = rawTime,
+                            startTime = startTime,
+                            endTime = endTime
                         )
                     )
                 }
@@ -229,7 +244,19 @@ class PlanImportManager(
         if (scheduleArray != null) {
             for (i in 0 until scheduleArray.length()) {
                 val sObj = scheduleArray.optJSONObject(i) ?: continue
-                val time = sObj.findString("time", "slot_time", "start_time") ?: "09:00"
+                val rawTime = sObj.findString("time", "slot_time", "start_time", "timing") ?: "09:00"
+                var startTime = sObj.findString("start_time", "startTime", "from", "start") ?: rawTime
+                var endTime = sObj.findString("end_time", "endTime", "to", "end")
+                if (rawTime.contains(" - ") || rawTime.contains(" – ")) {
+                    val delim = if (rawTime.contains(" – ")) " – " else " - "
+                    val parts = rawTime.split(delim)
+                    if (parts.size >= 2) {
+                        startTime = parts[0].trim()
+                        if (endTime.isNullOrBlank()) {
+                            endTime = parts[1].trim()
+                        }
+                    }
+                }
                 val title = sObj.findString("title", "name", "activity", "task") ?: "Study Block #${i + 1}"
                 val category = sObj.findString("category", "subject", "type") ?: "Study"
                 val targetMinutes = sObj.findInt("target_minutes", "duration", "minutes", default = 45)
@@ -237,7 +264,9 @@ class PlanImportManager(
                 val details = sObj.findString("details", "description", "desc", "notes") ?: ""
                 schedule.add(
                     PlanScheduleItem(
-                        time = time,
+                        time = rawTime,
+                        startTime = startTime,
+                        endTime = endTime,
                         title = title,
                         category = category,
                         targetMinutes = targetMinutes,
@@ -531,9 +560,31 @@ class PlanImportManager(
                     t.date
                 }
 
-                val parsedTime = if (!t.time.isNullOrBlank()) parseTimeHourMinute(t.time) else null
+                val rawTime = t.startTime ?: t.time
+                var finalStartTime = rawTime
+                var finalEndTime = t.endTime
 
-                database.dailyPlanDao().insertTask(
+                if (!rawTime.isNullOrBlank() && (rawTime.contains(" - ") || rawTime.contains(" – "))) {
+                    val delim = if (rawTime.contains(" – ")) " – " else " - "
+                    val parts = rawTime.split(delim)
+                    if (parts.size >= 2) {
+                        finalStartTime = parts[0].trim()
+                        if (finalEndTime.isNullOrBlank()) {
+                            finalEndTime = parts[1].trim()
+                        }
+                    }
+                }
+
+                val s12 = if (!finalStartTime.isNullOrBlank()) DateTimeUtils.formatTo12Hour(finalStartTime) else null
+                val e12 = if (!finalEndTime.isNullOrBlank()) {
+                    DateTimeUtils.formatTo12Hour(finalEndTime)
+                } else if (!finalStartTime.isNullOrBlank()) {
+                    DateTimeUtils.calculateEndTime(finalStartTime, t.targetMinutes ?: 45)
+                } else null
+
+                val parsedTime = if (!finalStartTime.isNullOrBlank()) DateTimeUtils.parseHourMinute(finalStartTime) else null
+
+                val insertedTaskId = database.dailyPlanDao().insertTask(
                     DailyPlanTaskEntity(
                         date = taskDate,
                         subject = t.subject ?: "General",
@@ -545,15 +596,28 @@ class PlanImportManager(
                         orderIndex = tasksImported,
                         xpReward = if (t.xp != null && t.xp > 0) t.xp else 50,
                         reminderHour = parsedTime?.first,
-                        reminderMinute = parsedTime?.second
+                        reminderMinute = parsedTime?.second,
+                        startTime = s12,
+                        endTime = e12
                     )
                 )
+
+                if (parsedTime != null) {
+                    AlarmScheduler.scheduleTaskAlarm(
+                        context = context,
+                        taskId = insertedTaskId,
+                        hour = parsedTime.first,
+                        minute = parsedTime.second,
+                        title = t.title,
+                        subject = t.subject ?: "General"
+                    )
+                }
+
                 tasksImported++
             }
 
             // Import Schedule Timeline Items as today's tasks
             plan.schedule?.forEachIndexed { index, s ->
-                val parsedTime = parseTimeHourMinute(s.time)
                 val type = when (s.type?.uppercase()) {
                     "WORKOUT" -> TaskType.WORKOUT
                     "REVISION" -> TaskType.REVISION
@@ -567,21 +631,59 @@ class PlanImportManager(
                     }
                 }
 
-                database.dailyPlanDao().insertTask(
+                val rawTime = s.startTime ?: s.time
+                var finalStartTime = rawTime
+                var finalEndTime = s.endTime
+
+                if (!rawTime.isNullOrBlank() && (rawTime.contains(" - ") || rawTime.contains(" – "))) {
+                    val delim = if (rawTime.contains(" – ")) " – " else " - "
+                    val parts = rawTime.split(delim)
+                    if (parts.size >= 2) {
+                        finalStartTime = parts[0].trim()
+                        if (finalEndTime.isNullOrBlank()) {
+                            finalEndTime = parts[1].trim()
+                        }
+                    }
+                }
+
+                val s12 = if (!finalStartTime.isNullOrBlank()) DateTimeUtils.formatTo12Hour(finalStartTime) else null
+                val e12 = if (!finalEndTime.isNullOrBlank()) {
+                    DateTimeUtils.formatTo12Hour(finalEndTime)
+                } else if (!finalStartTime.isNullOrBlank()) {
+                    DateTimeUtils.calculateEndTime(finalStartTime, s.targetMinutes ?: 45)
+                } else null
+
+                val parsedTime = if (!finalStartTime.isNullOrBlank()) DateTimeUtils.parseHourMinute(finalStartTime) else null
+
+                val insertedScheduleId = database.dailyPlanDao().insertTask(
                     DailyPlanTaskEntity(
                         date = todayDateStr,
                         subject = s.category ?: "Schedule",
                         title = s.title,
                         type = type,
-                        details = s.details ?: "Scheduled at ${s.time}",
+                        details = s.details ?: (if (s12 != null && e12 != null) "Scheduled $s12 – $e12" else ""),
                         targetMinutes = s.targetMinutes ?: 45,
                         isCompleted = false,
                         orderIndex = tasksImported + scheduleImported,
                         xpReward = 50,
                         reminderHour = parsedTime?.first,
-                        reminderMinute = parsedTime?.second
+                        reminderMinute = parsedTime?.second,
+                        startTime = s12,
+                        endTime = e12
                     )
                 )
+
+                if (parsedTime != null) {
+                    AlarmScheduler.scheduleTaskAlarm(
+                        context = context,
+                        taskId = insertedScheduleId,
+                        hour = parsedTime.first,
+                        minute = parsedTime.second,
+                        title = s.title,
+                        subject = s.category ?: "Schedule"
+                    )
+                }
+
                 scheduleImported++
             }
 
@@ -679,51 +781,6 @@ class PlanImportManager(
                     }
                     alarmsImported++
                 }
-            } else if (replaceMode) {
-                // Re-seed default essential alarms if replaceMode was selected and plan had no alarms
-                val defaultAlarms = listOf(
-                    AlarmEntity(
-                        title = "Apex Wake-Up Protocol",
-                        hour = 6,
-                        minute = 0,
-                        isEnabled = true,
-                        challengeType = AlarmChallengeType.MATH,
-                        challengeDifficulty = AlarmDifficulty.MEDIUM,
-                        volumePercent = 95,
-                        isVibrationEnabled = true,
-                        ringtonePreset = "CYBER_SIREN"
-                    ),
-                    AlarmEntity(
-                        title = "School Departure Call",
-                        hour = 9,
-                        minute = 15,
-                        isEnabled = true,
-                        challengeType = AlarmChallengeType.CAPTCHA,
-                        challengeDifficulty = AlarmDifficulty.EASY,
-                        volumePercent = 85,
-                        isVibrationEnabled = true,
-                        ringtonePreset = "ZEN_CHIME"
-                    ),
-                    AlarmEntity(
-                        title = "Evening Deep Focus Session",
-                        hour = 17,
-                        minute = 30,
-                        isEnabled = true,
-                        challengeType = AlarmChallengeType.PHYSICAL_SHAKE,
-                        challengeDifficulty = AlarmDifficulty.MEDIUM,
-                        volumePercent = 90,
-                        isVibrationEnabled = true,
-                        ringtonePreset = "APEX_HORNS"
-                    )
-                )
-                defaultAlarms.forEach {
-                    val id = database.alarmDao().insertAlarm(it)
-                    val entity = database.alarmDao().getAlarmById(id)
-                    if (entity != null) {
-                        AlarmScheduler.scheduleCustomAlarm(context, entity)
-                    }
-                }
-                alarmsImported = defaultAlarms.size
             }
         }
 
@@ -892,20 +949,8 @@ class PlanImportManager(
         return null
     }
 
-    private fun parseTimeHourMinute(timeStr: String): Pair<Int, Int>? {
-        val clean = timeStr.trim()
-        return try {
-            val isPm = clean.contains("pm", ignoreCase = true)
-            val isAm = clean.contains("am", ignoreCase = true)
-            val timeWithoutAmPm = clean.replace(Regex("(?i)[apm\\s]"), "")
-            val parts = timeWithoutAmPm.split(":")
-            var hour = parts.getOrNull(0)?.toIntOrNull() ?: return null
-            val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
-            if (isPm && hour < 12) hour += 12
-            if (isAm && hour == 12) hour = 0
-            Pair(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
-        } catch (e: Exception) {
-            null
-        }
+    private fun parseTimeHourMinute(timeStr: String?): Pair<Int, Int>? {
+        if (timeStr.isNullOrBlank()) return null
+        return DateTimeUtils.parseHourMinute(timeStr)
     }
 }

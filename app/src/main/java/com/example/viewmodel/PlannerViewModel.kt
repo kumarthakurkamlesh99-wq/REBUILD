@@ -214,6 +214,12 @@ class PlannerViewModel(private val repository: RebuildRepository) : ViewModel() 
         repository.deleteTask(task)
     }
 
+    fun delayTask(task: DailyPlanTaskEntity, additionalMinutes: Int = 15) = viewModelScope.launch {
+        repository.delayTask(task, additionalMinutes)
+        val adjusted = repository.calculateDynamicSchedule(_energyLevel.value)
+        repository.applyDynamicScheduleOrder(adjusted)
+    }
+
     fun regeneratePlan() = viewModelScope.launch {
         repository.generateSmartDailyPlan(repository.getTodayDateString())
         val adjusted = repository.calculateDynamicSchedule(_energyLevel.value)

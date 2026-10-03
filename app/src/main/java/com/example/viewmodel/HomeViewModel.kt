@@ -14,6 +14,7 @@ import com.example.data.local.entity.TaskType
 import com.example.data.local.entity.UserProfileEntity
 import com.example.data.local.entity.WinterArcStateEntity
 import com.example.data.repository.RebuildRepository
+import com.example.util.DateTimeUtils
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -216,7 +217,7 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
         // Build dynamic schedule timeline
         val timeline = mutableListOf<DashboardScheduleItem>()
 
-        val wakeTime = profile?.wakeUpTime?.ifBlank { "05:00 AM" } ?: "05:00 AM"
+        val wakeTime = DateTimeUtils.formatTo12Hour(profile?.wakeUpTime?.ifBlank { "05:00 AM" } ?: "05:00 AM")
         timeline.add(
             DashboardScheduleItem(
                 id = "wake_routine",
@@ -229,10 +230,11 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
         )
 
         if (!profile?.schoolStartTime.isNullOrBlank()) {
+            val schoolStart12 = DateTimeUtils.formatTo12Hour(profile!!.schoolStartTime)
             timeline.add(
                 DashboardScheduleItem(
                     id = "school_transit",
-                    timeDisplay = profile!!.schoolStartTime,
+                    timeDisplay = schoolStart12,
                     title = "Academic School Hours",
                     subtitle = "Classes & syllabus coverage",
                     isCompleted = safeSchool.currentState == SchoolState.ARRIVED_HOME || safeSchool.currentState == SchoolState.TRAVELLING_HOME,
@@ -241,46 +243,25 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
             )
         }
 
-        if (statusBundle.tasks.isEmpty()) {
-            // Default placeholder slots if no tasks yet
-            timeline.add(
-                DashboardScheduleItem(
-                    id = "study_slot_1",
-                    timeDisplay = "03:30 PM",
-                    title = "Deep Study Block 1",
-                    subtitle = "Numericals & Core Science",
-                    isCompleted = false,
-                    category = "Study"
-                )
-            )
-            timeline.add(
-                DashboardScheduleItem(
-                    id = "study_slot_2",
-                    timeDisplay = "06:00 PM",
-                    title = "Practice & Question Solving",
-                    subtitle = "PYQs & Derivations",
-                    isCompleted = false,
-                    category = "Study"
-                )
-            )
-        } else {
+        if (statusBundle.tasks.isNotEmpty()) {
             statusBundle.tasks.sortedBy { it.orderIndex }.forEachIndexed { index, task ->
-                val timeStr = if (task.reminderHour != null && task.reminderMinute != null) {
-                    val ampm = if (task.reminderHour >= 12) "PM" else "AM"
-                    val h = if (task.reminderHour % 12 == 0) 12 else task.reminderHour % 12
-                    String.format("%02d:%02d %s", h, task.reminderMinute, ampm)
-                } else {
+                val timeStr = DateTimeUtils.formatTaskTimeRange(
+                    startTime = task.startTime,
+                    endTime = task.endTime,
+                    reminderHour = task.reminderHour,
+                    reminderMinute = task.reminderMinute,
+                    durationMinutes = task.targetMinutes,
+                    delayMinutes = task.delayMinutes
+                ).ifBlank {
                     val hour = (15 + (index * 1.5).toInt()) % 24
-                    val ampm = if (hour >= 12) "PM" else "AM"
-                    val h = if (hour % 12 == 0) 12 else hour % 12
-                    String.format("%02d:00 %s", h, ampm)
+                    DateTimeUtils.formatHourMinuteTo12Hour(hour, 0)
                 }
                 timeline.add(
                     DashboardScheduleItem(
                         id = "task_${task.id}",
                         timeDisplay = timeStr,
                         title = "${task.subject}: ${task.title}",
-                        subtitle = "${task.targetMinutes}m • ${task.type.name}",
+                        subtitle = "${task.targetMinutes}m • ${task.type.name}" + (if (task.isDelayed) " • Delayed (+${task.delayMinutes}m)" else ""),
                         isCompleted = task.isCompleted,
                         category = "Study"
                     )
@@ -288,7 +269,7 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
             }
         }
 
-        val sleepTime = profile?.sleepTime?.ifBlank { "10:30 PM" } ?: "10:30 PM"
+        val sleepTime = DateTimeUtils.formatTo12Hour(profile?.sleepTime?.ifBlank { "10:30 PM" } ?: "10:30 PM")
         timeline.add(
             DashboardScheduleItem(
                 id = "night_revision",
@@ -368,6 +349,12 @@ class HomeViewModel(private val repository: RebuildRepository) : ViewModel() {
     fun toggleTask(task: DailyPlanTaskEntity) {
         viewModelScope.launch {
             repository.toggleTaskCompleted(task)
+        }
+    }
+
+    fun delayTask(task: DailyPlanTaskEntity, additionalMinutes: Int = 15) {
+        viewModelScope.launch {
+            repository.delayTask(task, additionalMinutes)
         }
     }
 

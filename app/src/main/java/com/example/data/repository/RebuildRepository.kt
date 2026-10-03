@@ -28,6 +28,7 @@ import com.example.data.local.entity.WinterArcStateEntity
 import com.example.data.local.entity.WorkoutLevel
 import com.example.data.local.entity.WorkoutLogEntity
 import com.example.notification.AlarmScheduler
+import com.example.util.DateTimeUtils
 import com.example.data.local.entity.AlarmEntity
 import com.example.data.local.entity.AlarmLogEntity
 import com.example.data.local.entity.ArcGoalPlanItemEntity
@@ -59,7 +60,7 @@ import kotlin.math.min
 
 class RebuildRepository(
     private val db: AppDatabase,
-    private val context: Context? = null
+    val context: Context? = null
 ) {
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -602,6 +603,69 @@ class RebuildRepository(
             AlarmScheduler.cancelTaskAlarm(context, task.id)
         }
         recalculateDisciplineScore(task.date)
+    }
+
+    suspend fun delayTask(task: DailyPlanTaskEntity, additionalMinutes: Int) {
+        val newDelay = task.delayMinutes + additionalMinutes
+
+        var newStartTime = task.startTime
+        var newEndTime = task.endTime
+        var newReminderHour = task.reminderHour
+        var newReminderMinute = task.reminderMinute
+
+        if (task.reminderHour != null && task.reminderMinute != null) {
+            val cal = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, task.reminderHour)
+                set(Calendar.MINUTE, task.reminderMinute)
+                add(Calendar.MINUTE, additionalMinutes)
+            }
+            newReminderHour = cal.get(Calendar.HOUR_OF_DAY)
+            newReminderMinute = cal.get(Calendar.MINUTE)
+        }
+
+        if (!task.startTime.isNullOrBlank()) {
+            val parsed = DateTimeUtils.parseHourMinute(task.startTime)
+            if (parsed != null) {
+                val cal = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, parsed.first)
+                    set(Calendar.MINUTE, parsed.second)
+                    add(Calendar.MINUTE, additionalMinutes)
+                }
+                val startH = cal.get(Calendar.HOUR_OF_DAY)
+                val startM = cal.get(Calendar.MINUTE)
+                newStartTime = DateTimeUtils.formatHourMinuteTo12Hour(startH, startM)
+                if (newReminderHour == null) {
+                    newReminderHour = startH
+                    newReminderMinute = startM
+                }
+
+                val endCal = cal.clone() as Calendar
+                endCal.add(Calendar.MINUTE, task.targetMinutes)
+                newEndTime = DateTimeUtils.formatHourMinuteTo12Hour(endCal.get(Calendar.HOUR_OF_DAY), endCal.get(Calendar.MINUTE))
+            }
+        }
+
+        val updated = task.copy(
+            delayMinutes = newDelay,
+            isDelayed = true,
+            startTime = newStartTime,
+            endTime = newEndTime,
+            reminderHour = newReminderHour,
+            reminderMinute = newReminderMinute
+        )
+
+        db.dailyPlanDao().updateTask(updated)
+
+        if (context != null && newReminderHour != null && newReminderMinute != null && !task.isCompleted) {
+            AlarmScheduler.scheduleTaskAlarm(
+                context = context,
+                taskId = task.id,
+                hour = newReminderHour,
+                minute = newReminderMinute,
+                title = task.title,
+                subject = task.subject
+            )
+        }
     }
 
     // ----------------------------------------------------
@@ -1695,68 +1759,8 @@ class RebuildRepository(
     }
 
     suspend fun initializeWinterArcObjectivesIfEmpty(profile: UserProfileEntity) {
-        val existing = db.winterArcObjectivesDao().getAllObjectivesDirect()
-        if (existing.isNotEmpty()) return
-
-        val defaultObjectives = listOf(
-            WinterArcObjectiveEntity(
-                title = "Board Exam Score Mastery",
-                description = "Achieve ${profile.targetPercentage}% in ${profile.targetExamName}",
-                category = com.example.data.local.entity.ObjectiveCategory.ACADEMIC,
-                targetValue = "${profile.targetPercentage}%",
-                currentValue = "0%",
-                progressPercentage = 0,
-                orderIndex = 0
-            ),
-            WinterArcObjectiveEntity(
-                title = "Daily Deep Study Consistency",
-                description = "Clock minimum ${profile.dailyStudyGoalHours.toInt()}h deep focus daily",
-                category = com.example.data.local.entity.ObjectiveCategory.ACADEMIC,
-                targetValue = "${profile.dailyStudyGoalHours.toInt()} Hours",
-                currentValue = "0 Hours",
-                progressPercentage = 0,
-                orderIndex = 1
-            ),
-            WinterArcObjectiveEntity(
-                title = "Physical Transformation Protocol",
-                description = "Complete ${profile.workoutType} sessions consistently",
-                category = com.example.data.local.entity.ObjectiveCategory.FITNESS,
-                targetValue = "90 Sessions",
-                currentValue = "0 Sessions",
-                progressPercentage = 0,
-                orderIndex = 2
-            ),
-            WinterArcObjectiveEntity(
-                title = "Zero-Relapse Monk Discipline",
-                description = "Complete 90 days clean from digital dopamine & adult content",
-                category = com.example.data.local.entity.ObjectiveCategory.DISCIPLINE,
-                targetValue = "90 Days",
-                currentValue = "0 Days",
-                progressPercentage = 0,
-                orderIndex = 3
-            ),
-            WinterArcObjectiveEntity(
-                title = "Precision Sleep & Wake Rhythm",
-                description = "Strict wake up at ${profile.wakeUpTime} & sleep at ${profile.sleepTime}",
-                category = com.example.data.local.entity.ObjectiveCategory.RESTORATION,
-                targetValue = "90 Days",
-                currentValue = "0 Days",
-                progressPercentage = 0,
-                orderIndex = 4
-            )
-        )
-        db.winterArcObjectivesDao().insertObjectives(defaultObjectives)
-
-        // Seed initial dynamic plan
-        val defaultGoals = listOf(
-            ArcGoalPlanItemEntity(timeHorizon = "DAILY", title = "Complete 2 Focus Sessions & Core Habit Matrix", description = "Maintain 100% discipline score today", xpReward = 100, priority = "CRITICAL", orderIndex = 0),
-            ArcGoalPlanItemEntity(timeHorizon = "DAILY", title = "Hit ${profile.workoutType} Training Block", description = "30 mins intense physical stimulation", xpReward = 75, priority = "HIGH", orderIndex = 1),
-            ArcGoalPlanItemEntity(timeHorizon = "WEEKLY", title = "Master 2 Pending Physics & Chemistry Chapters", description = "Complete lectures, notes and 25 PYQs", xpReward = 300, priority = "CRITICAL", orderIndex = 0),
-            ArcGoalPlanItemEntity(timeHorizon = "WEEKLY", title = "Zero Missed Wake-Up Alarms", description = "Solve morning challenge without snooze", xpReward = 250, priority = "HIGH", orderIndex = 1),
-            ArcGoalPlanItemEntity(timeHorizon = "MONTHLY", title = "Complete 35% Full Board Syllabus", description = "Move 6 major chapters into 'Mastered' status", xpReward = 1000, priority = "CRITICAL", orderIndex = 0),
-            ArcGoalPlanItemEntity(timeHorizon = "MONTHLY", title = "Reach Winter Arc Level 10 (4,000 XP)", description = "Sustain consistent daily progress", xpReward = 800, priority = "HIGH", orderIndex = 1)
-        )
-        db.winterArcObjectivesDao().insertArcGoals(defaultGoals)
+        // Zero-preset policy: No hardcoded or preset goals/objectives are injected.
+        // Objectives and goals are defined exclusively by the user or imported via plan JSON.
     }
 
     // ----------------------------------------------------

@@ -20,7 +20,9 @@ data class PlanImport(
 
 @JsonClass(generateAdapter = true)
 data class PlanScheduleItem(
-    val time: String, // HH:mm or e.g. "04:00"
+    val time: String? = null, // HH:mm or e.g. "04:00"
+    @Json(name = "start_time") val startTime: String? = null,
+    @Json(name = "end_time") val endTime: String? = null,
     val title: String, // e.g. "Running", "School", "Physics"
     val category: String? = "Study", // "Workout", "School", "Study", "Revision", "Routine"
     @Json(name = "target_minutes") val targetMinutes: Int? = 45,
@@ -45,7 +47,9 @@ data class PlanTask(
     @Json(name = "target_minutes") val targetMinutes: Int? = 45,
     val date: String? = null, // yyyy-MM-dd
     val xp: Int? = 0,
-    val time: String? = null // HH:mm or "15:00"
+    val time: String? = null, // HH:mm or "15:00"
+    @Json(name = "start_time") val startTime: String? = null,
+    @Json(name = "end_time") val endTime: String? = null
 )
 
 @JsonClass(generateAdapter = true)

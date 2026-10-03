@@ -6,20 +6,20 @@ import java.util.Date
 import java.util.Locale
 
 data class CertificateData(
-    val studentName: String = "Kamlesh Kumar Thakur",
-    val studentClass: String = "Class 12 • Science (PCM)",
-    val level: Int = 12,
-    val rankTitle: String = "Alpha",
+    val studentName: String = "Student",
+    val studentClass: String = "",
+    val level: Int = 1,
+    val rankTitle: String = "Novice",
     val levelName: String = "Level $level - $rankTitle",
-    val xp: Int = 14850,
+    val xp: Int = 0,
     val totalXP: String = String.format(Locale.US, "%,d XP", xp),
     val winterArcDay: Int = 1,
     val arcDay: String = "Day $winterArcDay",
-    val streak: Int = 18,
+    val streak: Int = 0,
     val issueDate: String = SimpleDateFormat("MMMM dd, yyyy", Locale.US).format(Date()),
     val dateAchieved: String = issueDate,
-    val certificateId: String = generateCertificateId(12),
-    val verificationHash: String = generateVerificationHash("Kamlesh Kumar Thakur", 12, 14850),
+    val certificateId: String = generateCertificateId(1),
+    val verificationHash: String = generateVerificationHash("Student", 1, 0),
     val aiEvaluation: String = "\"The protocol rewards action,\nnot intention.\"",
     val achievementDescription: String = "IN RECOGNITION OF DEDICATED ACHIEVEMENT",
     val achievementParagraph: String = "For successfully unlocking and mastering $levelName through demonstrated consistency, self-discipline, and daily focus in the REBUILD protocol."
