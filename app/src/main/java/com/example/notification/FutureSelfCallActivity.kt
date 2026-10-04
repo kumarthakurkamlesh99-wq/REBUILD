@@ -22,7 +22,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -551,18 +556,18 @@ fun FutureSelfCallContainer(
                     }
                 }
             } else {
-                FutureSelfSwipeControl(
-                    onSwipeRight = {
+                RealWorldCallActionPad(
+                    onStartTask = {
                         screenState = CallScreenState.SPEAKING
                         currentSpeechSubtitle = "Message from your future self. $taskSubject $taskTitle session has started. Focus now."
                         onStartTaskConfirmed()
                     },
-                    onSwipeLeft = {
+                    onDelayTask = {
                         showDelaySheet = true
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp)
+                        .padding(bottom = 8.dp)
                 )
             }
         }
@@ -643,106 +648,251 @@ fun FutureSelfCallContainer(
 }
 
 @Composable
-fun FutureSelfSwipeControl(
-    onSwipeRight: () -> Unit,
-    onSwipeLeft: () -> Unit,
+fun RealWorldCallActionPad(
+    onStartTask: () -> Unit,
+    onDelayTask: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var offsetX by remember { mutableFloatStateOf(0f) }
-    val maxSwipeDistancePx = with(LocalDensity.current) { 130.dp.toPx() }
+    val infiniteTransition = rememberInfiniteTransition(label = "callPadArrows")
+    val arrowBounce by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -12f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(750, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "arrowBounce"
+    )
+    val rippleScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1300, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rippleScale"
+    )
+    val rippleAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1300, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rippleAlpha"
+    )
 
-    Box(
+    var greenOffsetY by remember { mutableFloatStateOf(0f) }
+    var redOffsetY by remember { mutableFloatStateOf(0f) }
+    val dragThresholdPx = with(LocalDensity.current) { 45.dp.toPx() }
+
+    Row(
         modifier = modifier
-            .height(72.dp)
-            .clip(RoundedCornerShape(36.dp))
-            .background(Color(0xFF0F172A))
-            .border(1.dp, Color(0xFF334155), RoundedCornerShape(36.dp)),
-        contentAlignment = Alignment.Center
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // -------------------------------------------------------------
+        // LEFT: RED / DECLINE (SWIPE UP TO DELAY)
+        // -------------------------------------------------------------
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.weight(1f)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Animated upward chevrons
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .offset { IntOffset(0, (arrowBounce + redOffsetY).roundToInt()) }
+                    .padding(bottom = 6.dp)
+            ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    imageVector = Icons.Default.KeyboardArrowUp,
                     contentDescription = null,
-                    tint = Color(0xFFF59E0B).copy(alpha = 0.8f),
+                    tint = Color(0xFFEF4444).copy(alpha = 0.45f),
                     modifier = Modifier.size(16.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "DELAY",
-                    color = Color(0xFFF59E0B),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    letterSpacing = 1.sp
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowUp,
+                    contentDescription = null,
+                    tint = Color(0xFFEF4444),
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "START",
-                    color = Color(0xFF10B981),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    letterSpacing = 1.sp
+            // Draggable Red Call Button
+            Box(contentAlignment = Alignment.Center) {
+                // Expanding ripple
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .scale(rippleScale)
+                        .clip(CircleShape)
+                        .background(Color(0xFFEF4444).copy(alpha = rippleAlpha))
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    tint = Color(0xFF10B981).copy(alpha = 0.8f),
-                    modifier = Modifier.size(16.dp)
+
+                Box(
+                    modifier = Modifier
+                        .offset { IntOffset(0, redOffsetY.roundToInt()) }
+                        .size(68.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color(0xFFEF4444), Color(0xFFB91C1C))
+                            )
+                        )
+                        .border(2.dp, Color(0xFFFCA5A5), CircleShape)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onDragEnd = {
+                                    if (redOffsetY <= -dragThresholdPx) {
+                                        onDelayTask()
+                                    }
+                                    redOffsetY = 0f
+                                },
+                                onDragCancel = { redOffsetY = 0f },
+                                onVerticalDrag = { _, dragAmount ->
+                                    val newOffset = redOffsetY + dragAmount
+                                    if (newOffset <= 0f && newOffset >= -dragThresholdPx * 2f) {
+                                        redOffsetY = newOffset
+                                    }
+                                }
+                            )
+                        }
+                        .clickable { onDelayTask() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CallEnd,
+                        contentDescription = "Swipe up to Delay Task",
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "SWIPE UP TO DELAY",
+                color = Color(0xFFFCA5A5),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 1.sp,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        // Center separator / temporal call label
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(bottom = 22.dp)
+        ) {
+            Surface(
+                color = Color(0xFF1E293B).copy(alpha = 0.7f),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color(0xFF334155))
+            ) {
+                Text(
+                    text = "ACTION REQUIRED",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
         }
 
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(offsetX.roundToInt(), 0) }
-                .size(60.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        colors = when {
-                            offsetX > 40f -> listOf(Color(0xFF10B981), Color(0xFF059669))
-                            offsetX < -40f -> listOf(Color(0xFFF59E0B), Color(0xFFD97706))
-                            else -> listOf(Color(0xFF38BDF8), Color(0xFF0284C7))
-                        }
-                    )
-                )
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            if (offsetX >= maxSwipeDistancePx * 0.70f) {
-                                onSwipeRight()
-                            } else if (offsetX <= -maxSwipeDistancePx * 0.70f) {
-                                onSwipeLeft()
-                            }
-                            offsetX = 0f
-                        },
-                        onDragCancel = {
-                            offsetX = 0f
-                        },
-                        onHorizontalDrag = { _, dragAmount ->
-                            val newOffset = offsetX + dragAmount
-                            if (newOffset in -maxSwipeDistancePx..maxSwipeDistancePx) {
-                                offsetX = newOffset
-                            }
-                        }
-                    )
-                },
-            contentAlignment = Alignment.Center
+        // -------------------------------------------------------------
+        // RIGHT: GREEN / ANSWER (SWIPE UP TO START)
+        // -------------------------------------------------------------
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.weight(1f)
         ) {
-            Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = "Swipe Handle",
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
+            // Animated upward chevrons
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .offset { IntOffset(0, (arrowBounce + greenOffsetY).roundToInt()) }
+                    .padding(bottom = 6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowUp,
+                    contentDescription = null,
+                    tint = Color(0xFF10B981).copy(alpha = 0.45f),
+                    modifier = Modifier.size(16.dp)
+                )
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowUp,
+                    contentDescription = null,
+                    tint = Color(0xFF10B981),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            // Draggable Green Call Button
+            Box(contentAlignment = Alignment.Center) {
+                // Expanding ripple
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .scale(rippleScale)
+                        .clip(CircleShape)
+                        .background(Color(0xFF10B981).copy(alpha = rippleAlpha))
+                )
+
+                Box(
+                    modifier = Modifier
+                        .offset { IntOffset(0, greenOffsetY.roundToInt()) }
+                        .size(68.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color(0xFF10B981), Color(0xFF047857))
+                            )
+                        )
+                        .border(2.dp, Color(0xFF6EE7B7), CircleShape)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onDragEnd = {
+                                    if (greenOffsetY <= -dragThresholdPx) {
+                                        onStartTask()
+                                    }
+                                    greenOffsetY = 0f
+                                },
+                                onDragCancel = { greenOffsetY = 0f },
+                                onVerticalDrag = { _, dragAmount ->
+                                    val newOffset = greenOffsetY + dragAmount
+                                    if (newOffset <= 0f && newOffset >= -dragThresholdPx * 2f) {
+                                        greenOffsetY = newOffset
+                                    }
+                                }
+                            )
+                        }
+                        .clickable { onStartTask() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Call,
+                        contentDescription = "Swipe up to Start Task",
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "SWIPE UP TO START",
+                color = Color(0xFF6EE7B7),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 1.sp,
+                textAlign = TextAlign.Center
             )
         }
     }
