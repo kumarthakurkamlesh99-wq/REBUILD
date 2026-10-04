@@ -193,6 +193,7 @@ class FutureSelfCallActivity : ComponentActivity() {
             // Normal call: Ring and vibrate immediately
             speechManager.startRingtoneAndVibrate(
                 presetKey = settings.ringtonePreset,
+                customRingtoneUri = settings.customRingtoneUri,
                 volume = settings.volume,
                 enableVibration = settings.vibrationEnabled
             )

@@ -27,6 +27,8 @@ class FutureSelfSettingsRepository(private val context: Context) {
         private const val KEY_CALL_TIMEOUT_SECONDS = "fs_call_timeout_seconds"
         private const val KEY_CUSTOM_MAX_DELAY_AUDIO_URI = "fs_custom_max_delay_audio_uri"
         private const val KEY_CUSTOM_MAX_DELAY_AUDIO_NAME = "fs_custom_max_delay_audio_name"
+        private const val KEY_CUSTOM_RINGTONE_URI = "fs_custom_ringtone_uri"
+        private const val KEY_CUSTOM_RINGTONE_NAME = "fs_custom_ringtone_name"
 
         @Volatile
         private var instance: FutureSelfSettingsRepository? = null
@@ -64,7 +66,9 @@ class FutureSelfSettingsRepository(private val context: Context) {
             autoStartOnMaxDelay = prefs.getBoolean(KEY_AUTO_START_MAX_DELAY, true),
             callTimeoutSeconds = prefs.getInt(KEY_CALL_TIMEOUT_SECONDS, 40),
             customMaxDelayAudioUri = prefs.getString(KEY_CUSTOM_MAX_DELAY_AUDIO_URI, "") ?: "",
-            customMaxDelayAudioName = prefs.getString(KEY_CUSTOM_MAX_DELAY_AUDIO_NAME, "") ?: ""
+            customMaxDelayAudioName = prefs.getString(KEY_CUSTOM_MAX_DELAY_AUDIO_NAME, "") ?: "",
+            customRingtoneUri = prefs.getString(KEY_CUSTOM_RINGTONE_URI, "") ?: "",
+            customRingtoneName = prefs.getString(KEY_CUSTOM_RINGTONE_NAME, "") ?: ""
         )
     }
 
@@ -84,6 +88,8 @@ class FutureSelfSettingsRepository(private val context: Context) {
             .putInt(KEY_CALL_TIMEOUT_SECONDS, newSettings.callTimeoutSeconds)
             .putString(KEY_CUSTOM_MAX_DELAY_AUDIO_URI, newSettings.customMaxDelayAudioUri)
             .putString(KEY_CUSTOM_MAX_DELAY_AUDIO_NAME, newSettings.customMaxDelayAudioName)
+            .putString(KEY_CUSTOM_RINGTONE_URI, newSettings.customRingtoneUri)
+            .putString(KEY_CUSTOM_RINGTONE_NAME, newSettings.customRingtoneName)
             .apply()
 
         _settingsFlow.value = newSettings

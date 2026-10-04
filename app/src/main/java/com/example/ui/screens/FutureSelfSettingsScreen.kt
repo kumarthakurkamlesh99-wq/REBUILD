@@ -117,6 +117,22 @@ fun FutureSelfSettingsScreen(
         }
     }
 
+    val ringtonePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val result = RingtoneStorageManager.saveCustomRingtone(context, uri)
+            selectedRingtone = "CUSTOM"
+            save(
+                settings.copy(
+                    ringtonePreset = "CUSTOM",
+                    customRingtoneUri = result.storedUriOrPath,
+                    customRingtoneName = result.displayName
+                )
+            )
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -465,7 +481,7 @@ fun FutureSelfSettingsScreen(
 
             // Ringtone Preset Selection
             item {
-                SettingsSectionContainer(title = "TACTICAL RINGTONE PRESET") {
+                SettingsSectionContainer(title = "TACTICAL RINGTONE (CALL ALERT)") {
                     val ringtones = listOf(
                         "CYBER_SIREN" to "Cyber Siren (Futuristic Pulse)",
                         "APEX_HORNS" to "Apex Horns (Cinematic War Horn)",
@@ -475,9 +491,104 @@ fun FutureSelfSettingsScreen(
                         "TICK_TOCK" to "Tick Tock (Time Running Out)"
                     )
 
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Select preset tactical siren or choose your own custom ringtone from device storage.",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 12.sp
+                        )
+
+                        // 1. Custom Ringtone from Phone Storage
+                        val isCustomRingtone = selectedRingtone == "CUSTOM" || settings.ringtonePreset == "CUSTOM"
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isCustomRingtone) Color(0xFF1E293B) else Color(0xFF0B132B),
+                            border = BorderStroke(1.dp, if (isCustomRingtone) Color(0xFF10B981) else Color(0xFF1E293B)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (settings.customRingtoneUri.isNotBlank()) {
+                                        selectedRingtone = "CUSTOM"
+                                        save(settings.copy(ringtonePreset = "CUSTOM"))
+                                    } else {
+                                        ringtonePickerLauncher.launch("audio/*")
+                                    }
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Icon(
+                                        imageVector = Icons.Default.MusicNote,
+                                        contentDescription = null,
+                                        tint = if (isCustomRingtone) Color(0xFF10B981) else Color(0xFF64748B),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            text = "Custom Ringtone (From Device)",
+                                            color = if (isCustomRingtone) Color.White else Color(0xFFCBD5E1),
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isCustomRingtone) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                        Text(
+                                            text = if (settings.customRingtoneName.isNotBlank()) settings.customRingtoneName else "No file selected (Tap to choose from phone)",
+                                            color = if (isCustomRingtone) Color(0xFF10B981) else Color(0xFF64748B),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                                if (isCustomRingtone) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = Color(0xFF10B981),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = { ringtonePickerLauncher.launch("audio/*") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (settings.customRingtoneUri.isNotBlank()) Color(0xFF334155) else Color(0xFF0D9488)
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AudioFile,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (settings.customRingtoneUri.isNotBlank()) "CHANGE CUSTOM RINGTONE FILE" else "CHOOSE CUSTOM RINGTONE FROM PHONE STORAGE",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp, modifier = Modifier.padding(vertical = 4.dp))
+
+                        Text(
+                            text = "OR CHOOSE FROM TACTICAL PRESETS:",
+                            color = Color(0xFF64748B),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+
+                        // 2. Preset Tactical Ringtones
                         ringtones.forEach { (key, label) ->
-                            val isSelected = selectedRingtone == key
+                            val isSelected = selectedRingtone == key && !isCustomRingtone
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
                                 color = if (isSelected) Color(0xFF1E293B) else Color(0xFF0B132B),

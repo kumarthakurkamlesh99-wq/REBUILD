@@ -233,6 +233,7 @@ class FutureSelfSpeechManager private constructor(private val appContext: Contex
      */
     fun startRingtoneAndVibrate(
         presetKey: String = "CYBER_SIREN",
+        customRingtoneUri: String? = null,
         volume: Float = 1.0f,
         enableVibration: Boolean = true
     ) {
@@ -240,7 +241,13 @@ class FutureSelfSpeechManager private constructor(private val appContext: Contex
 
         // 1. Audio Playback
         try {
-            val presetFile: File? = PresetAudioGenerator.getPresetFile(appContext, presetKey)
+            val customTarget = when {
+                presetKey == "CUSTOM" && !customRingtoneUri.isNullOrBlank() -> customRingtoneUri
+                !customRingtoneUri.isNullOrBlank() -> customRingtoneUri
+                presetKey.startsWith("/") || presetKey.startsWith("content://") -> presetKey
+                else -> null
+            }
+
             mediaPlayer = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
@@ -248,13 +255,38 @@ class FutureSelfSpeechManager private constructor(private val appContext: Contex
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build()
                 )
-                if (presetFile != null && presetFile.exists()) {
-                    setDataSource(presetFile.absolutePath)
-                } else {
-                    // Fallback to system default alarm
-                    val defaultUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
-                    setDataSource(appContext, defaultUri)
+
+                var configured = false
+                if (!customTarget.isNullOrBlank()) {
+                    val customFile = File(customTarget)
+                    if (customFile.exists() && customFile.length() > 200) {
+                        try {
+                            setDataSource(customFile.absolutePath)
+                            configured = true
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to load custom ringtone file: ${e.message}")
+                        }
+                    } else if (customTarget.startsWith("content://") || customTarget.startsWith("file://")) {
+                        try {
+                            setDataSource(appContext, Uri.parse(customTarget))
+                            configured = true
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to load custom ringtone URI: ${e.message}")
+                        }
+                    }
                 }
+
+                if (!configured) {
+                    val presetFile: File? = PresetAudioGenerator.getPresetFile(appContext, presetKey)
+                    if (presetFile != null && presetFile.exists()) {
+                        setDataSource(presetFile.absolutePath)
+                    } else {
+                        // Fallback to system default alarm
+                        val defaultUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
+                        setDataSource(appContext, defaultUri)
+                    }
+                }
+
                 isLooping = true
                 setVolume(volume.coerceIn(0f, 1f), volume.coerceIn(0f, 1f))
                 prepare()

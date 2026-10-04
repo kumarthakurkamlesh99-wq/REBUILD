@@ -34,7 +34,9 @@ data class FutureSelfVoiceSettings(
     val autoStartOnMaxDelay: Boolean = true,
     val callTimeoutSeconds: Int = 40,
     val customMaxDelayAudioUri: String = "",
-    val customMaxDelayAudioName: String = ""
+    val customMaxDelayAudioName: String = "",
+    val customRingtoneUri: String = "",
+    val customRingtoneName: String = ""
 )
 
 data class FutureSelfCallPayload(
