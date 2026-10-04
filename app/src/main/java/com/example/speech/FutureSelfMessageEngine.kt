@@ -108,9 +108,30 @@ object FutureSelfMessageEngine {
             VoiceLanguage.ENGLISH ->
                 "You missed $cleanSubject $cleanTitle. Missed tasks become future pressure. Choose your next action."
             VoiceLanguage.HINDI ->
-                "Aapne $cleanSubject $cleanTitle miss kar diya. Chhuta hua task bhavishya mein d दबाव banega. Agla kadam chunein."
+                "Aapne $cleanSubject $cleanTitle miss kar diya. Chhuta hua task bhavishya mein dabav banega. Agla kadam chunein."
             VoiceLanguage.HINGLISH ->
                 "You missed $cleanSubject $cleanTitle. Missed tasks become future pressure. Choose your next action."
+        }
+    }
+
+    /**
+     * Speech prompt when maximum delay is reached or triggered automatically.
+     */
+    fun buildMaxDelaySpeechText(
+        subject: String,
+        title: String,
+        durationMinutes: Int,
+        language: VoiceLanguage = VoiceLanguage.ENGLISH
+    ): String {
+        val cleanSubject = subject.ifBlank { "Task" }
+        val cleanTitle = title.ifBlank { "Session" }
+        return when (language) {
+            VoiceLanguage.ENGLISH ->
+                "Maximum delay threshold reached. No more excuses. Message from your future self. $cleanSubject $cleanTitle session has started now. Duration $durationMinutes minutes. Focus now. Your future depends on today's actions."
+            VoiceLanguage.HINDI ->
+                "Maximum delay limit poori ho chuki hai. Ab koi bahaana nahi chalega. Aapke bhavishya ka aadesh: $cleanSubject $cleanTitle session abhi shuru ho chuka hai. Samay $durationMinutes minute. Turant focus karein."
+            VoiceLanguage.HINGLISH ->
+                "Maximum delay reached! No more delay allowed. Message from future self: $cleanSubject $cleanTitle session has started right now. Duration $durationMinutes minutes. Direct focus mode start ho raha hai, get to work."
         }
     }
 }

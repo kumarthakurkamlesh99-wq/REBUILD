@@ -29,7 +29,12 @@ data class FutureSelfVoiceSettings(
     val volume: Float = 1.0f,
     val vibrationEnabled: Boolean = true,
     val ringtonePreset: String = "CYBER_SIREN",
-    val customFutureSelfQuote: String = ""
+    val customFutureSelfQuote: String = "",
+    val maxAllowedDelayMinutes: Int = 60,
+    val autoStartOnMaxDelay: Boolean = true,
+    val callTimeoutSeconds: Int = 40,
+    val customMaxDelayAudioUri: String = "",
+    val customMaxDelayAudioName: String = ""
 )
 
 data class FutureSelfCallPayload(

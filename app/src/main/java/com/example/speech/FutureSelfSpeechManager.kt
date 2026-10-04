@@ -181,6 +181,54 @@ class FutureSelfSpeechManager private constructor(private val appContext: Contex
     }
 
     /**
+     * Plays a custom audio file (from device storage) if present, otherwise falls back to TTS.
+     */
+    fun playCustomAudioOrSpeech(
+        customAudioPath: String,
+        fallbackText: String,
+        tone: VoiceTone = VoiceTone.STRICT,
+        language: VoiceLanguage = VoiceLanguage.ENGLISH,
+        gender: VoiceGender = VoiceGender.MALE,
+        speedMultiplier: Float = 1.0f,
+        volume: Float = 1.0f,
+        onDone: () -> Unit
+    ) {
+        if (customAudioPath.isNotBlank()) {
+            val audioFile = File(customAudioPath)
+            if (audioFile.exists() && audioFile.length() > 200) {
+                try {
+                    stopRingtoneAndVibrate()
+                    mediaPlayer = MediaPlayer().apply {
+                        setAudioAttributes(
+                            AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_ALARM)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                                .build()
+                        )
+                        setDataSource(audioFile.absolutePath)
+                        isLooping = false
+                        setVolume(volume.coerceIn(0.1f, 1f), volume.coerceIn(0.1f, 1f))
+                        setOnCompletionListener {
+                            onDone()
+                        }
+                        setOnErrorListener { _, _, _ ->
+                            onDone()
+                            true
+                        }
+                        prepare()
+                        start()
+                    }
+                    return
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to play custom audio file, falling back to TTS", e)
+                }
+            }
+        }
+        // Fallback to TTS
+        speak(fallbackText, tone, language, gender, speedMultiplier, onDone)
+    }
+
+    /**
      * Starts looping ringtone audio and vibration for the incoming future self call.
      */
     fun startRingtoneAndVibrate(

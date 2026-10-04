@@ -63,6 +63,10 @@ class FutureSelfCallReceiver : BroadcastReceiver() {
                 val profile = db.userProfileDao().getUserProfileDirect()
                 val studentName = profile?.name?.ifBlank { "Rudra" } ?: "Rudra"
 
+                val task = if (taskId > 0L) db.dailyPlanDao().getTaskById(taskId) else null
+                val currentDelayMinutes = task?.delayMinutes ?: 0
+                val isMaxDelay = currentDelayMinutes >= settings.maxAllowedDelayMinutes
+
                 // Intent to start full-screen incoming call activity
                 val callIntent = Intent(context, FutureSelfCallActivity::class.java).apply {
                     addFlags(
@@ -79,6 +83,8 @@ class FutureSelfCallReceiver : BroadcastReceiver() {
                     putExtra(FutureSelfCallActivity.EXTRA_XP_REWARD, xpReward)
                     putExtra(FutureSelfCallActivity.EXTRA_STUDENT_NAME, studentName)
                     putExtra(FutureSelfCallActivity.EXTRA_CUSTOM_QUOTE, settings.customFutureSelfQuote)
+                    putExtra(FutureSelfCallActivity.EXTRA_DELAY_MINUTES, currentDelayMinutes)
+                    putExtra(FutureSelfCallActivity.EXTRA_IS_MAX_DELAY, isMaxDelay)
                 }
 
                 val fullScreenPendingIntent = PendingIntent.getActivity(

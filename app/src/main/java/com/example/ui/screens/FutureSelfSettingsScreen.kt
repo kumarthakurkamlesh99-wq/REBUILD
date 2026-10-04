@@ -27,7 +27,12 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MusicNote
+import com.example.util.RingtoneStorageManager
 import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
@@ -96,6 +101,20 @@ fun FutureSelfSettingsScreen(
 
     fun save(updated: FutureSelfVoiceSettings) {
         repository.updateSettings(updated)
+    }
+
+    val audioPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val result = RingtoneStorageManager.saveCustomRingtone(context, uri)
+            save(
+                settings.copy(
+                    customMaxDelayAudioUri = result.storedUriOrPath,
+                    customMaxDelayAudioName = result.displayName
+                )
+            )
+        }
     }
 
     Box(
@@ -505,6 +524,215 @@ fun FutureSelfSettingsScreen(
                 }
             }
 
+            // Maximum Delay Limit & Automatic Discipline Section
+            item {
+                SettingsSectionContainer(title = "MAXIMUM DELAY & AUTOMATIC ENFORCEMENT") {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Text(
+                            text = "When a task reaches maximum delay, voice directives begin playing automatically by itself without waiting for user action.",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 12.sp
+                        )
+
+                        Text(
+                            text = "Max Allowed Delay: ${settings.maxAllowedDelayMinutes} Minutes",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(30, 45, 60, 90).forEach { limit ->
+                                val selected = settings.maxAllowedDelayMinutes == limit
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            save(settings.copy(maxAllowedDelayMinutes = limit))
+                                        },
+                                    color = if (selected) Color(0xFF0284C7) else Color(0xFF1E293B),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, if (selected) Color(0xFF38BDF8) else Color(0xFF334155))
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(vertical = 10.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "$limit m",
+                                            color = if (selected) Color.White else Color(0xFFCBD5E1),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Auto-Play on Max Delay",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Force voice playback immediately when max delay is hit",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Switch(
+                                checked = settings.autoStartOnMaxDelay,
+                                onCheckedChange = {
+                                    save(settings.copy(autoStartOnMaxDelay = it))
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = Color(0xFF10B981),
+                                    uncheckedThumbColor = Color(0xFF94A3B8),
+                                    uncheckedTrackColor = Color(0xFF1E293B)
+                                )
+                            )
+                        }
+
+                        HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+
+                        Text(
+                            text = "Unanswered Call Timeout: ${settings.callTimeoutSeconds}s (Auto-Ignition)",
+                            color = Color(0xFFCBD5E1),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(20, 30, 40, 60).forEach { sec ->
+                                val selected = settings.callTimeoutSeconds == sec
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            save(settings.copy(callTimeoutSeconds = sec))
+                                        },
+                                    color = if (selected) Color(0xFF0284C7) else Color(0xFF1E293B),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, if (selected) Color(0xFF38BDF8) else Color(0xFF334155))
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "${sec}s",
+                                            color = if (selected) Color.White else Color(0xFFCBD5E1),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+
+                        Text(
+                            text = "CUSTOM AUDIO CLIP (MAX DELAY HIT)",
+                            color = Color(0xFFFCD34D),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+
+                        Text(
+                            text = "Pick any audio file from your device storage to play when max delay is reached. If unselected, offline Future Self TTS directive plays.",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 12.sp
+                        )
+
+                        if (settings.customMaxDelayAudioUri.isNotBlank()) {
+                            Surface(
+                                color = Color(0xFF1E293B),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Active Custom Audio:",
+                                            color = Color(0xFF94A3B8),
+                                            fontSize = 11.sp
+                                        )
+                                        Text(
+                                            text = settings.customMaxDelayAudioName.ifBlank { "Custom Audio File" },
+                                            color = Color(0xFF10B981),
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            save(
+                                                settings.copy(
+                                                    customMaxDelayAudioUri = "",
+                                                    customMaxDelayAudioName = ""
+                                                )
+                                            )
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Remove custom audio",
+                                            tint = Color(0xFFEF4444)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = { audioPickerLauncher.launch("audio/*") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (settings.customMaxDelayAudioUri.isNotBlank()) Color(0xFF334155) else Color(0xFFD97706)
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AudioFile,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (settings.customMaxDelayAudioUri.isNotBlank()) "CHANGE CUSTOM AUDIO FILE" else "SELECT CUSTOM AUDIO FILE FROM DEVICE",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
             // Custom Message Override
             item {
                 SettingsSectionContainer(title = "CUSTOM FUTURE SELF MESSAGE") {
@@ -536,46 +764,93 @@ fun FutureSelfSettingsScreen(
                 }
             }
 
-            // Live Simulation / Test Button
+            // Live Simulation / Test Buttons
             item {
-                Button(
-                    onClick = {
-                        val testIntent = Intent(context, FutureSelfCallActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            putExtra(FutureSelfCallActivity.EXTRA_TASK_ID, 9999L)
-                            putExtra(FutureSelfCallActivity.EXTRA_TASK_TITLE, "Physics Electrostatics")
-                            putExtra(FutureSelfCallActivity.EXTRA_TASK_SUBJECT, "Physics")
-                            putExtra(FutureSelfCallActivity.EXTRA_START_TIME, "05:00 AM")
-                            putExtra(FutureSelfCallActivity.EXTRA_END_TIME, "06:30 AM")
-                            putExtra(FutureSelfCallActivity.EXTRA_DURATION_MINUTES, 90)
-                            putExtra(FutureSelfCallActivity.EXTRA_XP_REWARD, 150)
-                            putExtra(FutureSelfCallActivity.EXTRA_STUDENT_NAME, "Rudra")
-                            putExtra(FutureSelfCallActivity.EXTRA_CUSTOM_QUOTE, customQuote)
-                        }
-                        context.startActivity(testIntent)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF0284C7)
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Campaign,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "TEST INCOMING FUTURE SELF CALL",
-                        color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 13.sp,
-                        letterSpacing = 1.sp
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = {
+                            val testIntent = Intent(context, FutureSelfCallActivity::class.java).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                putExtra(FutureSelfCallActivity.EXTRA_TASK_ID, 9999L)
+                                putExtra(FutureSelfCallActivity.EXTRA_TASK_TITLE, "Physics Electrostatics")
+                                putExtra(FutureSelfCallActivity.EXTRA_TASK_SUBJECT, "Physics")
+                                putExtra(FutureSelfCallActivity.EXTRA_START_TIME, "05:00 AM")
+                                putExtra(FutureSelfCallActivity.EXTRA_END_TIME, "06:30 AM")
+                                putExtra(FutureSelfCallActivity.EXTRA_DURATION_MINUTES, 90)
+                                putExtra(FutureSelfCallActivity.EXTRA_XP_REWARD, 150)
+                                putExtra(FutureSelfCallActivity.EXTRA_STUDENT_NAME, "Rudra")
+                                putExtra(FutureSelfCallActivity.EXTRA_CUSTOM_QUOTE, customQuote)
+                                putExtra(FutureSelfCallActivity.EXTRA_DELAY_MINUTES, 0)
+                                putExtra(FutureSelfCallActivity.EXTRA_IS_MAX_DELAY, false)
+                            }
+                            context.startActivity(testIntent)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF0284C7)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Campaign,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "TEST STANDARD INCOMING CALL",
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 12.sp,
+                            letterSpacing = 1.sp
+                        )
+                    }
+
+                    // Test Max Delay Trigger Call
+                    Button(
+                        onClick = {
+                            val testIntent = Intent(context, FutureSelfCallActivity::class.java).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                putExtra(FutureSelfCallActivity.EXTRA_TASK_ID, 9999L)
+                                putExtra(FutureSelfCallActivity.EXTRA_TASK_TITLE, "Physics Electrostatics")
+                                putExtra(FutureSelfCallActivity.EXTRA_TASK_SUBJECT, "Physics")
+                                putExtra(FutureSelfCallActivity.EXTRA_START_TIME, "05:00 AM")
+                                putExtra(FutureSelfCallActivity.EXTRA_END_TIME, "06:30 AM")
+                                putExtra(FutureSelfCallActivity.EXTRA_DURATION_MINUTES, 90)
+                                putExtra(FutureSelfCallActivity.EXTRA_XP_REWARD, 150)
+                                putExtra(FutureSelfCallActivity.EXTRA_STUDENT_NAME, "Rudra")
+                                putExtra(FutureSelfCallActivity.EXTRA_CUSTOM_QUOTE, customQuote)
+                                putExtra(FutureSelfCallActivity.EXTRA_DELAY_MINUTES, settings.maxAllowedDelayMinutes)
+                                putExtra(FutureSelfCallActivity.EXTRA_IS_MAX_DELAY, true)
+                            }
+                            context.startActivity(testIntent)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFDC2626)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Bolt,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "TEST MAX DELAY AUTO-PLAY CALL",
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 12.sp,
+                            letterSpacing = 1.sp
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(30.dp))
             }

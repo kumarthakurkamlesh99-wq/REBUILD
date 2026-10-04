@@ -22,6 +22,11 @@ class FutureSelfSettingsRepository(private val context: Context) {
         private const val KEY_VIBRATION = "fs_vibration"
         private const val KEY_RINGTONE = "fs_ringtone"
         private const val KEY_CUSTOM_QUOTE = "fs_custom_quote"
+        private const val KEY_MAX_DELAY_MINUTES = "fs_max_delay_minutes"
+        private const val KEY_AUTO_START_MAX_DELAY = "fs_auto_start_max_delay"
+        private const val KEY_CALL_TIMEOUT_SECONDS = "fs_call_timeout_seconds"
+        private const val KEY_CUSTOM_MAX_DELAY_AUDIO_URI = "fs_custom_max_delay_audio_uri"
+        private const val KEY_CUSTOM_MAX_DELAY_AUDIO_NAME = "fs_custom_max_delay_audio_name"
 
         @Volatile
         private var instance: FutureSelfSettingsRepository? = null
@@ -54,7 +59,12 @@ class FutureSelfSettingsRepository(private val context: Context) {
             volume = prefs.getFloat(KEY_VOLUME, 1.0f),
             vibrationEnabled = prefs.getBoolean(KEY_VIBRATION, true),
             ringtonePreset = prefs.getString(KEY_RINGTONE, "CYBER_SIREN") ?: "CYBER_SIREN",
-            customFutureSelfQuote = prefs.getString(KEY_CUSTOM_QUOTE, "") ?: ""
+            customFutureSelfQuote = prefs.getString(KEY_CUSTOM_QUOTE, "") ?: "",
+            maxAllowedDelayMinutes = prefs.getInt(KEY_MAX_DELAY_MINUTES, 60),
+            autoStartOnMaxDelay = prefs.getBoolean(KEY_AUTO_START_MAX_DELAY, true),
+            callTimeoutSeconds = prefs.getInt(KEY_CALL_TIMEOUT_SECONDS, 40),
+            customMaxDelayAudioUri = prefs.getString(KEY_CUSTOM_MAX_DELAY_AUDIO_URI, "") ?: "",
+            customMaxDelayAudioName = prefs.getString(KEY_CUSTOM_MAX_DELAY_AUDIO_NAME, "") ?: ""
         )
     }
 
@@ -69,6 +79,11 @@ class FutureSelfSettingsRepository(private val context: Context) {
             .putBoolean(KEY_VIBRATION, newSettings.vibrationEnabled)
             .putString(KEY_RINGTONE, newSettings.ringtonePreset)
             .putString(KEY_CUSTOM_QUOTE, newSettings.customFutureSelfQuote)
+            .putInt(KEY_MAX_DELAY_MINUTES, newSettings.maxAllowedDelayMinutes)
+            .putBoolean(KEY_AUTO_START_MAX_DELAY, newSettings.autoStartOnMaxDelay)
+            .putInt(KEY_CALL_TIMEOUT_SECONDS, newSettings.callTimeoutSeconds)
+            .putString(KEY_CUSTOM_MAX_DELAY_AUDIO_URI, newSettings.customMaxDelayAudioUri)
+            .putString(KEY_CUSTOM_MAX_DELAY_AUDIO_NAME, newSettings.customMaxDelayAudioName)
             .apply()
 
         _settingsFlow.value = newSettings

@@ -25,6 +25,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -113,6 +115,8 @@ class FutureSelfCallActivity : ComponentActivity() {
         const val EXTRA_XP_REWARD = "extra_xp_reward"
         const val EXTRA_STUDENT_NAME = "extra_student_name"
         const val EXTRA_CUSTOM_QUOTE = "extra_custom_quote"
+        const val EXTRA_DELAY_MINUTES = "extra_delay_minutes"
+        const val EXTRA_IS_MAX_DELAY = "extra_is_max_delay"
     }
 
     private lateinit var speechManager: FutureSelfSpeechManager
@@ -153,15 +157,46 @@ class FutureSelfCallActivity : ComponentActivity() {
         val xpReward = intent.getIntExtra(EXTRA_XP_REWARD, 150)
         val studentName = intent.getStringExtra(EXTRA_STUDENT_NAME) ?: "Rudra"
         val customQuote = intent.getStringExtra(EXTRA_CUSTOM_QUOTE) ?: ""
+        val delayMinutesSoFar = intent.getIntExtra(EXTRA_DELAY_MINUTES, 0)
+        val isMaxDelayFromExtra = intent.getBooleanExtra(EXTRA_IS_MAX_DELAY, false)
 
         val settings = settingsRepo.getSettingsSync()
+        val isMaxDelay = isMaxDelayFromExtra || (delayMinutesSoFar >= settings.maxAllowedDelayMinutes)
 
-        // Ring and vibrate immediately
-        speechManager.startRingtoneAndVibrate(
-            presetKey = settings.ringtonePreset,
-            volume = settings.volume,
-            enableVibration = settings.vibrationEnabled
-        )
+        fun executeMaxDelayAutoSpeech() {
+            speechManager.stopRingtoneAndVibrate()
+            val maxDelayText = FutureSelfMessageEngine.buildMaxDelaySpeechText(
+                subject = taskSubject,
+                title = taskTitle,
+                durationMinutes = durationMinutes,
+                language = settings.language
+            )
+
+            speechManager.playCustomAudioOrSpeech(
+                customAudioPath = settings.customMaxDelayAudioUri,
+                fallbackText = maxDelayText,
+                tone = settings.tone,
+                language = settings.language,
+                gender = settings.voiceGender,
+                speedMultiplier = settings.speechSpeed,
+                volume = settings.volume,
+                onDone = {
+                    launchFocusMode(taskId, taskSubject, taskTitle, durationMinutes)
+                }
+            )
+        }
+
+        if (isMaxDelay) {
+            // Maximum delay hit! Do not wait for swipe: start audio directives immediately
+            executeMaxDelayAutoSpeech()
+        } else {
+            // Normal call: Ring and vibrate immediately
+            speechManager.startRingtoneAndVibrate(
+                presetKey = settings.ringtonePreset,
+                volume = settings.volume,
+                enableVibration = settings.vibrationEnabled
+            )
+        }
 
         setContent {
             val motivationalQuote = remember {
@@ -177,6 +212,10 @@ class FutureSelfCallActivity : ComponentActivity() {
                 durationMinutes = durationMinutes,
                 xpReward = xpReward,
                 motivationalQuote = motivationalQuote,
+                isMaxDelay = isMaxDelay,
+                delayMinutesSoFar = delayMinutesSoFar,
+                maxAllowedDelayMinutes = settings.maxAllowedDelayMinutes,
+                callTimeoutSeconds = settings.callTimeoutSeconds,
                 onStartTaskConfirmed = {
                     speechManager.stopRingtoneAndVibrate()
                     val ignitionText = FutureSelfMessageEngine.buildIgnitionSpeechText(
@@ -197,6 +236,9 @@ class FutureSelfCallActivity : ComponentActivity() {
                         }
                     )
                 },
+                onMaxDelayAutoIgnite = {
+                    executeMaxDelayAutoSpeech()
+                },
                 onDelayTaskConfirmed = { delayMinutes ->
                     speechManager.stopRingtoneAndVibrate()
 
@@ -213,6 +255,8 @@ class FutureSelfCallActivity : ComponentActivity() {
                         String.format(java.util.Locale.US, "%02d:%02d", newHour, newMinute)
                     )
 
+                    val updatedTotalDelay = delayMinutesSoFar + delayMinutes
+
                     if (repo != null && taskId > 0L) {
                         kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
                             val task = repo.getTaskById(taskId)
@@ -222,22 +266,27 @@ class FutureSelfCallActivity : ComponentActivity() {
                         }
                     }
 
-                    val delayText = FutureSelfMessageEngine.buildDelaySpeechText(
-                        delayMinutes = delayMinutes,
-                        newStartTime = newFormattedTime,
-                        language = settings.language
-                    )
+                    if (updatedTotalDelay >= settings.maxAllowedDelayMinutes) {
+                        // Delay reached maximum allowed threshold!
+                        executeMaxDelayAutoSpeech()
+                    } else {
+                        val delayText = FutureSelfMessageEngine.buildDelaySpeechText(
+                            delayMinutes = delayMinutes,
+                            newStartTime = newFormattedTime,
+                            language = settings.language
+                        )
 
-                    speechManager.speak(
-                        text = delayText,
-                        tone = settings.tone,
-                        language = settings.language,
-                        gender = settings.voiceGender,
-                        speedMultiplier = settings.speechSpeed,
-                        onDone = {
-                            finish()
-                        }
-                    )
+                        speechManager.speak(
+                            text = delayText,
+                            tone = settings.tone,
+                            language = settings.language,
+                            gender = settings.voiceGender,
+                            speedMultiplier = settings.speechSpeed,
+                            onDone = {
+                                finish()
+                            }
+                        )
+                    }
                 }
             )
         }
@@ -279,12 +328,45 @@ fun FutureSelfCallContainer(
     durationMinutes: Int,
     xpReward: Int,
     motivationalQuote: String,
+    isMaxDelay: Boolean = false,
+    delayMinutesSoFar: Int = 0,
+    maxAllowedDelayMinutes: Int = 60,
+    callTimeoutSeconds: Int = 40,
     onStartTaskConfirmed: () -> Unit,
+    onMaxDelayAutoIgnite: () -> Unit = {},
     onDelayTaskConfirmed: (delayMinutes: Int) -> Unit
 ) {
-    var screenState by remember { mutableStateOf(CallScreenState.RINGING) }
-    var currentSpeechSubtitle by remember { mutableStateOf("") }
+    var screenState by remember {
+        mutableStateOf(if (isMaxDelay) CallScreenState.SPEAKING else CallScreenState.RINGING)
+    }
+    var currentSpeechSubtitle by remember {
+        mutableStateOf(
+            if (isMaxDelay)
+                "Maximum delay threshold reached. No more excuses. Message from your future self. $taskSubject $taskTitle session has started now. Focus now."
+            else ""
+        )
+    }
     var showDelaySheet by remember { mutableStateOf(false) }
+
+    // If max delay reached, immediately lock into speaking state
+    LaunchedEffect(isMaxDelay) {
+        if (isMaxDelay) {
+            screenState = CallScreenState.SPEAKING
+            currentSpeechSubtitle = "Maximum delay threshold reached. No more excuses. Directive initiated. Focus now."
+        }
+    }
+
+    // Auto-timeout if call rings with no response for callTimeoutSeconds
+    LaunchedEffect(Unit) {
+        if (!isMaxDelay) {
+            kotlinx.coroutines.delay(callTimeoutSeconds * 1000L)
+            if (screenState == CallScreenState.RINGING) {
+                screenState = CallScreenState.SPEAKING
+                currentSpeechSubtitle = "Temporal call auto-connected. Directive initiated."
+                onStartTaskConfirmed()
+            }
+        }
+    }
 
     // Pulsing animations for holographic avatar
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -331,12 +413,12 @@ fun FutureSelfCallContainer(
             // Header: Protocol status badge
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(top = 12.dp)
+                modifier = Modifier.padding(top = 8.dp)
             ) {
                 Surface(
-                    color = Color(0xFF10B981).copy(alpha = 0.15f),
+                    color = if (isMaxDelay) Color(0xFFEF4444).copy(alpha = 0.2f) else Color(0xFF10B981).copy(alpha = 0.15f),
                     shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                    border = BorderStroke(1.dp, if (isMaxDelay) Color(0xFFEF4444) else Color(0xFF10B981).copy(alpha = 0.5f))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
@@ -346,27 +428,32 @@ fun FutureSelfCallContainer(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF10B981))
+                                .background(if (isMaxDelay) Color(0xFFEF4444) else Color(0xFF10B981))
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "TEMPORAL TRANSMISSION LIVE",
-                            color = Color(0xFF10B981),
+                            text = if (isMaxDelay) "MAXIMUM DELAY HIT • AUDIO AUTO-PLAYING" else "TEMPORAL TRANSMISSION LIVE",
+                            color = if (isMaxDelay) Color(0xFFEF4444) else Color(0xFF10B981),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.5.sp
+                            letterSpacing = 1.2.sp
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = if (screenState == CallScreenState.SPEAKING) "Future Self Speaking..." else "Future You is Calling...",
+                    text = when {
+                        isMaxDelay -> "Future Self Taking Control..."
+                        screenState == CallScreenState.SPEAKING -> "Future Self Speaking..."
+                        else -> "Future You is Calling..."
+                    },
                     color = Color.White,
-                    fontSize = 26.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.SansSerif
+                    fontFamily = FontFamily.SansSerif,
+                    textAlign = TextAlign.Center
                 )
             }
 
@@ -383,7 +470,11 @@ fun FutureSelfCallContainer(
                         .border(
                             2.dp,
                             Brush.sweepGradient(
-                                listOf(
+                                if (isMaxDelay) listOf(
+                                    Color(0xFFEF4444).copy(alpha = ringAlpha),
+                                    Color(0xFFF59E0B).copy(alpha = ringAlpha),
+                                    Color(0xFFEF4444).copy(alpha = ringAlpha)
+                                ) else listOf(
                                     Color(0xFF00F0FF).copy(alpha = ringAlpha),
                                     Color(0xFF8B5CF6).copy(alpha = ringAlpha),
                                     Color(0xFF00F0FF).copy(alpha = ringAlpha)
@@ -402,13 +493,17 @@ fun FutureSelfCallContainer(
                                 colors = listOf(Color(0xFF1E293B), Color(0xFF0F172A))
                             )
                         )
-                        .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f), CircleShape),
+                        .border(
+                            1.dp,
+                            if (isMaxDelay) Color(0xFFEF4444).copy(alpha = 0.7f) else Color(0xFF38BDF8).copy(alpha = 0.6f),
+                            CircleShape
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = if (screenState == CallScreenState.SPEAKING) Icons.Default.GraphicEq else Icons.Default.Psychology,
                         contentDescription = "Future Self Hologram",
-                        tint = Color(0xFF38BDF8),
+                        tint = if (isMaxDelay) Color(0xFFFCA5A5) else Color(0xFF38BDF8),
                         modifier = Modifier.size(64.dp)
                     )
                 }
@@ -419,15 +514,15 @@ fun FutureSelfCallContainer(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A).copy(alpha = 0.88f)),
-                border = BorderStroke(1.dp, Color(0xFF334155))
+                border = BorderStroke(1.dp, if (isMaxDelay) Color(0xFFEF4444).copy(alpha = 0.6f) else Color(0xFF334155))
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = taskSubject.uppercase(),
-                        color = Color(0xFF38BDF8),
+                        color = if (isMaxDelay) Color(0xFFF87171) else Color(0xFF38BDF8),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 2.sp
@@ -438,7 +533,7 @@ fun FutureSelfCallContainer(
                     Text(
                         text = taskTitle,
                         color = Color.White,
-                        fontSize = 21.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
@@ -500,13 +595,13 @@ fun FutureSelfCallContainer(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-                    HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Message From Future $studentName:",
-                        color = Color(0xFF94A3B8),
+                        text = if (isMaxDelay) "Directive From Future $studentName (MAX DELAY HIT):" else "Message From Future $studentName:",
+                        color = if (isMaxDelay) Color(0xFFFCA5A5) else Color(0xFF94A3B8),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -516,10 +611,10 @@ fun FutureSelfCallContainer(
                     Text(
                         text = if (currentSpeechSubtitle.isNotBlank()) "\"$currentSpeechSubtitle\"" else "\"$motivationalQuote\"",
                         color = Color(0xFFE2E8F0),
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
-                        lineHeight = 21.sp
+                        lineHeight = 20.sp
                     )
                 }
             }
@@ -529,7 +624,7 @@ fun FutureSelfCallContainer(
                 Surface(
                     color = Color(0xFF1E293B).copy(alpha = 0.8f),
                     shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, if (isMaxDelay) Color(0xFFEF4444).copy(alpha = 0.5f) else Color(0xFF38BDF8).copy(alpha = 0.4f)),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 12.dp)
@@ -542,14 +637,14 @@ fun FutureSelfCallContainer(
                         Icon(
                             imageVector = Icons.Default.GraphicEq,
                             contentDescription = null,
-                            tint = Color(0xFF38BDF8),
+                            tint = if (isMaxDelay) Color(0xFFEF4444) else Color(0xFF38BDF8),
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = "Synthesizing Directives...",
-                            color = Color(0xFF38BDF8),
-                            fontSize = 14.sp,
+                            text = if (isMaxDelay) "Max Delay Hit • Audio Directive Playing..." else "Synthesizing Directives...",
+                            color = if (isMaxDelay) Color(0xFFFCA5A5) else Color(0xFF38BDF8),
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
@@ -557,13 +652,20 @@ fun FutureSelfCallContainer(
                 }
             } else {
                 RealWorldCallActionPad(
+                    isMaxDelay = isMaxDelay,
+                    delayMinutesSoFar = delayMinutesSoFar,
+                    maxAllowedDelayMinutes = maxAllowedDelayMinutes,
                     onStartTask = {
                         screenState = CallScreenState.SPEAKING
                         currentSpeechSubtitle = "Message from your future self. $taskSubject $taskTitle session has started. Focus now."
                         onStartTaskConfirmed()
                     },
                     onDelayTask = {
-                        showDelaySheet = true
+                        if (!isMaxDelay) {
+                            showDelaySheet = true
+                        } else {
+                            onMaxDelayAutoIgnite()
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -598,8 +700,9 @@ fun FutureSelfCallContainer(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(6.dp))
+                val remainingDelay = maxOf(0, maxAllowedDelayMinutes - delayMinutesSoFar)
                 Text(
-                    text = "Your future self will call back at the updated time. Delaying tasks introduces future pressure.",
+                    text = "Accumulated delay: $delayMinutesSoFar min / $maxAllowedDelayMinutes min max allowance ($remainingDelay min remaining).",
                     color = Color(0xFF94A3B8),
                     fontSize = 13.sp
                 )
@@ -615,29 +718,43 @@ fun FutureSelfCallContainer(
                 )
 
                 options.forEach { (minutes, title) ->
+                    val willExceedMax = (delayMinutesSoFar + minutes) > maxAllowedDelayMinutes
                     OutlinedButton(
                         onClick = {
                             showDelaySheet = false
-                            screenState = CallScreenState.SPEAKING
-                            currentSpeechSubtitle = "Task delayed by $minutes minutes. Do not let delay become avoidance."
-                            onDelayTaskConfirmed(minutes)
+                            if (willExceedMax) {
+                                // Exceeds max delay: trigger auto-ignition
+                                onMaxDelayAutoIgnite()
+                            } else {
+                                screenState = CallScreenState.SPEAKING
+                                currentSpeechSubtitle = "Task delayed by $minutes minutes. Do not let delay become avoidance."
+                                onDelayTaskConfirmed(minutes)
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color(0xFF1E293B).copy(alpha = 0.6f)
+                            containerColor = if (willExceedMax) Color(0xFF7F1D1D).copy(alpha = 0.3f) else Color(0xFF1E293B).copy(alpha = 0.6f)
                         ),
-                        border = BorderStroke(1.dp, Color(0xFF334155))
+                        border = BorderStroke(1.dp, if (willExceedMax) Color(0xFFEF4444).copy(alpha = 0.5f) else Color(0xFF334155))
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = title, color = Color.White, fontWeight = FontWeight.SemiBold)
-                            Text(text = "+$minutes min", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                            Text(
+                                text = if (willExceedMax) "$title (Hits Max Limit)" else title,
+                                color = if (willExceedMax) Color(0xFFFCA5A5) else Color.White,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "+$minutes min",
+                                color = if (willExceedMax) Color(0xFFEF4444) else Color(0xFF94A3B8),
+                                fontSize = 12.sp
+                            )
                         }
                     }
                 }
@@ -649,23 +766,35 @@ fun FutureSelfCallContainer(
 
 @Composable
 fun RealWorldCallActionPad(
+    isMaxDelay: Boolean = false,
+    delayMinutesSoFar: Int = 0,
+    maxAllowedDelayMinutes: Int = 60,
     onStartTask: () -> Unit,
     onDelayTask: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "callPadArrows")
-    val arrowBounce by infiniteTransition.animateFloat(
+    val arrowBounceY by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = -12f,
         animationSpec = infiniteRepeatable(
-            animation = tween(750, easing = FastOutSlowInEasing),
+            animation = tween(700, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "arrowBounce"
+        label = "arrowBounceY"
+    )
+    val arrowBounceX by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "arrowBounceX"
     )
     val rippleScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.4f,
+        targetValue = 1.38f,
         animationSpec = infiniteRepeatable(
             animation = tween(1300, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
@@ -683,13 +812,16 @@ fun RealWorldCallActionPad(
     )
 
     var greenOffsetY by remember { mutableFloatStateOf(0f) }
+    var greenOffsetX by remember { mutableFloatStateOf(0f) }
     var redOffsetY by remember { mutableFloatStateOf(0f) }
-    val dragThresholdPx = with(LocalDensity.current) { 45.dp.toPx() }
+    var redOffsetX by remember { mutableFloatStateOf(0f) }
+
+    val dragThresholdPx = with(LocalDensity.current) { 42.dp.toPx() }
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Bottom
     ) {
@@ -700,86 +832,156 @@ fun RealWorldCallActionPad(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.weight(1f)
         ) {
-            // Animated upward chevrons
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .offset { IntOffset(0, (arrowBounce + redOffsetY).roundToInt()) }
-                    .padding(bottom = 6.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowUp,
-                    contentDescription = null,
-                    tint = Color(0xFFEF4444).copy(alpha = 0.45f),
-                    modifier = Modifier.size(16.dp)
-                )
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowUp,
-                    contentDescription = null,
-                    tint = Color(0xFFEF4444),
-                    modifier = Modifier.size(22.dp)
-                )
+            if (isMaxDelay) {
+                // Delay Locked Indicator
+                Surface(
+                    color = Color(0xFF7F1D1D).copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = Color(0xFFFCA5A5),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "MAX DELAY HIT",
+                            color = Color(0xFFFCA5A5),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            } else {
+                // Animated upward chevrons showing swipe direction
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .offset { IntOffset(0, (arrowBounceY + redOffsetY).roundToInt()) }
+                        .padding(bottom = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = null,
+                        tint = Color(0xFFEF4444).copy(alpha = 0.45f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = null,
+                        tint = Color(0xFFEF4444),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
 
             // Draggable Red Call Button
             Box(contentAlignment = Alignment.Center) {
-                // Expanding ripple
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .scale(rippleScale)
-                        .clip(CircleShape)
-                        .background(Color(0xFFEF4444).copy(alpha = rippleAlpha))
-                )
+                if (!isMaxDelay) {
+                    // Expanding ripple
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .scale(rippleScale)
+                            .clip(CircleShape)
+                            .background(Color(0xFFEF4444).copy(alpha = rippleAlpha))
+                    )
+                }
 
                 Box(
                     modifier = Modifier
-                        .offset { IntOffset(0, redOffsetY.roundToInt()) }
+                        .offset { IntOffset(redOffsetX.roundToInt(), redOffsetY.roundToInt()) }
                         .size(68.dp)
                         .clip(CircleShape)
                         .background(
-                            Brush.verticalGradient(
-                                listOf(Color(0xFFEF4444), Color(0xFFB91C1C))
-                            )
+                            if (isMaxDelay) {
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFF450A0A), Color(0xFF1E293B))
+                                )
+                            } else {
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFFEF4444), Color(0xFFB91C1C))
+                                )
+                            }
                         )
-                        .border(2.dp, Color(0xFFFCA5A5), CircleShape)
-                        .pointerInput(Unit) {
-                            detectVerticalDragGestures(
-                                onDragEnd = {
-                                    if (redOffsetY <= -dragThresholdPx) {
-                                        onDelayTask()
+                        .border(
+                            2.dp,
+                            if (isMaxDelay) Color(0xFF7F1D1D) else Color(0xFFFCA5A5),
+                            CircleShape
+                        )
+                        .pointerInput(isMaxDelay) {
+                            if (!isMaxDelay) {
+                                detectVerticalDragGestures(
+                                    onDragEnd = {
+                                        if (redOffsetY <= -dragThresholdPx) {
+                                            onDelayTask()
+                                        }
+                                        redOffsetY = 0f
+                                    },
+                                    onDragCancel = { redOffsetY = 0f },
+                                    onVerticalDrag = { _, dragAmount ->
+                                        val newOffset = redOffsetY + dragAmount
+                                        if (newOffset <= 0f && newOffset >= -dragThresholdPx * 2.2f) {
+                                            redOffsetY = newOffset
+                                        }
                                     }
-                                    redOffsetY = 0f
-                                },
-                                onDragCancel = { redOffsetY = 0f },
-                                onVerticalDrag = { _, dragAmount ->
-                                    val newOffset = redOffsetY + dragAmount
-                                    if (newOffset <= 0f && newOffset >= -dragThresholdPx * 2f) {
-                                        redOffsetY = newOffset
+                                )
+                            }
+                        }
+                        .pointerInput(isMaxDelay) {
+                            if (!isMaxDelay) {
+                                detectHorizontalDragGestures(
+                                    onDragEnd = {
+                                        if (redOffsetX <= -dragThresholdPx) {
+                                            onDelayTask()
+                                        }
+                                        redOffsetX = 0f
+                                    },
+                                    onDragCancel = { redOffsetX = 0f },
+                                    onHorizontalDrag = { _, dragAmount ->
+                                        val newOffset = redOffsetX + dragAmount
+                                        if (newOffset <= 0f && newOffset >= -dragThresholdPx * 2.2f) {
+                                            redOffsetX = newOffset
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                         .clickable { onDelayTask() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CallEnd,
-                        contentDescription = "Swipe up to Delay Task",
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
+                        imageVector = if (isMaxDelay) Icons.Default.Lock else Icons.Default.CallEnd,
+                        contentDescription = if (isMaxDelay) "Delay Locked" else "Swipe up to Delay Task",
+                        tint = if (isMaxDelay) Color(0xFF94A3B8) else Color.White,
+                        modifier = Modifier.size(30.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
+            // Text indicating Direction + Purpose
             Text(
-                text = "SWIPE UP TO DELAY",
-                color = Color(0xFFFCA5A5),
-                fontSize = 11.sp,
+                text = if (isMaxDelay) "LOCKED • MAX DELAY" else "↑ SWIPE UP TO DECLINE",
+                color = if (isMaxDelay) Color(0xFFFCA5A5) else Color(0xFFF87171),
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Black,
-                letterSpacing = 1.sp,
+                letterSpacing = 0.8.sp,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = if (isMaxDelay) "Deferral Limit Hit" else "DELAY TASK (or swipe ←)",
+                color = Color(0xFF94A3B8),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
             )
         }
@@ -787,16 +989,16 @@ fun RealWorldCallActionPad(
         // Center separator / temporal call label
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(bottom = 22.dp)
+            modifier = Modifier.padding(bottom = 20.dp)
         ) {
             Surface(
                 color = Color(0xFF1E293B).copy(alpha = 0.7f),
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Color(0xFF334155))
+                border = BorderStroke(1.dp, if (isMaxDelay) Color(0xFFEF4444).copy(alpha = 0.5f) else Color(0xFF334155))
             ) {
                 Text(
-                    text = "ACTION REQUIRED",
-                    color = Color(0xFF94A3B8),
+                    text = if (isMaxDelay) "AUTOPLAY ACTIVE" else "DISCIPLINE OS",
+                    color = if (isMaxDelay) Color(0xFFFCA5A5) else Color(0xFF94A3B8),
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
@@ -812,11 +1014,11 @@ fun RealWorldCallActionPad(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.weight(1f)
         ) {
-            // Animated upward chevrons
+            // Animated upward chevrons showing swipe direction
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .offset { IntOffset(0, (arrowBounce + greenOffsetY).roundToInt()) }
+                    .offset { IntOffset(0, (arrowBounceY + greenOffsetY).roundToInt()) }
                     .padding(bottom = 6.dp)
             ) {
                 Icon(
@@ -846,7 +1048,7 @@ fun RealWorldCallActionPad(
 
                 Box(
                     modifier = Modifier
-                        .offset { IntOffset(0, greenOffsetY.roundToInt()) }
+                        .offset { IntOffset(greenOffsetX.roundToInt(), greenOffsetY.roundToInt()) }
                         .size(68.dp)
                         .clip(CircleShape)
                         .background(
@@ -866,8 +1068,25 @@ fun RealWorldCallActionPad(
                                 onDragCancel = { greenOffsetY = 0f },
                                 onVerticalDrag = { _, dragAmount ->
                                     val newOffset = greenOffsetY + dragAmount
-                                    if (newOffset <= 0f && newOffset >= -dragThresholdPx * 2f) {
+                                    if (newOffset <= 0f && newOffset >= -dragThresholdPx * 2.2f) {
                                         greenOffsetY = newOffset
+                                    }
+                                }
+                            )
+                        }
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures(
+                                onDragEnd = {
+                                    if (greenOffsetX >= dragThresholdPx) {
+                                        onStartTask()
+                                    }
+                                    greenOffsetX = 0f
+                                },
+                                onDragCancel = { greenOffsetX = 0f },
+                                onHorizontalDrag = { _, dragAmount ->
+                                    val newOffset = greenOffsetX + dragAmount
+                                    if (newOffset >= 0f && newOffset <= dragThresholdPx * 2.2f) {
+                                        greenOffsetX = newOffset
                                     }
                                 }
                             )
@@ -879,19 +1098,27 @@ fun RealWorldCallActionPad(
                         imageVector = Icons.Default.Call,
                         contentDescription = "Swipe up to Start Task",
                         tint = Color.White,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(30.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
+            // Text indicating Direction + Purpose
             Text(
-                text = "SWIPE UP TO START",
+                text = "↑ SWIPE UP TO ANSWER",
                 color = Color(0xFF6EE7B7),
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Black,
-                letterSpacing = 1.sp,
+                letterSpacing = 0.8.sp,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "START TASK (or swipe →)",
+                color = Color(0xFF94A3B8),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
             )
         }
