@@ -93,6 +93,7 @@ fun SettingsScreen(
     onOpenDrawer: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToProfileSettings: () -> Unit = {},
+    onNavigateToFutureSelfSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -202,6 +203,67 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = GlassWhiteMuted,
                             fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+
+            // Future Self Calling System Link
+            item {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = FrostedNavyCard,
+                    border = BorderStroke(1.dp, IceCyanPrimary.copy(alpha = 0.6f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onNavigateToFutureSelfSettings() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = IceCyanPrimary.copy(alpha = 0.15f),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = null,
+                                    tint = IceCyanPrimary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Future Self Calling System",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = GlassWhite
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                GlowPill(text = "VOICE OS", color = IceCyanPrimary)
+                            }
+                            Text(
+                                text = "Configure voice gender, tone, language, ringtones & quotes",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = GlassWhiteMuted,
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.ArrowForward,
+                            contentDescription = null,
+                            tint = IceCyanPrimary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }

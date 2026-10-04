@@ -16,10 +16,24 @@ object NotificationHelper {
     const val CHANNEL_POMODORO = "rebuild_pomodoro_channel"
     const val CHANNEL_HABITS = "rebuild_habits_channel"
     const val CHANNEL_RINGING_ALARM = "rebuild_ringing_alarm_channel"
+    const val CHANNEL_FUTURE_SELF_CALL = "rebuild_future_self_channel"
 
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            val futureSelfCallChannel = NotificationChannel(
+                CHANNEL_FUTURE_SELF_CALL,
+                "Future Self Calling System",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Full-screen lockscreen incoming transmissions from your future self."
+                enableVibration(true)
+                enableLights(true)
+                lightColor = 0xFF00F0FF.toInt()
+                lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
+                setBypassDnd(true)
+            }
 
             val ringingAlarmChannel = NotificationChannel(
                 CHANNEL_RINGING_ALARM,
@@ -65,7 +79,7 @@ object NotificationHelper {
             }
 
             notificationManager.createNotificationChannels(
-                listOf(ringingAlarmChannel, timetableChannel, pomodoroChannel, habitsChannel)
+                listOf(futureSelfCallChannel, ringingAlarmChannel, timetableChannel, pomodoroChannel, habitsChannel)
             )
         }
     }

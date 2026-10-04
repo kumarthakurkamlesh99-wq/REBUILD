@@ -345,6 +345,21 @@ class PomodoroViewModel(private val repository: RebuildRepository) : ViewModel()
         )
     }
 
+    fun continueWorkingDirectly() {
+        val currentState = _pomodoroState.value
+        val workSecs = if (currentState.sessionType == SessionType.POMODORO_50_10) 50 * 60 else 25 * 60
+        _pomodoroState.value = currentState.copy(
+            showPostSessionModal = false,
+            completedSessionInfo = null,
+            distractionsCountThisSession = 0,
+            isBreak = false,
+            totalSeconds = workSecs,
+            remainingSeconds = workSecs,
+            isRunning = true
+        )
+        startTimer()
+    }
+
     fun logMistakeFromSession(
         question: String,
         mistake: String,

@@ -609,7 +609,11 @@ class PlanImportManager(
                         hour = parsedTime.first,
                         minute = parsedTime.second,
                         title = t.title,
-                        subject = t.subject ?: "General"
+                        subject = t.subject ?: "General",
+                        startTime = s12,
+                        endTime = e12,
+                        durationMinutes = t.targetMinutes ?: 45,
+                        xpReward = if (t.xp != null && t.xp > 0) t.xp else 50
                     )
                 }
 
@@ -680,7 +684,11 @@ class PlanImportManager(
                         hour = parsedTime.first,
                         minute = parsedTime.second,
                         title = s.title,
-                        subject = s.category ?: "Schedule"
+                        subject = s.category ?: "Schedule",
+                        startTime = s12,
+                        endTime = e12,
+                        durationMinutes = s.targetMinutes ?: 45,
+                        xpReward = 50
                     )
                 }
 

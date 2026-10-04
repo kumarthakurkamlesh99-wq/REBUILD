@@ -284,19 +284,72 @@ object AlarmScheduler {
         }
     }
 
-    fun scheduleTaskAlarm(context: Context, taskId: Long, hour: Int, minute: Int, title: String, subject: String) {
+    fun scheduleTaskAlarm(
+        context: Context,
+        taskId: Long,
+        hour: Int,
+        minute: Int,
+        title: String,
+        subject: String,
+        startTime: String? = null,
+        endTime: String? = null,
+        durationMinutes: Int = 90,
+        xpReward: Int = 150
+    ) {
         val alarmId = (TASK_ALARM_ID_BASE + (taskId % 9999)).toInt()
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val info = ScheduledAlarmInfo(
-            id = alarmId,
-            hour = hour,
-            minute = minute,
-            title = "Task Reminder • $subject",
-            message = title,
-            category = "Task",
-            isEnabled = true
+
+        val intent = Intent(context, FutureSelfCallReceiver::class.java).apply {
+            action = FutureSelfCallReceiver.ACTION_FUTURE_SELF_CALL
+            putExtra(FutureSelfCallActivity.EXTRA_TASK_ID, taskId)
+            putExtra(FutureSelfCallActivity.EXTRA_TASK_TITLE, title)
+            putExtra(FutureSelfCallActivity.EXTRA_TASK_SUBJECT, subject)
+            putExtra(FutureSelfCallActivity.EXTRA_START_TIME, startTime ?: String.format(java.util.Locale.US, "%02d:%02d", hour, minute))
+            putExtra(FutureSelfCallActivity.EXTRA_END_TIME, endTime ?: "")
+            putExtra(FutureSelfCallActivity.EXTRA_DURATION_MINUTES, durationMinutes)
+            putExtra(FutureSelfCallActivity.EXTRA_XP_REWARD, xpReward)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            alarmId,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        scheduleAlarmInternal(context, alarmManager, info)
+
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            if (before(Calendar.getInstance())) {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
+        }
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setExact(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
+            }
+            Log.d("AlarmScheduler", "Scheduled Future Self Task Call $alarmId ($title) for $hour:$minute")
+        } catch (e: SecurityException) {
+            alarmManager.set(
+                AlarmManager.RTC_WAKEUP,
+                calendar.timeInMillis,
+                pendingIntent
+            )
+            Log.w("AlarmScheduler", "Exact alarm restricted, scheduled standard task alarm $alarmId")
+        }
     }
 
     fun cancelTaskAlarm(context: Context, taskId: Long) {

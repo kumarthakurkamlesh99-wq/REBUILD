@@ -557,7 +557,18 @@ class RebuildRepository(
             if (newCompleted) {
                 AlarmScheduler.cancelTaskAlarm(context, task.id)
             } else if (task.reminderHour != null && task.reminderMinute != null) {
-                AlarmScheduler.scheduleTaskAlarm(context, task.id, task.reminderHour, task.reminderMinute, task.title, task.subject)
+                AlarmScheduler.scheduleTaskAlarm(
+                    context = context,
+                    taskId = task.id,
+                    hour = task.reminderHour,
+                    minute = task.reminderMinute,
+                    title = task.title,
+                    subject = task.subject,
+                    startTime = task.startTime,
+                    endTime = task.endTime,
+                    durationMinutes = task.targetMinutes,
+                    xpReward = task.xpReward
+                )
             }
         }
 
@@ -579,7 +590,18 @@ class RebuildRepository(
     suspend fun addTask(task: DailyPlanTaskEntity): Long {
         val id = db.dailyPlanDao().insertTask(task)
         if (context != null && task.reminderHour != null && task.reminderMinute != null && !task.isCompleted) {
-            AlarmScheduler.scheduleTaskAlarm(context, id, task.reminderHour, task.reminderMinute, task.title, task.subject)
+            AlarmScheduler.scheduleTaskAlarm(
+                context = context,
+                taskId = id,
+                hour = task.reminderHour,
+                minute = task.reminderMinute,
+                title = task.title,
+                subject = task.subject,
+                startTime = task.startTime,
+                endTime = task.endTime,
+                durationMinutes = task.targetMinutes,
+                xpReward = task.xpReward
+            )
         }
         recalculateDisciplineScore(task.date)
         return id
@@ -591,7 +613,18 @@ class RebuildRepository(
             if (task.isCompleted || task.reminderHour == null || task.reminderMinute == null) {
                 AlarmScheduler.cancelTaskAlarm(context, task.id)
             } else {
-                AlarmScheduler.scheduleTaskAlarm(context, task.id, task.reminderHour, task.reminderMinute, task.title, task.subject)
+                AlarmScheduler.scheduleTaskAlarm(
+                    context = context,
+                    taskId = task.id,
+                    hour = task.reminderHour,
+                    minute = task.reminderMinute,
+                    title = task.title,
+                    subject = task.subject,
+                    startTime = task.startTime,
+                    endTime = task.endTime,
+                    durationMinutes = task.targetMinutes,
+                    xpReward = task.xpReward
+                )
             }
         }
         recalculateDisciplineScore(task.date)
@@ -663,7 +696,11 @@ class RebuildRepository(
                 hour = newReminderHour,
                 minute = newReminderMinute,
                 title = task.title,
-                subject = task.subject
+                subject = task.subject,
+                startTime = newStartTime,
+                endTime = newEndTime,
+                durationMinutes = task.targetMinutes,
+                xpReward = task.xpReward
             )
         }
     }

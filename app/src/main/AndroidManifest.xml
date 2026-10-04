@@ -62,6 +62,18 @@
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 
+        <activity
+            android:name=".notification.FutureSelfCallActivity"
+            android:exported="true"
+            android:label="Future Self Calling"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:showOnLockScreen="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.MyApplication"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".notification.AlarmForegroundService"
             android:enabled="true"
@@ -72,6 +84,15 @@
             android:name=".notification.AlarmNotificationReceiver"
             android:enabled="true"
             android:exported="false" />
+
+        <receiver
+            android:name=".notification.FutureSelfCallReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.example.rebuild.ACTION_FUTURE_SELF_CALL" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".notification.BootReceiver"

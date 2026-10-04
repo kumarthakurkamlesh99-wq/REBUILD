@@ -167,6 +167,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector,
     object Notes : Screen("notes", "Notes & Mistakes", Icons.Default.Notes)
     object Analytics : Screen("analytics", "Analytics", Icons.Default.Analytics)
     object Notifications : Screen("notifications", "Notification Hub", Icons.Default.NotificationsActive, "9 Alarms")
+    object FutureSelfSettings : Screen("future_self_settings", "Future Self Voice", Icons.Default.Psychology, "Calls")
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
     object RankReport : Screen("rank_report", "Rank Intelligence Report", Icons.Default.EmojiEvents)
     object XpLedger : Screen("xp_ledger", "XP Ledger", Icons.Default.Bolt)
@@ -502,7 +503,8 @@ fun RebuildAppScaffold(
                     )
                     TasksScreen(
                         viewModel = plannerVm,
-                        onOpenDrawer = openDrawer
+                        onOpenDrawer = openDrawer,
+                        onNavigateToPomodoro = { navController.navigate(Screen.Focus.route) }
                     )
                 }
 
@@ -584,7 +586,15 @@ fun RebuildAppScaffold(
                         userProfile = homeUiState.userProfile,
                         onOpenDrawer = openDrawer,
                         onNavigateToNotifications = { navController.navigate(Screen.Notifications.route) },
-                        onNavigateToProfileSettings = { navController.navigate(Screen.ProfileSettings.route) }
+                        onNavigateToProfileSettings = { navController.navigate(Screen.ProfileSettings.route) },
+                        onNavigateToFutureSelfSettings = { navController.navigate(Screen.FutureSelfSettings.route) }
+                    )
+                }
+
+                // 14b. Future Self Calling Voice Settings
+                composable(Screen.FutureSelfSettings.route) {
+                    com.example.ui.screens.FutureSelfSettingsScreen(
+                        onNavigateBack = { navController.popBackStack() }
                     )
                 }
 

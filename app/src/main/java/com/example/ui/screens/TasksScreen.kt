@@ -34,6 +34,14 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Update
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import com.example.util.DateTimeUtils
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -92,7 +100,8 @@ import com.example.viewmodel.PlannerViewModel
 @Composable
 fun TasksScreen(
     viewModel: PlannerViewModel,
-    onOpenDrawer: () -> Unit = {}
+    onOpenDrawer: () -> Unit = {},
+    onNavigateToPomodoro: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     var selectedFilter by remember { mutableStateOf("All") }
@@ -430,6 +439,21 @@ fun TasksScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                val overdueTask = filteredTasks.find {
+                    !it.isCompleted && DateTimeUtils.isTaskOverdue(it)
+                }
+
+                if (overdueTask != null) {
+                    item {
+                        MissedTaskAlertCard(
+                            task = overdueTask,
+                            onStartNow = { onNavigateToPomodoro() },
+                            onReschedule = { viewModel.delayTask(overdueTask, 30) },
+                            onSkip = { viewModel.toggleTask(overdueTask) }
+                        )
+                    }
+                }
+
                 items(filteredTasks, key = { it.id }) { task ->
                     val dynamicInfo = dynamicMap[task.id]
                     DynamicTaskItemRow(
@@ -872,6 +896,131 @@ fun AddTaskDialog(
                 placeholder = "45",
                 testTag = "task_duration_input"
             )
+        }
+    }
+}
+
+@Composable
+fun MissedTaskAlertCard(
+    task: DailyPlanTaskEntity,
+    onStartNow: () -> Unit,
+    onReschedule: () -> Unit,
+    onSkip: () -> Unit
+) {
+    val context = LocalContext.current
+    val settingsRepo = remember { com.example.data.repository.FutureSelfSettingsRepository.getInstance(context) }
+    val speechManager = remember { com.example.speech.FutureSelfSpeechManager.getInstance(context) }
+
+    LaunchedEffect(task.id) {
+        val settings = settingsRepo.getSettingsSync()
+        if (settings.isEnabled) {
+            val text = com.example.speech.FutureSelfMessageEngine.buildMissedTaskSpeechText(task.subject, task.title, settings.language)
+            speechManager.speak(text, tone = settings.tone, language = settings.language, gender = settings.voiceGender, speedMultiplier = settings.speechSpeed) {}
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1F0B10)),
+        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.7f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = Color(0xFFEF4444),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "MISSED TASK ALERT",
+                        color = Color(0xFFEF4444),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        val settings = settingsRepo.getSettingsSync()
+                        val text = com.example.speech.FutureSelfMessageEngine.buildMissedTaskSpeechText(task.subject, task.title, settings.language)
+                        speechManager.speak(text, tone = settings.tone, language = settings.language, gender = settings.voiceGender, speedMultiplier = settings.speechSpeed) {}
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VolumeUp,
+                        contentDescription = "Speak directive",
+                        tint = Color(0xFFFCA5A5),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "You missed ${task.subject}: ${task.title}",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "\"Missed tasks become future pressure. Choose your next action.\"",
+                color = Color(0xFFFCA5A5),
+                fontSize = 12.sp,
+                lineHeight = 16.sp
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onStartNow,
+                    modifier = Modifier.weight(1f).height(42.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    Text(text = "Start Now", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+
+                OutlinedButton(
+                    onClick = onReschedule,
+                    modifier = Modifier.weight(1f).height(42.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    Text(text = "Reschedule", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF59E0B))
+                }
+
+                OutlinedButton(
+                    onClick = onSkip,
+                    modifier = Modifier.weight(0.8f).height(42.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF1E293B)),
+                    border = BorderStroke(1.dp, Color(0xFF475569)),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    Text(text = "Skip", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+                }
+            }
         }
     }
 }

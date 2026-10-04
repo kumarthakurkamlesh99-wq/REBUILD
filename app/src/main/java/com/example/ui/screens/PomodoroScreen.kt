@@ -73,6 +73,9 @@ import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.runtime.remember
 
 @Composable
 fun PomodoroScreen(
@@ -430,6 +433,170 @@ fun PomodoroScreen(
                             accentColor = PurpleArc,
                             modifier = Modifier.weight(1f)
                         )
+                    }
+                }
+            }
+        }
+    }
+
+    if (uiState.showPostSessionModal) {
+        FocusModeCompletionDialog(
+            xpEarned = uiState.completedSessionInfo?.xpEarned ?: 150,
+            subject = uiState.completedSessionInfo?.subject ?: uiState.selectedSubject,
+            chapter = uiState.completedSessionInfo?.chapter ?: uiState.selectedChapter,
+            onContinueWorking = { viewModel.continueWorkingDirectly() },
+            onTakeBreak = { viewModel.dismissPostSessionModal() }
+        )
+    }
+}
+
+@Composable
+fun FocusModeCompletionDialog(
+    xpEarned: Int,
+    subject: String,
+    chapter: String,
+    onContinueWorking: () -> Unit,
+    onTakeBreak: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settingsRepo = remember { com.example.data.repository.FutureSelfSettingsRepository.getInstance(context) }
+    val speechManager = remember { com.example.speech.FutureSelfSpeechManager.getInstance(context) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val settings = settingsRepo.getSettingsSync()
+        if (settings.isEnabled) {
+            val speechText = com.example.speech.FutureSelfMessageEngine.buildCompletionSpeechText(
+                xpReward = xpEarned,
+                language = settings.language
+            )
+            speechManager.speak(
+                text = speechText,
+                tone = settings.tone,
+                language = settings.language,
+                gender = settings.voiceGender,
+                speedMultiplier = settings.speechSpeed
+            ) {}
+        }
+    }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onTakeBreak,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xE6030712))
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00F0FF).copy(alpha = 0.5f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Surface(
+                        color = Color(0xFF10B981).copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(20.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                    ) {
+                        Text(
+                            text = "SESSION COMPLETE • DISCIPLINE FORGED",
+                            color = Color(0xFF10B981),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Session Complete.",
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Black
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Surface(
+                        color = Color(0xFFF59E0B).copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Bolt,
+                                contentDescription = null,
+                                tint = Color(0xFFF59E0B),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "+$xpEarned XP EARNED",
+                                color = Color(0xFFFCD34D),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "$subject • $chapter",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 13.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    androidx.compose.material3.HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "\"Small wins repeated daily become extraordinary results.\"",
+                        color = Color(0xFFCBD5E1),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onTakeBreak,
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF1E293B)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+                        ) {
+                            Text(text = "Take Break", color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = onContinueWorking,
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                        ) {
+                            Text(text = "Continue Working", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

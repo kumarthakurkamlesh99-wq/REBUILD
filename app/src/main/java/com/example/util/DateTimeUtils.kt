@@ -152,4 +152,16 @@ object DateTimeUtils {
 
         return Calendar.getInstance().after(cal)
     }
+
+    fun isTaskOverdue(task: com.example.data.local.entity.DailyPlanTaskEntity): Boolean {
+        return isTaskOverdue(
+            taskDate = task.date,
+            startTime = task.startTime,
+            endTime = task.endTime,
+            reminderHour = task.reminderHour,
+            reminderMinute = task.reminderMinute,
+            durationMinutes = task.targetMinutes,
+            delayMinutes = task.delayMinutes
+        )
+    }
 }
