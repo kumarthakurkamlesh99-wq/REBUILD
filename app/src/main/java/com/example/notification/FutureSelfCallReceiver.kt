@@ -116,6 +116,13 @@ class FutureSelfCallReceiver : BroadcastReceiver() {
                 } catch (e: Exception) {
                     Log.w(TAG, "Direct activity launch deferred to fullScreenIntent: ${e.message}")
                 }
+
+                // Advance dynamic rolling window to schedule next upcoming task alarm
+                try {
+                    AlarmScheduler.rescheduleUpcomingTaskAlarms(context)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to advance rolling alarm window", e)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed in FutureSelfCallReceiver async execution", e)
             } finally {

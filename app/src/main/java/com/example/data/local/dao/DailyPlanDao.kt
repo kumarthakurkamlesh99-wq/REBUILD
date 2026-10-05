@@ -35,6 +35,9 @@ interface DailyPlanDao {
     @Query("SELECT COUNT(*) FROM daily_plan_tasks")
     fun getTotalTasksCountAll(): Flow<Int>
 
+    @Query("SELECT COUNT(*) FROM daily_plan_tasks")
+    suspend fun getTotalTasksCountDirect(): Int
+
     @Query("SELECT * FROM daily_plan_tasks WHERE date < :todayDate AND isCompleted = 0")
     suspend fun getIncompleteTasksBefore(todayDate: String): List<DailyPlanTaskEntity>
 
@@ -58,6 +61,12 @@ interface DailyPlanDao {
 
     @Delete
     suspend fun deleteTask(task: DailyPlanTaskEntity)
+
+    @Query("SELECT * FROM daily_plan_tasks WHERE isCompleted = 0 AND ((reminderHour IS NOT NULL AND reminderMinute IS NOT NULL) OR (startTime IS NOT NULL AND startTime != '')) AND date >= :fromDate ORDER BY date ASC, reminderHour ASC, reminderMinute ASC, id ASC LIMIT :limit")
+    suspend fun getUpcomingUncompletedTasksWithReminder(fromDate: String, limit: Int = 50): List<DailyPlanTaskEntity>
+
+    @Query("DELETE FROM daily_plan_tasks WHERE title IN ('Deep Work Study Block 1', 'Evening Reflection & Planning', 'Daily Workout (Calisthenics)')")
+    suspend fun deleteKnownDummyTasks()
 
     @Query("DELETE FROM daily_plan_tasks WHERE id = :id")
     suspend fun deleteTaskById(id: Long)

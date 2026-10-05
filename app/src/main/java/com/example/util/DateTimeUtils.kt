@@ -46,16 +46,50 @@ object DateTimeUtils {
         val isAm = clean.contains("AM", ignoreCase = true)
 
         val stripped = clean.replace("(?i)am|pm".toRegex(), "").trim()
-        val parts = stripped.split(":")
-        if (parts.size >= 2) {
-            var hour = parts[0].trim().toIntOrNull() ?: return null
-            val minute = parts[1].trim().take(2).toIntOrNull() ?: return null
 
-            if (isPm && hour < 12) hour += 12
-            if (isAm && hour == 12) hour = 0
+        // 1. Colon or Dot separated (e.g. "05:00", "5:00", "05:00:00", "5.00")
+        val delimiter = if (stripped.contains(":")) ":" else if (stripped.contains(".")) "." else null
+        if (delimiter != null) {
+            val parts = stripped.split(delimiter)
+            if (parts.size >= 2) {
+                var hour = parts[0].trim().toIntOrNull() ?: return null
+                val minute = parts[1].trim().take(2).toIntOrNull() ?: return null
 
-            return Pair(hour.coerceIn(0, 23), minute.coerceIn(0, 59))
+                // Validate range before AM/PM conversion
+                if (isPm || isAm) {
+                    if (hour < 1 || hour > 12) return null
+                } else {
+                    if (hour < 0 || hour > 23) return null
+                }
+                if (minute < 0 || minute > 59) return null
+
+                if (isPm && hour < 12) hour += 12
+                if (isAm && hour == 12) hour = 0
+
+                return Pair(hour, minute)
+            }
         }
+
+        // 2. Just hour with AM/PM (e.g. "5 AM", "5pm", "11 PM")
+        if (isPm || isAm) {
+            val hourOnly = stripped.toIntOrNull()
+            if (hourOnly != null && hourOnly in 1..12) {
+                var hour = hourOnly
+                if (isPm && hour < 12) hour += 12
+                if (isAm && hour == 12) hour = 0
+                return Pair(hour, 0)
+            }
+        }
+
+        // 3. 4-digit military time (e.g. "0500", "1730")
+        if (stripped.length == 4 && stripped.all { it.isDigit() }) {
+            val hour = stripped.substring(0, 2).toIntOrNull() ?: return null
+            val minute = stripped.substring(2, 4).toIntOrNull() ?: return null
+            if (hour in 0..23 && minute in 0..59) {
+                return Pair(hour, minute)
+            }
+        }
+
         return null
     }
 

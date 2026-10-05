@@ -14,6 +14,7 @@ import com.example.worker.DailyPlanWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 class RebuildApplication : Application() {
@@ -36,6 +37,13 @@ class RebuildApplication : Application() {
 
             // 3. Setup periodic WorkManager daily task rollover & discipline calculation
             setupPeriodicDailyWorker()
+
+            // 4. Arm dynamic rolling window for upcoming task alarms
+            applicationScope.launch(Dispatchers.IO) {
+                try {
+                    AlarmScheduler.rescheduleUpcomingTaskAlarms(this@RebuildApplication)
+                } catch (_: Exception) {}
+            }
         } catch (e: Exception) {
             // Safe fallback for unit testing environments
         }

@@ -284,6 +284,115 @@ object AlarmScheduler {
         }
     }
 
+    const val MAX_CONCURRENT_SCHEDULED_TASK_ALARMS = 15
+
+    suspend fun rescheduleUpcomingTaskAlarms(context: Context) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val db = com.example.data.local.AppDatabase.getDatabase(
+                    context.applicationContext,
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+                )
+                val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+                val upcomingTasks = db.dailyPlanDao().getUpcomingUncompletedTasksWithReminder(
+                    fromDate = todayStr,
+                    limit = 50
+                )
+
+                val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return@withContext
+
+                // Cancel existing slot range (slots 0 to 19)
+                for (slot in 0 until 20) {
+                    cancelAlarm(context, TASK_ALARM_ID_BASE + slot)
+                }
+
+                val now = Calendar.getInstance()
+                var scheduledCount = 0
+
+                for (task in upcomingTasks) {
+                    if (scheduledCount >= MAX_CONCURRENT_SCHEDULED_TASK_ALARMS) break
+
+                    val parsedTime = if (task.reminderHour != null && task.reminderMinute != null) {
+                        Pair(task.reminderHour, task.reminderMinute)
+                    } else if (!task.startTime.isNullOrBlank()) {
+                        com.example.util.DateTimeUtils.parseHourMinute(task.startTime)
+                    } else null
+
+                    if (parsedTime == null) continue
+                    val hour = parsedTime.first
+                    val minute = parsedTime.second
+
+                    val taskCalendar = Calendar.getInstance().apply {
+                        val parts = task.date.split("-")
+                        if (parts.size == 3) {
+                            set(Calendar.YEAR, parts[0].toIntOrNull() ?: get(Calendar.YEAR))
+                            set(Calendar.MONTH, (parts[1].toIntOrNull() ?: 1) - 1)
+                            set(Calendar.DAY_OF_MONTH, parts[2].toIntOrNull() ?: get(Calendar.DAY_OF_MONTH))
+                        }
+                        set(Calendar.HOUR_OF_DAY, hour)
+                        set(Calendar.MINUTE, minute)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+
+                    // Skip tasks whose alarm time is already more than 15 mins in the past
+                    if (taskCalendar.timeInMillis < now.timeInMillis - (15 * 60 * 1000L)) {
+                        continue
+                    }
+
+                    val slotAlarmId = TASK_ALARM_ID_BASE + scheduledCount
+
+                    val intent = Intent(context, FutureSelfCallReceiver::class.java).apply {
+                        action = FutureSelfCallReceiver.ACTION_FUTURE_SELF_CALL
+                        putExtra(FutureSelfCallActivity.EXTRA_TASK_ID, task.id)
+                        putExtra(FutureSelfCallActivity.EXTRA_TASK_TITLE, task.title)
+                        putExtra(FutureSelfCallActivity.EXTRA_TASK_SUBJECT, task.subject)
+                        putExtra(FutureSelfCallActivity.EXTRA_START_TIME, task.startTime ?: String.format(java.util.Locale.US, "%02d:%02d", hour, minute))
+                        putExtra(FutureSelfCallActivity.EXTRA_END_TIME, task.endTime ?: "")
+                        putExtra(FutureSelfCallActivity.EXTRA_DURATION_MINUTES, task.targetMinutes)
+                        putExtra(FutureSelfCallActivity.EXTRA_XP_REWARD, task.xpReward)
+                    }
+
+                    val pendingIntent = PendingIntent.getBroadcast(
+                        context,
+                        slotAlarmId,
+                        intent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            alarmManager.setExactAndAllowWhileIdle(
+                                AlarmManager.RTC_WAKEUP,
+                                taskCalendar.timeInMillis,
+                                pendingIntent
+                            )
+                        } else {
+                            alarmManager.setExact(
+                                AlarmManager.RTC_WAKEUP,
+                                taskCalendar.timeInMillis,
+                                pendingIntent
+                            )
+                        }
+                        scheduledCount++
+                    } catch (_: Exception) {
+                        try {
+                            alarmManager.set(
+                                AlarmManager.RTC_WAKEUP,
+                                taskCalendar.timeInMillis,
+                                pendingIntent
+                            )
+                            scheduledCount++
+                        } catch (_: Exception) {}
+                    }
+                }
+                Log.d("AlarmScheduler", "Dynamically scheduled $scheduledCount upcoming task alarms into AlarmManager (OS limit safe)")
+            } catch (e: Exception) {
+                Log.e("AlarmScheduler", "Error rescheduling upcoming task alarms", e)
+            }
+        }
+    }
+
     fun scheduleTaskAlarm(
         context: Context,
         taskId: Long,

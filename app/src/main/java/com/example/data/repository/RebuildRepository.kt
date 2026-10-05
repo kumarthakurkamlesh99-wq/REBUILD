@@ -310,8 +310,8 @@ class RebuildRepository(
             db.habitDao().insertHabit(habit)
         }
 
-        // 6. Generate Dynamic Tasks for Today
-        generateSmartDailyPlan(today)
+        // 6. Clean state for today's tasks (Tasks will come directly from user or plan import)
+        db.dailyPlanDao().deleteKnownDummyTasks()
 
         // 7. Schedule Alarms
         if (context != null) {
@@ -454,95 +454,14 @@ class RebuildRepository(
             }
         }
 
-        if (existingToday.isEmpty()) {
-            val holiday = db.holidayDao().getHolidayForDate(targetDate, monthDayFormat.format(Date()))
-            val isFestival = holiday != null
-            val profile = db.userProfileDao().getUserProfileDirect()
-            val subjects = db.subjectDao().getAllSubjectsDirect()
-
-            val generatedList = mutableListOf<DailyPlanTaskEntity>()
-            var orderIndex = 0
-
-            // Add dynamic tasks based on user's actual enrolled subjects
-            if (subjects.isNotEmpty()) {
-                for (sub in subjects.take(3)) {
-                    val pendingChapters = db.subjectDao().getChaptersForSubjectDirect(sub.id).filter { !it.isCompleted }
-                    val targetChapter = pendingChapters.firstOrNull()?.title ?: "Chapter 1 Review"
-
-                    generatedList.add(
-                        DailyPlanTaskEntity(
-                            date = targetDate,
-                            subject = sub.name,
-                            title = "${sub.name} Study Session",
-                            type = TaskType.LECTURE,
-                            details = "Target: $targetChapter • Theory & Numerical Problem Solving",
-                            targetMinutes = if (isFestival) 30 else profile?.preferredSessionDurationMinutes ?: 50,
-                            orderIndex = orderIndex++,
-                            xpReward = 60
-                        )
-                    )
-                    generatedList.add(
-                        DailyPlanTaskEntity(
-                            date = targetDate,
-                            subject = sub.name,
-                            title = "${sub.name} Notes & Revision",
-                            type = TaskType.NOTES,
-                            details = "Formula mapping and NCERT PYQ review for $targetChapter",
-                            targetMinutes = if (isFestival) 20 else 30,
-                            orderIndex = orderIndex++,
-                            xpReward = 40
-                        )
-                    )
-                }
-            } else {
-                generatedList.add(
-                    DailyPlanTaskEntity(
-                        date = targetDate,
-                        subject = "Core Study",
-                        title = "Deep Work Study Block 1",
-                        type = TaskType.LECTURE,
-                        details = "High-focus deep work study session",
-                        targetMinutes = 50,
-                        orderIndex = orderIndex++,
-                        xpReward = 60
-                    )
-                )
-            }
-
-            // Add user's workout
-            val workoutType = profile?.workoutType ?: "Calisthenics"
-            val workoutDuration = profile?.workoutDurationMinutes ?: 30
-            generatedList.add(
-                DailyPlanTaskEntity(
-                    date = targetDate,
-                    subject = "Workout",
-                    title = "Daily Workout ($workoutType)",
-                    type = TaskType.WORKOUT,
-                    details = "$workoutDuration min of physical exercise & cardio",
-                    targetMinutes = workoutDuration,
-                    orderIndex = orderIndex++,
-                    xpReward = 40
-                )
-            )
-
-            // Add evening reflection task
-            generatedList.add(
-                DailyPlanTaskEntity(
-                    date = targetDate,
-                    subject = "General",
-                    title = "Evening Reflection & Planning",
-                    type = TaskType.CUSTOM,
-                    details = "Audit today's score and prepare tomorrow's schedule",
-                    targetMinutes = 15,
-                    orderIndex = orderIndex++,
-                    xpReward = 25
-                )
-            )
-
-            db.dailyPlanDao().insertTasks(generatedList)
-        }
+        // Clean up any known dummy tasks from previous runs
+        db.dailyPlanDao().deleteKnownDummyTasks()
 
         recalculateDisciplineScore(targetDate)
+    }
+
+    suspend fun clearKnownDummyTasks() {
+        db.dailyPlanDao().deleteKnownDummyTasks()
     }
 
     suspend fun toggleTaskCompleted(task: DailyPlanTaskEntity) {
@@ -554,22 +473,7 @@ class RebuildRepository(
         db.dailyPlanDao().updateTask(updated)
 
         if (context != null) {
-            if (newCompleted) {
-                AlarmScheduler.cancelTaskAlarm(context, task.id)
-            } else if (task.reminderHour != null && task.reminderMinute != null) {
-                AlarmScheduler.scheduleTaskAlarm(
-                    context = context,
-                    taskId = task.id,
-                    hour = task.reminderHour,
-                    minute = task.reminderMinute,
-                    title = task.title,
-                    subject = task.subject,
-                    startTime = task.startTime,
-                    endTime = task.endTime,
-                    durationMinutes = task.targetMinutes,
-                    xpReward = task.xpReward
-                )
-            }
+            AlarmScheduler.rescheduleUpcomingTaskAlarms(context)
         }
 
         if (newCompleted) {
@@ -589,19 +493,8 @@ class RebuildRepository(
 
     suspend fun addTask(task: DailyPlanTaskEntity): Long {
         val id = db.dailyPlanDao().insertTask(task)
-        if (context != null && task.reminderHour != null && task.reminderMinute != null && !task.isCompleted) {
-            AlarmScheduler.scheduleTaskAlarm(
-                context = context,
-                taskId = id,
-                hour = task.reminderHour,
-                minute = task.reminderMinute,
-                title = task.title,
-                subject = task.subject,
-                startTime = task.startTime,
-                endTime = task.endTime,
-                durationMinutes = task.targetMinutes,
-                xpReward = task.xpReward
-            )
+        if (context != null) {
+            AlarmScheduler.rescheduleUpcomingTaskAlarms(context)
         }
         recalculateDisciplineScore(task.date)
         return id
@@ -610,22 +503,7 @@ class RebuildRepository(
     suspend fun updateTask(task: DailyPlanTaskEntity) {
         db.dailyPlanDao().updateTask(task)
         if (context != null) {
-            if (task.isCompleted || task.reminderHour == null || task.reminderMinute == null) {
-                AlarmScheduler.cancelTaskAlarm(context, task.id)
-            } else {
-                AlarmScheduler.scheduleTaskAlarm(
-                    context = context,
-                    taskId = task.id,
-                    hour = task.reminderHour,
-                    minute = task.reminderMinute,
-                    title = task.title,
-                    subject = task.subject,
-                    startTime = task.startTime,
-                    endTime = task.endTime,
-                    durationMinutes = task.targetMinutes,
-                    xpReward = task.xpReward
-                )
-            }
+            AlarmScheduler.rescheduleUpcomingTaskAlarms(context)
         }
         recalculateDisciplineScore(task.date)
     }
@@ -633,7 +511,7 @@ class RebuildRepository(
     suspend fun deleteTask(task: DailyPlanTaskEntity) {
         db.dailyPlanDao().deleteTask(task)
         if (context != null) {
-            AlarmScheduler.cancelTaskAlarm(context, task.id)
+            AlarmScheduler.rescheduleUpcomingTaskAlarms(context)
         }
         recalculateDisciplineScore(task.date)
     }
@@ -689,19 +567,8 @@ class RebuildRepository(
 
         db.dailyPlanDao().updateTask(updated)
 
-        if (context != null && newReminderHour != null && newReminderMinute != null && !task.isCompleted) {
-            AlarmScheduler.scheduleTaskAlarm(
-                context = context,
-                taskId = task.id,
-                hour = newReminderHour,
-                minute = newReminderMinute,
-                title = task.title,
-                subject = task.subject,
-                startTime = newStartTime,
-                endTime = newEndTime,
-                durationMinutes = task.targetMinutes,
-                xpReward = task.xpReward
-            )
+        if (context != null) {
+            AlarmScheduler.rescheduleUpcomingTaskAlarms(context)
         }
     }
 

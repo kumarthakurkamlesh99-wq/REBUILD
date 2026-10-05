@@ -83,39 +83,76 @@ class PlanImportManager(
             )
         }
 
+        val trimmed = jsonString.trim()
         val root: JSONObject
-        try {
-            root = JSONObject(jsonString)
-        } catch (e: JSONException) {
-            return@withContext PlanValidationResult(
-                isValid = false,
-                plan = null,
-                errors = listOf(
-                    PlanValidationError(
-                        itemType = "JSON Syntax",
-                        index = 0,
-                        field = "Syntax",
-                        summaryBullet = "Invalid JSON format",
-                        friendlyMessage = "The file is not a valid JSON document.\nPlease check for syntax errors such as missing quotes, commas, or braces.",
-                        technicalDetails = "JSONException at parse time: ${e.message}"
-                    )
-                ),
-                technicalSummary = "JSONException: ${e.message}\n${e.stackTraceToString()}"
-            )
+        if (trimmed.startsWith("[")) {
+            // Root is an array of tasks or schedule items
+            try {
+                val array = JSONArray(trimmed)
+                root = JSONObject().apply {
+                    put("plan_name", "Imported Schedule")
+                    put("tasks", array)
+                }
+            } catch (e: Exception) {
+                return@withContext PlanValidationResult(
+                    isValid = false,
+                    plan = null,
+                    errors = listOf(
+                        PlanValidationError(
+                            itemType = "JSON Syntax",
+                            index = 0,
+                            field = "Syntax",
+                            summaryBullet = "Invalid JSON array format",
+                            friendlyMessage = "The file starts with an array but could not be parsed: ${e.message}",
+                            technicalDetails = e.stackTraceToString()
+                        )
+                    ),
+                    technicalSummary = e.stackTraceToString()
+                )
+            }
+        } else {
+            try {
+                var parsedRoot = JSONObject(trimmed)
+                val envelopeKeys = listOf("plan", "daily_plan", "rebuild_plan", "study_plan", "data", "payload", "content", "response", "result")
+                for (k in envelopeKeys) {
+                    if (parsedRoot.has(k) && parsedRoot.optJSONObject(k) != null) {
+                        parsedRoot = parsedRoot.getJSONObject(k)
+                    }
+                }
+                root = parsedRoot
+            } catch (e: JSONException) {
+                return@withContext PlanValidationResult(
+                    isValid = false,
+                    plan = null,
+                    errors = listOf(
+                        PlanValidationError(
+                            itemType = "JSON Syntax",
+                            index = 0,
+                            field = "Syntax",
+                            summaryBullet = "Invalid JSON format",
+                            friendlyMessage = "The file is not a valid JSON document.\nPlease check for syntax errors such as missing quotes, commas, or braces.",
+                            technicalDetails = "JSONException at parse time: ${e.message}"
+                        )
+                    ),
+                    technicalSummary = "JSONException: ${e.message}\n${e.stackTraceToString()}"
+                )
+            }
         }
 
         // Collect all errors across the entire document
         val errors = mutableListOf<PlanValidationError>()
 
-        // 1. Plan Name (Auto-compatibility: plan_name, plan_title, name, title)
-        // Graceful default if missing
+        // 1. Plan Name & Versioning (Support v1, v2, v3 with auto-detection)
         val planName = root.findString("plan_name", "plan_title", "title", "name") ?: "Imported Plan"
-        val version = root.findInt("version", default = 1)
+        val explicitVersion = root.findInt("version", default = 0)
+        val hasMultiDay = root.has("days") || root.has("weeks") || root.has("daily_plans") || root.has("roadmap") || root.has("phases") || root.has("stages") || root.has("timeline")
+        val hasAdvanced = root.has("milestones") || root.has("xp_rules") || root.has("alarms") || root.has("exam_date")
+        val version = if (explicitVersion > 0) explicitVersion else if (hasAdvanced) 3 else if (hasMultiDay) 2 else 1
         val examDate = root.findString("exam_date", "board_exam_date", "examDate", "target_date")
 
         // 2. Goals Validation & Extraction (Strict required: Goal.title)
         val goals = mutableListOf<PlanGoal>()
-        val goalsArray = root.findArray("goals", "goal_list")
+        val goalsArray = root.findArray("goals", "goal_list", "objectives", "targets")
         if (goalsArray != null) {
             for (i in 0 until goalsArray.length()) {
                 val gObj = goalsArray.optJSONObject(i)
@@ -134,21 +171,21 @@ class PlanImportManager(
                     continue
                 }
 
-                // Auto-compatibility: title, goal_name, name, goal_title
-                val title = gObj.findString("title", "goal_name", "name", "goal_title")
+                // Auto-compatibility: title, goal_name, name, goal_title, objective
+                val title = gObj.findString("title", "goal_name", "name", "goal_title", "objective")
                 if (title.isNullOrBlank()) {
+                    val keysFound = gObj.keys().asSequence().toList().joinToString()
                     errors.add(
                         PlanValidationError(
                             itemType = "Goal",
                             index = itemNumber,
                             field = "Title",
                             summaryBullet = "Goal #$itemNumber is missing Title",
-                            friendlyMessage = "Goal #$itemNumber is missing a Title.\nPlease provide a title for this goal and try again.",
-                            technicalDetails = "Required value 'title' (checked aliases: title, goal_name, name, goal_title) missing or empty at $.goals[$i]"
+                            friendlyMessage = "Goal #$itemNumber is missing a title. Found fields: [$keysFound]. Supported keys: 'title', 'name', 'goal_name'.",
+                            technicalDetails = "Required value 'title' missing at $.goals[$i]. Found keys: [$keysFound]"
                         )
                     )
                 } else {
-                    // Graceful defaults for optional fields
                     val description = gObj.findString("description", "details", "desc") ?: ""
                     val category = gObj.findString("category", "type") ?: "ACADEMIC"
                     val targetDate = gObj.findString("target_date", "targetDate", "due_date", "date")
@@ -164,76 +201,185 @@ class PlanImportManager(
             }
         }
 
-        // 3. Tasks Validation & Extraction (Strict required: Task.title)
+        // 3. Tasks Validation & Extraction (Single-day + Multi-day 90-day support + Duration aliases)
         val tasks = mutableListOf<PlanTask>()
-        val tasksArray = root.findArray("tasks", "task_list", "daily_tasks")
-        if (tasksArray != null) {
-            for (i in 0 until tasksArray.length()) {
-                val tObj = tasksArray.optJSONObject(i)
-                val itemNumber = i + 1
-                if (tObj == null) {
-                    errors.add(
-                        PlanValidationError(
-                            itemType = "Task",
-                            index = itemNumber,
-                            field = "Object",
-                            summaryBullet = "Task #$itemNumber is not a valid object",
-                            friendlyMessage = "Task #$itemNumber is corrupted or not a valid JSON object.",
-                            technicalDetails = "Element at $.tasks[$i] is not a JSONObject"
-                        )
-                    )
-                    continue
-                }
+        val directTasksArray = root.findArray("tasks", "task_list", "daily_tasks", "items", "todo", "plan_tasks", "activities", "sessions", "actions")
 
-                // Auto-compatibility: title, task_name, name, task_title
-                val title = tObj.findString("title", "task_name", "name", "task_title")
-                if (title.isNullOrBlank()) {
+        fun parseTaskObject(tObj: JSONObject?, itemNumber: Int, defaultDate: String? = null) {
+            if (tObj == null) {
+                errors.add(
+                    PlanValidationError(
+                        itemType = "Task",
+                        index = itemNumber,
+                        field = "Object",
+                        summaryBullet = "Task #$itemNumber is not a valid object",
+                        friendlyMessage = "Task #$itemNumber is corrupted or not a valid JSON object.",
+                        technicalDetails = "Element is not a JSONObject"
+                    )
+                )
+                return
+            }
+
+            var title = tObj.findString("title", "task_name", "taskName", "name", "task_title", "task", "activity")
+            if (title.isNullOrBlank()) {
+                val topicFallback = tObj.findString("topic", "chapter", "lecture", "unit", "subject_topic")
+                if (topicFallback != null) {
+                    title = topicFallback
+                } else {
+                    val keysFound = tObj.keys().asSequence().toList().joinToString()
                     errors.add(
                         PlanValidationError(
                             itemType = "Task",
                             index = itemNumber,
                             field = "Title",
                             summaryBullet = "Task #$itemNumber is missing Title",
-                            friendlyMessage = "Task #$itemNumber is missing a Title.\nPlease provide a title for this task and try again.",
-                            technicalDetails = "Required value 'title' (checked aliases: title, task_name, name, task_title) missing or empty at $.tasks[$i]"
+                            friendlyMessage = "Task #$itemNumber is missing a title. Expected 'title' or 'task_name'. Found fields: [$keysFound]. Supported keys: 'title', 'task_name', 'name'.",
+                            technicalDetails = "Required value 'title' missing at task #$itemNumber. Found keys: [$keysFound]"
                         )
                     )
-                } else {
-                    // Graceful defaults for optional fields
-                    val subject = tObj.findString("subject", "category") ?: "General"
-                    val type = tObj.findString("type", "task_type") ?: "LECTURE"
-                    val details = tObj.findString("details", "description", "desc", "notes") ?: ""
-                    val targetMinutes = tObj.findInt("target_minutes", "targetMinutes", "duration", "minutes", default = 45)
-                    val date = tObj.findString("date", "target_date")
-                    val xp = tObj.findInt("xp", "task_xp", default = 0)
-                    val rawTime = tObj.findString("time", "start_time", "schedule_time", "slot_time", "timing")
-                    var startTime = tObj.findString("start_time", "startTime", "from", "start") ?: rawTime
-                    var endTime = tObj.findString("end_time", "endTime", "to", "end")
-                    if (!rawTime.isNullOrBlank() && (rawTime.contains(" - ") || rawTime.contains(" – "))) {
-                        val delim = if (rawTime.contains(" – ")) " – " else " - "
-                        val parts = rawTime.split(delim)
-                        if (parts.size >= 2) {
-                            startTime = parts[0].trim()
-                            if (endTime.isNullOrBlank()) {
-                                endTime = parts[1].trim()
-                            }
+                    return
+                }
+            }
+
+            val subject = tObj.findString("subject", "category", "topic", "tag") ?: "General"
+            val type = tObj.findString("type", "task_type") ?: "LECTURE"
+            val details = tObj.findString("details", "description", "desc", "notes") ?: ""
+            // Robust duration parsing supporting "duration_minutes", "60 mins", "1.5 hours", etc.
+            val targetMinutes = tObj.findDurationMinutes(
+                "target_minutes", "targetMinutes", "duration_minutes", "durationMinutes",
+                "duration", "minutes", "time_minutes", default = 45
+            )
+            val date = tObj.findString("date", "target_date") ?: defaultDate
+            val xp = tObj.findInt("xp", "task_xp", default = 0)
+            val rawTime = tObj.findString("time", "start_time", "startTime", "schedule_time", "slot_time", "timing", "from", "start")
+            var startTime = tObj.findString("start_time", "startTime", "from", "start") ?: rawTime
+            var endTime = tObj.findString("end_time", "endTime", "to", "end")
+            if (!rawTime.isNullOrBlank() && (rawTime.contains(" - ") || rawTime.contains(" – "))) {
+                val delim = if (rawTime.contains(" – ")) " – " else " - "
+                val parts = rawTime.split(delim)
+                if (parts.size >= 2) {
+                    startTime = parts[0].trim()
+                    if (endTime.isNullOrBlank()) {
+                        endTime = parts[1].trim()
+                    }
+                }
+            }
+
+            tasks.add(
+                PlanTask(
+                    title = title,
+                    subject = subject,
+                    type = type,
+                    details = details,
+                    targetMinutes = targetMinutes,
+                    date = date,
+                    xp = xp,
+                    time = rawTime,
+                    startTime = startTime,
+                    endTime = endTime
+                )
+            )
+        }
+
+        // Direct tasks array at root
+        if (directTasksArray != null) {
+            for (i in 0 until directTasksArray.length()) {
+                parseTaskObject(directTasksArray.optJSONObject(i), i + 1)
+            }
+        } else {
+            // Direct tasks object at root (e.g. { "tasks": { "0": {...}, "1": {...} } })
+            val directTasksObj = root.optJSONObject("tasks") ?: root.optJSONObject("todo") ?: root.optJSONObject("items")
+            if (directTasksObj != null) {
+                val keys = directTasksObj.keys().asSequence().toList()
+                for (k in keys) {
+                    val v = directTasksObj.opt(k)
+                    if (v is JSONObject) {
+                        parseTaskObject(v, tasks.size + 1)
+                    } else if (v is JSONArray) {
+                        for (j in 0 until v.length()) {
+                            parseTaskObject(v.optJSONObject(j), tasks.size + 1)
                         }
                     }
+                }
+            }
+        }
 
-                    tasks.add(
-                        PlanTask(
-                            title = title,
-                            subject = subject,
-                            type = type,
-                            details = details,
-                            targetMinutes = targetMinutes,
-                            date = date,
-                            xp = xp,
-                            time = rawTime,
-                            startTime = startTime,
-                            endTime = endTime
-                        )
-                    )
+        // Multi-day plans as Array (days: [ { day: 1, date: "...", tasks: [...] } ])
+        val daysArray = root.findArray("days", "weeks", "daily_plans", "day_list", "roadmap_days", "roadmap", "phases", "stages", "timeline", "curriculum")
+        if (daysArray != null) {
+            for (d in 0 until daysArray.length()) {
+                val dayObj = daysArray.optJSONObject(d) ?: continue
+                val dayNumber = dayObj.findInt("day", "day_number", default = d + 1)
+                val explicitDate = dayObj.findString("date", "target_date", "day_date")
+                val dayDate = if (!explicitDate.isNullOrBlank() && explicitDate.contains("-")) {
+                    explicitDate
+                } else {
+                    calculateDateForDayOffset(dayNumber - 1)
+                }
+                val dayTasks = dayObj.findArray("tasks", "task_list", "daily_tasks", "items", "schedule", "activities", "sessions", "blocks")
+                if (dayTasks != null) {
+                    for (t in 0 until dayTasks.length()) {
+                        parseTaskObject(dayTasks.optJSONObject(t), tasks.size + 1, defaultDate = dayDate)
+                    }
+                } else if (dayObj.has("title") || dayObj.has("task") || dayObj.has("task_name") || dayObj.has("name") || dayObj.has("activity")) {
+                    parseTaskObject(dayObj, tasks.size + 1, defaultDate = dayDate)
+                }
+            }
+        }
+
+        // Multi-day plans as Object (e.g. "days": { "1": [...], "2": [...] } or { "day_1": { "tasks": [...] } })
+        val daysObj = root.optJSONObject("days") ?: root.optJSONObject("daily_plans") ?: root.optJSONObject("roadmap") ?: root.optJSONObject("phases")
+        if (daysObj != null) {
+            val sortedKeys = daysObj.keys().asSequence().toList().sortedWith(Comparator { a, b ->
+                val numA = Regex("""\d+""").find(a)?.value?.toIntOrNull() ?: 0
+                val numB = Regex("""\d+""").find(b)?.value?.toIntOrNull() ?: 0
+                if (numA != numB) numA.compareTo(numB) else a.compareTo(b)
+            })
+            for ((dIdx, key) in sortedKeys.withIndex()) {
+                val numFromKey = Regex("""\d+""").find(key)?.value?.toIntOrNull() ?: (dIdx + 1)
+                val dayDate = calculateDateForDayOffset(numFromKey - 1)
+                val dayVal = daysObj.opt(key)
+                if (dayVal is JSONArray) {
+                    for (t in 0 until dayVal.length()) {
+                        parseTaskObject(dayVal.optJSONObject(t), tasks.size + 1, defaultDate = dayDate)
+                    }
+                } else if (dayVal is JSONObject) {
+                    val subTasks = dayVal.findArray("tasks", "task_list", "items", "schedule", "activities")
+                    if (subTasks != null) {
+                        for (t in 0 until subTasks.length()) {
+                            parseTaskObject(subTasks.optJSONObject(t), tasks.size + 1, defaultDate = dayDate)
+                        }
+                    } else {
+                        parseTaskObject(dayVal, tasks.size + 1, defaultDate = dayDate)
+                    }
+                }
+            }
+        }
+
+        // Root keys matching "Day 1", "Day 2", etc.
+        val dayKeys = root.keys().asSequence().filter { it.matches(Regex("""(?i)^day[\s_-]?\d+$""")) }.toList().sortedWith(Comparator { a, b ->
+            val numA = Regex("""\d+""").find(a)?.value?.toIntOrNull() ?: 0
+            val numB = Regex("""\d+""").find(b)?.value?.toIntOrNull() ?: 0
+            numA.compareTo(numB)
+        })
+        if (dayKeys.isNotEmpty() && tasks.isEmpty()) {
+            for ((dIdx, key) in dayKeys.withIndex()) {
+                val dayNum = Regex("""\d+""").find(key)?.value?.toIntOrNull() ?: (dIdx + 1)
+                val dayDate = calculateDateForDayOffset(dayNum - 1)
+                val dayVal = root.opt(key)
+                if (dayVal is JSONArray) {
+                    for (t in 0 until dayVal.length()) {
+                        parseTaskObject(dayVal.optJSONObject(t), tasks.size + 1, defaultDate = dayDate)
+                    }
+                } else if (dayVal is JSONObject) {
+                    val subTasks = dayVal.findArray("tasks", "task_list", "items", "schedule")
+                    if (subTasks != null) {
+                        for (t in 0 until subTasks.length()) {
+                            parseTaskObject(subTasks.optJSONObject(t), tasks.size + 1, defaultDate = dayDate)
+                        }
+                    } else {
+                        parseTaskObject(dayVal, tasks.size + 1, defaultDate = dayDate)
+                    }
                 }
             }
         }
@@ -259,7 +405,10 @@ class PlanImportManager(
                 }
                 val title = sObj.findString("title", "name", "activity", "task") ?: "Study Block #${i + 1}"
                 val category = sObj.findString("category", "subject", "type") ?: "Study"
-                val targetMinutes = sObj.findInt("target_minutes", "duration", "minutes", default = 45)
+                val targetMinutes = sObj.findDurationMinutes(
+                    "target_minutes", "targetMinutes", "duration_minutes", "durationMinutes",
+                    "duration", "minutes", default = 45
+                )
                 val type = sObj.findString("type", "task_type") ?: "LECTURE"
                 val details = sObj.findString("details", "description", "desc", "notes") ?: ""
                 schedule.add(
@@ -279,7 +428,7 @@ class PlanImportManager(
 
         // 4. Habits Validation & Extraction (Strict required: Habit.name)
         val habits = mutableListOf<PlanHabit>()
-        val habitsArray = root.findArray("habits", "habit_list")
+        val habitsArray = root.findArray("habits", "habit_list", "routines", "habit")
         if (habitsArray != null) {
             for (i in 0 until habitsArray.length()) {
                 val hObj = habitsArray.optJSONObject(i)
@@ -298,21 +447,20 @@ class PlanImportManager(
                     continue
                 }
 
-                // Auto-compatibility: name, title, habit_title, habit_name
-                val name = hObj.findString("name", "title", "habit_title", "habit_name")
+                val name = hObj.findString("name", "title", "habit_title", "habit_name", "habit")
                 if (name.isNullOrBlank()) {
+                    val keysFound = hObj.keys().asSequence().toList().joinToString()
                     errors.add(
                         PlanValidationError(
                             itemType = "Habit",
                             index = itemNumber,
                             field = "Name",
                             summaryBullet = "Habit #$itemNumber is missing Name",
-                            friendlyMessage = "Habit #$itemNumber is missing a Name.\nPlease provide a name for this habit and try again.",
-                            technicalDetails = "Required value 'name' (checked aliases: name, title, habit_title, habit_name) missing or empty at $.habits[$i]"
+                            friendlyMessage = "Habit #$itemNumber is missing a Name. Found fields: [$keysFound]. Supported keys: 'name', 'title'.",
+                            technicalDetails = "Required value 'name' missing at $.habits[$i]. Found keys: [$keysFound]"
                         )
                     )
                 } else {
-                    // Graceful defaults for optional fields
                     val habitType = hObj.findString("habit_type", "habitType", "type") ?: "CUSTOM"
                     val isNegative = hObj.findBoolean("is_negative", "isNegative", "negative", default = false)
                     val targetUnit = hObj.findString("target_unit", "targetUnit", "unit") ?: "Completed"
@@ -330,9 +478,9 @@ class PlanImportManager(
             }
         }
 
-        // 5. Alarms Validation & Extraction (Strict required: Alarm.time)
+        // 5. Alarms Validation & Extraction (Robust time parsing for 12h & 24h)
         val alarms = mutableListOf<PlanAlarm>()
-        val alarmsArray = root.findArray("alarms", "alarm_list", "reminders")
+        val alarmsArray = root.findArray("alarms", "alarm_list", "reminders", "alarm")
         if (alarmsArray != null) {
             for (i in 0 until alarmsArray.length()) {
                 val aObj = alarmsArray.optJSONObject(i)
@@ -351,8 +499,7 @@ class PlanImportManager(
                     continue
                 }
 
-                // Auto-compatibility: time, alarm_time, schedule_time, time_str
-                val rawTime = aObj.findString("time", "alarm_time", "schedule_time", "time_str")
+                val rawTime = aObj.findString("time", "alarm_time", "schedule_time", "time_str", "timing")
                 if (rawTime.isNullOrBlank()) {
                     errors.add(
                         PlanValidationError(
@@ -360,40 +507,25 @@ class PlanImportManager(
                             index = itemNumber,
                             field = "Time",
                             summaryBullet = "Alarm #$itemNumber is missing Time",
-                            friendlyMessage = "Alarm #$itemNumber is missing a Time.\nPlease provide a valid 24-hour time (HH:mm) for this alarm.",
-                            technicalDetails = "Required value 'time' (checked aliases: time, alarm_time, schedule_time, time_str) missing or empty at $.alarms[$i]"
+                            friendlyMessage = "Alarm #$itemNumber is missing a Time. Please provide time like '06:00 AM' or '06:00'.",
+                            technicalDetails = "Required value 'time' missing at $.alarms[$i]"
                         )
                     )
                 } else {
-                    // Validate time format
-                    val parts = rawTime.trim().split(":")
-                    val hour = if (parts.size == 2) parts[0].trim().toIntOrNull() else null
-                    val minute = if (parts.size == 2) parts[1].trim().toIntOrNull() else null
-
-                    if (parts.size != 2 || hour == null || minute == null) {
+                    val parsedTime = parseTimeHourMinute(rawTime)
+                    if (parsedTime == null) {
                         errors.add(
                             PlanValidationError(
                                 itemType = "Alarm",
                                 index = itemNumber,
                                 field = "Time",
                                 summaryBullet = "Alarm #$itemNumber has invalid time format",
-                                friendlyMessage = "Alarm #$itemNumber has invalid time format '$rawTime'.\nPlease use 24-hour format such as '07:30' or '22:00'.",
-                                technicalDetails = "Invalid time format '$rawTime' at $.alarms[$i].time (expected HH:mm format)"
-                            )
-                        )
-                    } else if (hour !in 0..23 || minute !in 0..59) {
-                        errors.add(
-                            PlanValidationError(
-                                itemType = "Alarm",
-                                index = itemNumber,
-                                field = "Time",
-                                summaryBullet = "Alarm #$itemNumber has invalid time format",
-                                friendlyMessage = "Alarm #$itemNumber has invalid time '$rawTime'. Hours must be 0–23 and minutes 0–59.",
-                                technicalDetails = "Out of range time '$rawTime' (hour=$hour, minute=$minute) at $.alarms[$i].time"
+                                friendlyMessage = "Alarm #$itemNumber has invalid time format '$rawTime'. Please use 12h format like '06:00 AM' or 24h format like '06:00'.",
+                                technicalDetails = "Failed to parse time '$rawTime' at $.alarms[$i].time"
                             )
                         )
                     } else {
-                        val formattedTime = String.format("%02d:%02d", hour, minute)
+                        val formattedTime = String.format(Locale.US, "%02d:%02d", parsedTime.first, parsedTime.second)
                         val title = aObj.findString("title", "name", "alarm_title", "label") ?: "Alarm #$itemNumber"
                         val challengeType = aObj.findString("challenge_type", "challengeType", "challenge") ?: "MATH"
                         val difficulty = aObj.findString("difficulty", "challenge_difficulty") ?: "MEDIUM"
@@ -602,21 +734,7 @@ class PlanImportManager(
                     )
                 )
 
-                if (parsedTime != null) {
-                    AlarmScheduler.scheduleTaskAlarm(
-                        context = context,
-                        taskId = insertedTaskId,
-                        hour = parsedTime.first,
-                        minute = parsedTime.second,
-                        title = t.title,
-                        subject = t.subject ?: "General",
-                        startTime = s12,
-                        endTime = e12,
-                        durationMinutes = t.targetMinutes ?: 45,
-                        xpReward = if (t.xp != null && t.xp > 0) t.xp else 50
-                    )
-                }
-
+                // Task is stored in Room DB. Dynamic rolling window scheduler will handle alarms safely.
                 tasksImported++
             }
 
@@ -676,21 +794,6 @@ class PlanImportManager(
                         endTime = e12
                     )
                 )
-
-                if (parsedTime != null) {
-                    AlarmScheduler.scheduleTaskAlarm(
-                        context = context,
-                        taskId = insertedScheduleId,
-                        hour = parsedTime.first,
-                        minute = parsedTime.second,
-                        title = s.title,
-                        subject = s.category ?: "Schedule",
-                        startTime = s12,
-                        endTime = e12,
-                        durationMinutes = s.targetMinutes ?: 45,
-                        xpReward = 50
-                    )
-                }
 
                 scheduleImported++
             }
@@ -792,6 +895,11 @@ class PlanImportManager(
             }
         }
 
+        // Arm dynamic rolling window for upcoming task alarms (OS safe)
+        if (tasksImported > 0 || scheduleImported > 0) {
+            AlarmScheduler.rescheduleUpcomingTaskAlarms(context)
+        }
+
         // Save XP Rules if present
         plan.xpRules?.let { rules ->
             val prefs = context.getSharedPreferences("xp_rules_prefs", Context.MODE_PRIVATE)
@@ -805,7 +913,7 @@ class PlanImportManager(
         ImportReport(
             planName = plan.planName ?: "Imported Plan",
             goalsCount = goalsImported,
-            tasksCount = tasksImported,
+            tasksCount = tasksImported + scheduleImported,
             scheduleCount = scheduleImported,
             habitsCount = habitsImported,
             alarmsCount = alarmsImported
@@ -936,6 +1044,37 @@ class PlanImportManager(
             }
         }
         return default
+    }
+
+    private fun JSONObject.findDurationMinutes(vararg keys: String, default: Int = 45): Int {
+        for (k in keys) {
+            if (has(k) && !isNull(k)) {
+                val direct = optInt(k, Int.MIN_VALUE)
+                if (direct != Int.MIN_VALUE && direct > 0) return direct
+                val str = optString(k, "").trim().lowercase(Locale.US)
+                if (str.isNotEmpty()) {
+                    val directNum = str.toIntOrNull()
+                    if (directNum != null && directNum > 0) return directNum
+
+                    if (str.contains("hour") || str.contains("hr")) {
+                        val floatMatch = Regex("""(\d+(\.\d+)?)""").find(str)?.value?.toFloatOrNull()
+                        if (floatMatch != null && floatMatch > 0) {
+                            return (floatMatch * 60).toInt()
+                        }
+                    }
+
+                    val digitMatch = Regex("""\d+""").find(str)?.value?.toIntOrNull()
+                    if (digitMatch != null && digitMatch > 0) return digitMatch
+                }
+            }
+        }
+        return default
+    }
+
+    private fun calculateDateForDayOffset(dayOffset: Int): String {
+        val cal = java.util.Calendar.getInstance()
+        cal.add(java.util.Calendar.DAY_OF_YEAR, dayOffset.coerceAtLeast(0))
+        return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
     }
 
     private fun JSONObject.findBoolean(vararg keys: String, default: Boolean): Boolean {

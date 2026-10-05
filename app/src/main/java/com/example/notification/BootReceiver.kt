@@ -25,6 +25,10 @@ class BootReceiver : BroadcastReceiver() {
                         AlarmScheduler.scheduleCustomAlarm(context, alarm)
                         Log.d("BootReceiver", "Restored custom alarm: ${alarm.title} (${alarm.id})")
                     }
+
+                    // Restore dynamic rolling window of upcoming task alarms
+                    AlarmScheduler.rescheduleUpcomingTaskAlarms(context)
+                    Log.d("BootReceiver", "Restored upcoming task alarm rolling window")
                 } catch (e: Exception) {
                     Log.e("BootReceiver", "Failed to restore alarms on reboot", e)
                 } finally {
