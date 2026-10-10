@@ -15,6 +15,7 @@ import com.example.data.local.dao.DailyPlanDao
 import com.example.data.local.dao.DisciplineDao
 import com.example.data.local.dao.DistractionDao
 import com.example.data.local.dao.FlashcardDao
+import com.example.data.local.dao.FutureSelfCallDao
 import com.example.data.local.dao.GoalDao
 import com.example.data.local.dao.HabitDao
 import com.example.data.local.dao.HolidayDao
@@ -44,6 +45,7 @@ import com.example.data.local.entity.DailyReflectionEntity
 import com.example.data.local.entity.DistractionLogEntity
 import com.example.data.local.entity.FlashcardDeckEntity
 import com.example.data.local.entity.FlashcardEntity
+import com.example.data.local.entity.FutureSelfCallRecordEntity
 import com.example.data.local.entity.GoalEntity
 import com.example.data.local.entity.HabitEntity
 import com.example.data.local.entity.HabitLogEntity
@@ -113,9 +115,10 @@ import java.util.Locale
         SkillNodeEntity::class,
         RoadmapEntity::class,
         RoadmapMilestoneEntity::class,
-        CustomTrackerEntity::class
+        CustomTrackerEntity::class,
+        FutureSelfCallRecordEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -144,6 +147,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun mistakeDao(): MistakeDao
     abstract fun distractionDao(): DistractionDao
     abstract fun universalGoalDao(): UniversalGoalDao
+    abstract fun futureSelfCallDao(): FutureSelfCallDao
 
     companion object {
         @Volatile
@@ -247,6 +251,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `future_self_call_records` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `callOccurrenceId` TEXT NOT NULL,
+                        `taskId` INTEGER NOT NULL,
+                        `scheduledDate` TEXT NOT NULL,
+                        `scheduledTime` TEXT NOT NULL,
+                        `scheduledTimestamp` INTEGER NOT NULL,
+                        `state` TEXT NOT NULL,
+                        `ringStartedAt` INTEGER,
+                        `handledAt` INTEGER,
+                        `snoozeCount` INTEGER NOT NULL,
+                        `lastAction` TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_future_self_call_records_callOccurrenceId` ON `future_self_call_records` (`callOccurrenceId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_future_self_call_records_taskId` ON `future_self_call_records` (`taskId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_future_self_call_records_state` ON `future_self_call_records` (`state`)")
+            }
+        }
+
         fun getDatabase(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -254,7 +283,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "rebuild_os_database"
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_10_11)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_10_11, MIGRATION_11_12)
                 .fallbackToDestructiveMigration()
                 .addCallback(DatabasePrepopulationCallback(scope))
                 .build()

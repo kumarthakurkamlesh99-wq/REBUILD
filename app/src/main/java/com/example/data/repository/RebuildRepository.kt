@@ -472,6 +472,14 @@ class RebuildRepository(
         )
         db.dailyPlanDao().updateTask(updated)
 
+        if (newCompleted) {
+            if (context != null) {
+                com.example.notification.FutureSelfCallEngine.onTaskCompleted(context, task.id)
+            } else {
+                db.futureSelfCallDao().cancelPendingCallsForTask(task.id)
+            }
+        }
+
         if (context != null) {
             AlarmScheduler.rescheduleUpcomingTaskAlarms(context)
         }
@@ -502,6 +510,13 @@ class RebuildRepository(
 
     suspend fun updateTask(task: DailyPlanTaskEntity) {
         db.dailyPlanDao().updateTask(task)
+        if (task.isCompleted) {
+            if (context != null) {
+                com.example.notification.FutureSelfCallEngine.onTaskCompleted(context, task.id)
+            } else {
+                db.futureSelfCallDao().cancelPendingCallsForTask(task.id)
+            }
+        }
         if (context != null) {
             AlarmScheduler.rescheduleUpcomingTaskAlarms(context)
         }
@@ -511,7 +526,10 @@ class RebuildRepository(
     suspend fun deleteTask(task: DailyPlanTaskEntity) {
         db.dailyPlanDao().deleteTask(task)
         if (context != null) {
+            com.example.notification.FutureSelfCallEngine.onTaskCompleted(context, task.id)
             AlarmScheduler.rescheduleUpcomingTaskAlarms(context)
+        } else {
+            db.futureSelfCallDao().cancelPendingCallsForTask(task.id)
         }
         recalculateDisciplineScore(task.date)
     }

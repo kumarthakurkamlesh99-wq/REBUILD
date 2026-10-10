@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.ui.screens.futureself.VoiceCloningSettingsSection
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
@@ -39,6 +40,32 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.core.content.ContextCompat
+import android.Manifest
+import android.content.pm.PackageManager
+import com.example.speech.AudioRecorderHelper
+import com.example.speech.VoiceCloningService
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.io.File
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -98,6 +125,8 @@ fun FutureSelfSettingsScreen(
     var vibrationEnabled by remember(settings) { mutableStateOf(settings.vibrationEnabled) }
     var selectedRingtone by remember(settings) { mutableStateOf(settings.ringtonePreset) }
     var customQuote by remember(settings) { mutableStateOf(settings.customFutureSelfQuote) }
+
+    val speechManager = remember { FutureSelfSpeechManager.getInstance(context) }
 
     fun save(updated: FutureSelfVoiceSettings) {
         repository.updateSettings(updated)
@@ -249,6 +278,17 @@ fun FutureSelfSettingsScreen(
                             )
                         )
                     }
+                }
+            }
+
+            // Real AI Voice Cloning Section (Dynamic Future Self)
+            item {
+                SettingsSectionContainer(title = "AI VOICE CLONING (DYNAMIC FUTURE SELF)") {
+                    VoiceCloningSettingsSection(
+                        settings = settings,
+                        onSaveSettings = { updated -> save(updated) },
+                        speechManager = speechManager
+                    )
                 }
             }
 

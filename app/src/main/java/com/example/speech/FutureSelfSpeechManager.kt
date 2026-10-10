@@ -14,10 +14,16 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import android.util.Log
+import com.example.data.model.futureself.VoiceCloneProvider
 import com.example.data.model.futureself.VoiceGender
 import com.example.data.model.futureself.VoiceLanguage
 import com.example.data.model.futureself.VoiceTone
 import com.example.util.PresetAudioGenerator
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.util.Locale
 
@@ -226,6 +232,162 @@ class FutureSelfSpeechManager private constructor(private val appContext: Contex
         }
         // Fallback to TTS
         speak(fallbackText, tone, language, gender, speedMultiplier, onDone)
+    }
+
+    /**
+     * Plays dynamic speech using cloned voice via OmniVoice or ElevenLabs.
+     * Falls back to custom audio file or TTS if network is unavailable or synthesis fails.
+     */
+    fun playClonedVoiceOrFallback(
+        text: String,
+        provider: VoiceCloneProvider = VoiceCloneProvider.OMNI_VOICE,
+        voiceId: String = "",
+        apiKey: String = "",
+        sampleAudioPath: String = "",
+        omniVoiceUrl: String = "https://k2-fsa-omnivoice.hf.space",
+        stability: Float = 0.5f,
+        similarity: Float = 0.8f,
+        customFallbackAudioPath: String = "",
+        tone: VoiceTone = VoiceTone.STRICT,
+        language: VoiceLanguage = VoiceLanguage.ENGLISH,
+        gender: VoiceGender = VoiceGender.MALE,
+        speedMultiplier: Float = 1.0f,
+        volume: Float = 1.0f,
+        onDone: () -> Unit
+    ) {
+        val cloningService = VoiceCloningService.getInstance(appContext)
+
+        // Option A: k2-fsa OmniVoice Zero-Shot Cloning (100% Free, No API Key needed)
+        if (provider == VoiceCloneProvider.OMNI_VOICE && sampleAudioPath.isNotBlank()) {
+            val sampleFile = File(sampleAudioPath)
+            if (sampleFile.exists() && sampleFile.length() > 500) {
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val result = withTimeoutOrNull(6000L) {
+                            cloningService.synthesizeWithOmniVoice(
+                                text = text,
+                                sampleAudioFile = sampleFile,
+                                endpointUrl = omniVoiceUrl,
+                                languageCode = language.localeCode
+                            )
+                        }
+                        if (result != null && result.isSuccess) {
+                            val file = result.getOrNull()
+                            if (file != null && file.exists()) {
+                                withContext(Dispatchers.Main) {
+                                    playAudioFile(file, volume, onDone)
+                                }
+                                return@launch
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "OmniVoice synthesis timed out or failed: ${e.message}")
+                    }
+                    // Fallback to local recorded sample or TTS
+                    withContext(Dispatchers.Main) {
+                        playCustomAudioOrSpeech(
+                            customAudioPath = sampleAudioPath.ifBlank { customFallbackAudioPath },
+                            fallbackText = text,
+                            tone = tone,
+                            language = language,
+                            gender = gender,
+                            speedMultiplier = speedMultiplier,
+                            volume = volume,
+                            onDone = onDone
+                        )
+                    }
+                }
+                return
+            }
+        }
+
+        // Option B: ElevenLabs AI Cloning
+        // 1. Check local cache first (instant playback!)
+        val cachedFile = cloningService.getCachedAudio(text, voiceId)
+        if (cachedFile != null && cachedFile.exists() && cachedFile.length() > 500) {
+            playAudioFile(cachedFile, volume, onDone)
+            return
+        }
+
+        // 2. If not cached, attempt background network synthesis with short timeout, then play
+        val resolvedKey = cloningService.resolveApiKey(apiKey)
+        if (voiceId.isNotBlank() && resolvedKey.isNotBlank()) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val result = withTimeoutOrNull(4500L) {
+                        cloningService.synthesizeSpeech(text, voiceId, resolvedKey, stability, similarity)
+                    }
+                    if (result != null && result.isSuccess) {
+                        val file = result.getOrNull()
+                        if (file != null && file.exists()) {
+                            withContext(Dispatchers.Main) {
+                                playAudioFile(file, volume, onDone)
+                            }
+                            return@launch
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Cloned voice synthesis timed out or failed: ${e.message}")
+                }
+                // Fallback on failure
+                withContext(Dispatchers.Main) {
+                    playCustomAudioOrSpeech(
+                        customAudioPath = customFallbackAudioPath,
+                        fallbackText = text,
+                        tone = tone,
+                        language = language,
+                        gender = gender,
+                        speedMultiplier = speedMultiplier,
+                        volume = volume,
+                        onDone = onDone
+                    )
+                }
+            }
+            return
+        }
+
+        // 3. Fallback to custom audio or TTS
+        playCustomAudioOrSpeech(
+            customAudioPath = if (sampleAudioPath.isNotBlank()) sampleAudioPath else customFallbackAudioPath,
+            fallbackText = text,
+            tone = tone,
+            language = language,
+            gender = gender,
+            speedMultiplier = speedMultiplier,
+            volume = volume,
+            onDone = onDone
+        )
+    }
+
+    private fun playAudioFile(file: File, volume: Float, onDone: () -> Unit) {
+        try {
+            stopRingtoneAndVibrate()
+            stopSpeaking()
+            mediaPlayer?.release()
+            mediaPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                setDataSource(file.absolutePath)
+                isLooping = false
+                setVolume(volume.coerceIn(0.1f, 1f), volume.coerceIn(0.1f, 1f))
+                setOnCompletionListener {
+                    onDone()
+                }
+                setOnErrorListener { _, _, _ ->
+                    onDone()
+                    true
+                }
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to play audio file ${file.name}", e)
+            onDone()
+        }
     }
 
     /**

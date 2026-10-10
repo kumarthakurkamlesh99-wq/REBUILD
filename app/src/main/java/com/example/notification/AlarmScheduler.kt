@@ -271,16 +271,34 @@ object AlarmScheduler {
     }
 
     fun cancelAlarm(context: Context, id: Int) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val intent = Intent(context, AlarmNotificationReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        
+        // Cancel for AlarmNotificationReceiver
+        val notifIntent = Intent(context, AlarmNotificationReceiver::class.java)
+        val notifPi = PendingIntent.getBroadcast(
             context,
             id,
-            intent,
+            notifIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE
         )
-        if (pendingIntent != null) {
-            alarmManager.cancel(pendingIntent)
+        if (notifPi != null) {
+            alarmManager.cancel(notifPi)
+            notifPi.cancel()
+        }
+
+        // Cancel for FutureSelfCallReceiver
+        val callIntent = Intent(context, FutureSelfCallReceiver::class.java).apply {
+            action = FutureSelfCallReceiver.ACTION_FUTURE_SELF_CALL
+        }
+        val callPi = PendingIntent.getBroadcast(
+            context,
+            id,
+            callIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE
+        )
+        if (callPi != null) {
+            alarmManager.cancel(callPi)
+            callPi.cancel()
         }
     }
 
@@ -300,6 +318,7 @@ object AlarmScheduler {
                 )
 
                 val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return@withContext
+                val callDao = db.futureSelfCallDao()
 
                 // Cancel existing slot range (slots 0 to 19)
                 for (slot in 0 until 20) {
@@ -335,9 +354,41 @@ object AlarmScheduler {
                         set(Calendar.MILLISECOND, 0)
                     }
 
-                    // Skip tasks whose alarm time is already more than 15 mins in the past
-                    if (taskCalendar.timeInMillis < now.timeInMillis - (15 * 60 * 1000L)) {
+                    val occurrenceId = FutureSelfCallEngine.generateOccurrenceId(task.id, task.date, hour, minute)
+
+                    // Never schedule alarms in the past (prevents immediate re-firing and alarm loops)
+                    if (taskCalendar.timeInMillis <= now.timeInMillis) {
+                        // Mark any pending record as MISSED
+                        try {
+                            callDao.markOverdueCallsAsMissed(task.id, now.timeInMillis)
+                        } catch (_: Exception) {}
                         continue
+                    }
+
+                    // Check persistent state machine: do not reschedule if already ANSWERED, DISMISSED, RINGING, or CANCELLED
+                    val callRecord = try {
+                        callDao.getRecordByOccurrenceId(occurrenceId)
+                    } catch (_: Exception) { null }
+
+                    if (callRecord != null && callRecord.state != com.example.data.local.entity.FutureSelfCallState.SCHEDULED) {
+                        // This scheduled occurrence was already answered, dismissed, snoozed, or cancelled
+                        continue
+                    }
+
+                    // Ensure record exists as SCHEDULED in database
+                    if (callRecord == null) {
+                        try {
+                            callDao.insertOrUpdate(
+                                com.example.data.local.entity.FutureSelfCallRecordEntity(
+                                    callOccurrenceId = occurrenceId,
+                                    taskId = task.id,
+                                    scheduledDate = task.date,
+                                    scheduledTime = String.format(java.util.Locale.US, "%02d:%02d", hour, minute),
+                                    scheduledTimestamp = taskCalendar.timeInMillis,
+                                    state = com.example.data.local.entity.FutureSelfCallState.SCHEDULED
+                                )
+                            )
+                        } catch (_: Exception) {}
                     }
 
                     val slotAlarmId = TASK_ALARM_ID_BASE + scheduledCount
@@ -345,6 +396,7 @@ object AlarmScheduler {
                     val intent = Intent(context, FutureSelfCallReceiver::class.java).apply {
                         action = FutureSelfCallReceiver.ACTION_FUTURE_SELF_CALL
                         putExtra(FutureSelfCallActivity.EXTRA_TASK_ID, task.id)
+                        putExtra(FutureSelfCallEngine.EXTRA_CALL_OCCURRENCE_ID, occurrenceId)
                         putExtra(FutureSelfCallActivity.EXTRA_TASK_TITLE, task.title)
                         putExtra(FutureSelfCallActivity.EXTRA_TASK_SUBJECT, task.subject)
                         putExtra(FutureSelfCallActivity.EXTRA_START_TIME, task.startTime ?: String.format(java.util.Locale.US, "%02d:%02d", hour, minute))
@@ -408,9 +460,23 @@ object AlarmScheduler {
         val alarmId = (TASK_ALARM_ID_BASE + (taskId % 9999)).toInt()
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            if (before(Calendar.getInstance())) {
+                add(Calendar.DAY_OF_YEAR, 1)
+            }
+        }
+
+        val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(calendar.time)
+        val occurrenceId = FutureSelfCallEngine.generateOccurrenceId(taskId, dateStr, hour, minute)
+
         val intent = Intent(context, FutureSelfCallReceiver::class.java).apply {
             action = FutureSelfCallReceiver.ACTION_FUTURE_SELF_CALL
             putExtra(FutureSelfCallActivity.EXTRA_TASK_ID, taskId)
+            putExtra(FutureSelfCallEngine.EXTRA_CALL_OCCURRENCE_ID, occurrenceId)
             putExtra(FutureSelfCallActivity.EXTRA_TASK_TITLE, title)
             putExtra(FutureSelfCallActivity.EXTRA_TASK_SUBJECT, subject)
             putExtra(FutureSelfCallActivity.EXTRA_START_TIME, startTime ?: String.format(java.util.Locale.US, "%02d:%02d", hour, minute))
@@ -425,16 +491,6 @@ object AlarmScheduler {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
-        val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-            if (before(Calendar.getInstance())) {
-                add(Calendar.DAY_OF_YEAR, 1)
-            }
-        }
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -464,6 +520,12 @@ object AlarmScheduler {
     fun cancelTaskAlarm(context: Context, taskId: Long) {
         val alarmId = (TASK_ALARM_ID_BASE + (taskId % 9999)).toInt()
         cancelAlarm(context, alarmId)
+
+        // Also cancel any slot in 0..19 if it was holding this task
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        for (slot in 0 until 20) {
+            cancelAlarm(context, TASK_ALARM_ID_BASE + slot)
+        }
     }
 
     fun scheduleGoalAlarm(context: Context, goalId: Long, hour: Int, minute: Int, title: String) {

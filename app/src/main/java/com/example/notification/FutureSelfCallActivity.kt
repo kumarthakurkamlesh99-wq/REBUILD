@@ -109,8 +109,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.lifecycleScope
 import com.example.MainActivity
 import com.example.RebuildApplication
+import com.example.data.local.AppDatabase
 import com.example.data.model.futureself.VoiceLanguage
 import com.example.data.model.futureself.VoiceTone
 import com.example.data.repository.FutureSelfSettingsRepository
@@ -181,11 +183,17 @@ class FutureSelfCallActivity : ComponentActivity() {
         val customQuote = intent.getStringExtra(EXTRA_CUSTOM_QUOTE) ?: ""
         val delayMinutesSoFar = intent.getIntExtra(EXTRA_DELAY_MINUTES, 0)
         val isMaxDelayFromExtra = intent.getBooleanExtra(EXTRA_IS_MAX_DELAY, false)
+        val occurrenceId = intent.getStringExtra(FutureSelfCallEngine.EXTRA_CALL_OCCURRENCE_ID) ?: ""
+        var callHandled = false
 
         val settings = settingsRepo.getSettingsSync()
         val isMaxDelay = isMaxDelayFromExtra || (delayMinutesSoFar >= settings.maxAllowedDelayMinutes)
 
         fun executeMaxDelayAutoSpeech() {
+            callHandled = true
+            lifecycleScope.launch(Dispatchers.IO) {
+                FutureSelfCallEngine.markAnswered(applicationContext, occurrenceId, taskId)
+            }
             speechManager.stopRingtoneAndVibrate()
             val maxDelayText = FutureSelfMessageEngine.buildMaxDelaySpeechText(
                 subject = taskSubject,
@@ -194,18 +202,40 @@ class FutureSelfCallActivity : ComponentActivity() {
                 language = settings.language
             )
 
-            speechManager.playCustomAudioOrSpeech(
-                customAudioPath = settings.customMaxDelayAudioUri,
-                fallbackText = maxDelayText,
-                tone = settings.tone,
-                language = settings.language,
-                gender = settings.voiceGender,
-                speedMultiplier = settings.speechSpeed,
-                volume = settings.volume,
-                onDone = {
-                    launchFocusMode(taskId, taskSubject, taskTitle, durationMinutes)
-                }
-            )
+            if (settings.isVoiceCloningEnabled) {
+                speechManager.playClonedVoiceOrFallback(
+                    text = maxDelayText,
+                    provider = settings.voiceCloneProvider,
+                    voiceId = settings.voiceCloneId,
+                    apiKey = settings.elevenLabsApiKey,
+                    sampleAudioPath = settings.voiceCloneSampleUri,
+                    omniVoiceUrl = settings.omniVoiceEndpointUrl,
+                    stability = settings.voiceCloneStability,
+                    similarity = settings.voiceCloneSimilarity,
+                    customFallbackAudioPath = settings.customMaxDelayAudioUri,
+                    tone = settings.tone,
+                    language = settings.language,
+                    gender = settings.voiceGender,
+                    speedMultiplier = settings.speechSpeed,
+                    volume = settings.volume,
+                    onDone = {
+                        launchFocusMode(taskId, taskSubject, taskTitle, durationMinutes)
+                    }
+                )
+            } else {
+                speechManager.playCustomAudioOrSpeech(
+                    customAudioPath = settings.customMaxDelayAudioUri,
+                    fallbackText = maxDelayText,
+                    tone = settings.tone,
+                    language = settings.language,
+                    gender = settings.voiceGender,
+                    speedMultiplier = settings.speechSpeed,
+                    volume = settings.volume,
+                    onDone = {
+                        launchFocusMode(taskId, taskSubject, taskTitle, durationMinutes)
+                    }
+                )
+            }
         }
 
         if (isMaxDelay && settings.autoStartOnMaxDelay) {
@@ -218,6 +248,23 @@ class FutureSelfCallActivity : ComponentActivity() {
                 customRingtoneUri = settings.customRingtoneUri,
                 volume = settings.volume,
                 enableVibration = settings.vibrationEnabled
+            )
+        }
+
+        // Pre-synthesize ignition speech in background during ringing for zero latency
+        if (settings.isVoiceCloningEnabled && settings.voiceCloneId.isNotBlank()) {
+            val preText = FutureSelfMessageEngine.buildIgnitionSpeechText(
+                subject = taskSubject,
+                title = taskTitle,
+                durationMinutes = durationMinutes,
+                language = settings.language
+            )
+            com.example.speech.VoiceCloningService.getInstance(applicationContext).preSynthesize(
+                text = preText,
+                voiceId = settings.voiceCloneId,
+                apiKey = settings.elevenLabsApiKey,
+                stability = settings.voiceCloneStability,
+                similarity = settings.voiceCloneSimilarity
             )
         }
 
@@ -240,6 +287,10 @@ class FutureSelfCallActivity : ComponentActivity() {
                 maxAllowedDelayMinutes = settings.maxAllowedDelayMinutes,
                 callTimeoutSeconds = settings.callTimeoutSeconds,
                 onAnswerCall = {
+                    callHandled = true
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        FutureSelfCallEngine.markAnswered(applicationContext, occurrenceId, taskId)
+                    }
                     speechManager.stopRingtoneAndVibrate()
                     val ignitionText = FutureSelfMessageEngine.buildIgnitionSpeechText(
                         subject = taskSubject,
@@ -248,26 +299,53 @@ class FutureSelfCallActivity : ComponentActivity() {
                         language = settings.language
                     )
 
-                    speechManager.speak(
-                        text = ignitionText,
-                        tone = settings.tone,
-                        language = settings.language,
-                        gender = settings.voiceGender,
-                        speedMultiplier = settings.speechSpeed,
-                        onDone = {
-                            launchFocusMode(taskId, taskSubject, taskTitle, durationMinutes)
-                        }
-                    )
+                    if (settings.isVoiceCloningEnabled) {
+                        speechManager.playClonedVoiceOrFallback(
+                            text = ignitionText,
+                            provider = settings.voiceCloneProvider,
+                            voiceId = settings.voiceCloneId,
+                            apiKey = settings.elevenLabsApiKey,
+                            sampleAudioPath = settings.voiceCloneSampleUri,
+                            omniVoiceUrl = settings.omniVoiceEndpointUrl,
+                            stability = settings.voiceCloneStability,
+                            similarity = settings.voiceCloneSimilarity,
+                            customFallbackAudioPath = settings.customMaxDelayAudioUri,
+                            tone = settings.tone,
+                            language = settings.language,
+                            gender = settings.voiceGender,
+                            speedMultiplier = settings.speechSpeed,
+                            volume = settings.volume,
+                            onDone = {
+                                launchFocusMode(taskId, taskSubject, taskTitle, durationMinutes)
+                            }
+                        )
+                    } else {
+                        speechManager.speak(
+                            text = ignitionText,
+                            tone = settings.tone,
+                            language = settings.language,
+                            gender = settings.voiceGender,
+                            speedMultiplier = settings.speechSpeed,
+                            onDone = {
+                                launchFocusMode(taskId, taskSubject, taskTitle, durationMinutes)
+                            }
+                        )
+                    }
                 },
                 onMaxDelayAutoIgnite = {
                     executeMaxDelayAutoSpeech()
                 },
                 onEndCall = {
+                    callHandled = true
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        FutureSelfCallEngine.markDismissed(applicationContext, occurrenceId, taskId, "USER_DECLINED")
+                    }
                     speechManager.stopRingtoneAndVibrate()
                     speechManager.stopSpeaking()
                     launchFocusMode(taskId, taskSubject, taskTitle, durationMinutes)
                 },
                 onDelayTaskConfirmed = { delayMinutes ->
+                    callHandled = true
                     speechManager.stopRingtoneAndVibrate()
 
                     val app = application as? RebuildApplication
@@ -286,11 +364,21 @@ class FutureSelfCallActivity : ComponentActivity() {
                     val updatedTotalDelay = delayMinutesSoFar + delayMinutes
 
                     if (repo != null && taskId > 0L) {
-                        kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                        lifecycleScope.launch(Dispatchers.IO) {
                             val task = repo.getTaskById(taskId)
                             if (task != null) {
                                 repo.delayTask(task, delayMinutes)
                             }
+                            FutureSelfCallEngine.snoozeCall(
+                                context = applicationContext,
+                                occurrenceId = occurrenceId,
+                                taskId = taskId,
+                                snoozeMinutes = delayMinutes,
+                                taskTitle = taskTitle,
+                                taskSubject = taskSubject,
+                                durationMinutes = durationMinutes,
+                                xpReward = xpReward
+                            )
                         }
                     }
 
@@ -303,16 +391,38 @@ class FutureSelfCallActivity : ComponentActivity() {
                             language = settings.language
                         )
 
-                        speechManager.speak(
-                            text = delayText,
-                            tone = settings.tone,
-                            language = settings.language,
-                            gender = settings.voiceGender,
-                            speedMultiplier = settings.speechSpeed,
-                            onDone = {
-                                finish()
-                            }
-                        )
+                        if (settings.isVoiceCloningEnabled) {
+                            speechManager.playClonedVoiceOrFallback(
+                                text = delayText,
+                                provider = settings.voiceCloneProvider,
+                                voiceId = settings.voiceCloneId,
+                                apiKey = settings.elevenLabsApiKey,
+                                sampleAudioPath = settings.voiceCloneSampleUri,
+                                omniVoiceUrl = settings.omniVoiceEndpointUrl,
+                                stability = settings.voiceCloneStability,
+                                similarity = settings.voiceCloneSimilarity,
+                                customFallbackAudioPath = settings.customMaxDelayAudioUri,
+                                tone = settings.tone,
+                                language = settings.language,
+                                gender = settings.voiceGender,
+                                speedMultiplier = settings.speechSpeed,
+                                volume = settings.volume,
+                                onDone = {
+                                    finish()
+                                }
+                            )
+                        } else {
+                            speechManager.speak(
+                                text = delayText,
+                                tone = settings.tone,
+                                language = settings.language,
+                                gender = settings.voiceGender,
+                                speedMultiplier = settings.speechSpeed,
+                                onDone = {
+                                    finish()
+                                }
+                            )
+                        }
                     }
                 }
             )
@@ -335,6 +445,20 @@ class FutureSelfCallActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         speechManager.stopRingtoneAndVibrate()
+        speechManager.stopSpeaking()
+        val occId = intent?.getStringExtra(FutureSelfCallEngine.EXTRA_CALL_OCCURRENCE_ID) ?: ""
+        val tId = intent?.getLongExtra(EXTRA_TASK_ID, 0L) ?: 0L
+        if (tId > 0L && occId.isNotBlank()) {
+            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val db = AppDatabase.getDatabase(applicationContext, this)
+                    val record = db.futureSelfCallDao().getRecordByOccurrenceId(occId)
+                    if (record?.state == com.example.data.local.entity.FutureSelfCallState.RINGING) {
+                        FutureSelfCallEngine.markDismissed(applicationContext, occId, tId, "ACTIVITY_DESTROYED")
+                    }
+                } catch (_: Exception) {}
+            }
+        }
     }
 }
 
