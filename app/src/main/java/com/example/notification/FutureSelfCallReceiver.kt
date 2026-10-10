@@ -113,23 +113,6 @@ class FutureSelfCallReceiver : BroadcastReceiver() {
                     return@launch
                 }
 
-                // Pre-synthesize cloned voice speech in background during call alert dispatch
-                if (settings.isVoiceCloningEnabled && settings.voiceCloneId.isNotBlank()) {
-                    val preText = FutureSelfMessageEngine.buildIgnitionSpeechText(
-                        subject = taskSubject,
-                        title = taskTitle,
-                        durationMinutes = durationMinutes,
-                        language = settings.language
-                    )
-                    com.example.speech.VoiceCloningService.getInstance(context).preSynthesize(
-                        text = preText,
-                        voiceId = settings.voiceCloneId,
-                        apiKey = settings.elevenLabsApiKey,
-                        stability = settings.voiceCloneStability,
-                        similarity = settings.voiceCloneSimilarity
-                    )
-                }
-
                 val currentDelayMinutes = task?.delayMinutes ?: 0
                 val isMaxDelay = currentDelayMinutes >= settings.maxAllowedDelayMinutes
 

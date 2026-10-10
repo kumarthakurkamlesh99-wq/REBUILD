@@ -124,12 +124,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Calendar
 import kotlin.math.roundToInt
+import android.util.Log
 
 class FutureSelfCallActivity : ComponentActivity() {
 
     companion object {
+        private const val TAG = "FutureSelfCallActivity"
         const val EXTRA_TASK_ID = "extra_task_id"
         const val EXTRA_TASK_TITLE = "extra_task_title"
         const val EXTRA_TASK_SUBJECT = "extra_task_subject"
@@ -202,17 +205,16 @@ class FutureSelfCallActivity : ComponentActivity() {
                 language = settings.language
             )
 
-            if (settings.isVoiceCloningEnabled) {
-                speechManager.playClonedVoiceOrFallback(
-                    text = maxDelayText,
-                    provider = settings.voiceCloneProvider,
-                    voiceId = settings.voiceCloneId,
-                    apiKey = settings.elevenLabsApiKey,
-                    sampleAudioPath = settings.voiceCloneSampleUri,
-                    omniVoiceUrl = settings.omniVoiceEndpointUrl,
-                    stability = settings.voiceCloneStability,
-                    similarity = settings.voiceCloneSimilarity,
-                    customFallbackAudioPath = settings.customMaxDelayAudioUri,
+            val customAudio = when {
+                settings.customMaxDelayAudioUri.isNotBlank() && File(settings.customMaxDelayAudioUri).let { it.exists() && it.length() > 200 } -> settings.customMaxDelayAudioUri
+                settings.useCustomCallAudio && settings.customCallAudioUri.isNotBlank() && File(settings.customCallAudioUri).let { it.exists() && it.length() > 200 } -> settings.customCallAudioUri
+                else -> ""
+            }
+
+            if (customAudio.isNotBlank()) {
+                speechManager.playCustomAudioOrSpeech(
+                    customAudioPath = customAudio,
+                    fallbackText = maxDelayText,
                     tone = settings.tone,
                     language = settings.language,
                     gender = settings.voiceGender,
@@ -223,14 +225,12 @@ class FutureSelfCallActivity : ComponentActivity() {
                     }
                 )
             } else {
-                speechManager.playCustomAudioOrSpeech(
-                    customAudioPath = settings.customMaxDelayAudioUri,
-                    fallbackText = maxDelayText,
+                speechManager.speak(
+                    text = maxDelayText,
                     tone = settings.tone,
                     language = settings.language,
                     gender = settings.voiceGender,
                     speedMultiplier = settings.speechSpeed,
-                    volume = settings.volume,
                     onDone = {
                         launchFocusMode(taskId, taskSubject, taskTitle, durationMinutes)
                     }
@@ -248,23 +248,6 @@ class FutureSelfCallActivity : ComponentActivity() {
                 customRingtoneUri = settings.customRingtoneUri,
                 volume = settings.volume,
                 enableVibration = settings.vibrationEnabled
-            )
-        }
-
-        // Pre-synthesize ignition speech in background during ringing for zero latency
-        if (settings.isVoiceCloningEnabled && settings.voiceCloneId.isNotBlank()) {
-            val preText = FutureSelfMessageEngine.buildIgnitionSpeechText(
-                subject = taskSubject,
-                title = taskTitle,
-                durationMinutes = durationMinutes,
-                language = settings.language
-            )
-            com.example.speech.VoiceCloningService.getInstance(applicationContext).preSynthesize(
-                text = preText,
-                voiceId = settings.voiceCloneId,
-                apiKey = settings.elevenLabsApiKey,
-                stability = settings.voiceCloneStability,
-                similarity = settings.voiceCloneSimilarity
             )
         }
 
@@ -299,17 +282,15 @@ class FutureSelfCallActivity : ComponentActivity() {
                         language = settings.language
                     )
 
-                    if (settings.isVoiceCloningEnabled) {
-                        speechManager.playClonedVoiceOrFallback(
-                            text = ignitionText,
-                            provider = settings.voiceCloneProvider,
-                            voiceId = settings.voiceCloneId,
-                            apiKey = settings.elevenLabsApiKey,
-                            sampleAudioPath = settings.voiceCloneSampleUri,
-                            omniVoiceUrl = settings.omniVoiceEndpointUrl,
-                            stability = settings.voiceCloneStability,
-                            similarity = settings.voiceCloneSimilarity,
-                            customFallbackAudioPath = settings.customMaxDelayAudioUri,
+                    val hasCustomCallAudio = settings.useCustomCallAudio &&
+                            settings.customCallAudioUri.isNotBlank() &&
+                            File(settings.customCallAudioUri).let { it.exists() && it.length() > 200 }
+
+                    if (hasCustomCallAudio) {
+                        Log.i(TAG, "Playing user's uploaded custom audio on call answer: ${settings.customCallAudioName}")
+                        speechManager.playCustomAudioOrSpeech(
+                            customAudioPath = settings.customCallAudioUri,
+                            fallbackText = ignitionText,
                             tone = settings.tone,
                             language = settings.language,
                             gender = settings.voiceGender,
@@ -391,38 +372,16 @@ class FutureSelfCallActivity : ComponentActivity() {
                             language = settings.language
                         )
 
-                        if (settings.isVoiceCloningEnabled) {
-                            speechManager.playClonedVoiceOrFallback(
-                                text = delayText,
-                                provider = settings.voiceCloneProvider,
-                                voiceId = settings.voiceCloneId,
-                                apiKey = settings.elevenLabsApiKey,
-                                sampleAudioPath = settings.voiceCloneSampleUri,
-                                omniVoiceUrl = settings.omniVoiceEndpointUrl,
-                                stability = settings.voiceCloneStability,
-                                similarity = settings.voiceCloneSimilarity,
-                                customFallbackAudioPath = settings.customMaxDelayAudioUri,
-                                tone = settings.tone,
-                                language = settings.language,
-                                gender = settings.voiceGender,
-                                speedMultiplier = settings.speechSpeed,
-                                volume = settings.volume,
-                                onDone = {
-                                    finish()
-                                }
-                            )
-                        } else {
-                            speechManager.speak(
-                                text = delayText,
-                                tone = settings.tone,
-                                language = settings.language,
-                                gender = settings.voiceGender,
-                                speedMultiplier = settings.speechSpeed,
-                                onDone = {
-                                    finish()
-                                }
-                            )
-                        }
+                        speechManager.speak(
+                            text = delayText,
+                            tone = settings.tone,
+                            language = settings.language,
+                            gender = settings.voiceGender,
+                            speedMultiplier = settings.speechSpeed,
+                            onDone = {
+                                finish()
+                            }
+                        )
                     }
                 }
             )

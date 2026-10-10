@@ -20,11 +20,6 @@ enum class VoiceGender(val displayName: String) {
     FEMALE("Female")
 }
 
-enum class VoiceCloneProvider(val displayName: String, val badge: String, val description: String) {
-    OMNI_VOICE("OmniVoice (k2-fsa)", "100% FREE", "Zero-shot open-source AI voice cloning (600+ languages)"),
-    ELEVEN_LABS("ElevenLabs AI", "NEURAL API", "Cloud voice clone with API key")
-}
-
 data class FutureSelfVoiceSettings(
     val isEnabled: Boolean = true,
     val voiceGender: VoiceGender = VoiceGender.MALE,
@@ -42,16 +37,9 @@ data class FutureSelfVoiceSettings(
     val customMaxDelayAudioName: String = "",
     val customRingtoneUri: String = "",
     val customRingtoneName: String = "",
-    val isVoiceCloningEnabled: Boolean = false,
-    val voiceCloneProvider: VoiceCloneProvider = VoiceCloneProvider.OMNI_VOICE,
-    val omniVoiceEndpointUrl: String = "https://k2-fsa-omnivoice.hf.space",
-    val voiceCloneSampleUri: String = "",
-    val voiceCloneSampleName: String = "",
-    val voiceCloneId: String = "",
-    val voiceCloneName: String = "",
-    val elevenLabsApiKey: String = "",
-    val voiceCloneStability: Float = 0.5f,
-    val voiceCloneSimilarity: Float = 0.8f
+    val useCustomCallAudio: Boolean = true,
+    val customCallAudioUri: String = "",
+    val customCallAudioName: String = ""
 )
 
 data class FutureSelfCallPayload(
